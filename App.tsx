@@ -20,10 +20,11 @@ import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
-import { MicButton } from './src/components/MicButton';
+import { MicButton, type MicState } from './src/components/MicButton';
 import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import { useVoiceSession } from './src/hooks/useVoiceSession';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { SCREENSHOT_MODE } from './src/config';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -38,7 +39,39 @@ function App() {
   );
 }
 
+function ScreenshotShell() {
+  const safeAreaInsets = useSafeAreaInsets();
+
+  if (SCREENSHOT_MODE === 'login') {
+    return <LoginScreen onSuccess={() => {}} />;
+  }
+
+  const micState: MicState =
+    SCREENSHOT_MODE === 'voice-listening' ? 'listening' : 'idle';
+  const statusText =
+    SCREENSHOT_MODE === 'voice-listening' ? 'Listening…' : 'Tap to talk with Donna';
+
+  return (
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: safeAreaInsets.top,
+          paddingBottom: safeAreaInsets.bottom,
+        },
+      ]}
+    >
+      <MicButton state={micState} onPress={() => {}} />
+      <Text style={styles.status}>{statusText}</Text>
+    </View>
+  );
+}
+
 function AppShell() {
+  if (SCREENSHOT_MODE) {
+    return <ScreenshotShell />;
+  }
+
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {

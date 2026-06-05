@@ -12,6 +12,13 @@ export const DEV_EMAIL: string | null = null;
 export const DEV_PASSWORD: string | null = null;
 
 /**
+ * App Store screenshot capture — set to a screen name, run in Simulator, Cmd+S.
+ * Set back to null before release builds.
+ */
+export type ScreenshotMode = 'login' | 'voice-idle' | 'voice-listening' | null;
+export const SCREENSHOT_MODE: ScreenshotMode = null;
+
+/**
  * Voice backend — set a full WebSocket URL to use production, or null for local dev.
  *
  * Local dev (iOS Simulator): null → ws://127.0.0.1:8787/voice

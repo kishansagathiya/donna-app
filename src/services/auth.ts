@@ -51,13 +51,6 @@ export async function signInWithApple(): Promise<void> {
     requestedScopes: [appleAuth.Scope.EMAIL, appleAuth.Scope.FULL_NAME],
   });
 
-  const credentialState = await appleAuth.getCredentialStateForUser(
-    credential.user,
-  );
-  if (credentialState !== appleAuth.State.AUTHORIZED) {
-    throw new Error('Apple Sign In was not authorized.');
-  }
-
   if (!credential.identityToken) {
     throw new Error('No identity token received from Apple.');
   }
