@@ -1,14 +1,27 @@
 import { Platform } from 'react-native';
 
 /**
- * Voice backend host — no protocol, no port.
+ * Voice backend — set a full WebSocket URL to use production, or null for local dev.
  *
- * iOS Simulator: leave null (uses 127.0.0.1).
- * Physical iPhone: set to your Mac's LAN IP, e.g. '192.168.1.42'
- *   Find it: ipconfig getifaddr en0
- * Android emulator: leave null (uses 10.0.2.2).
+ * Local dev (iOS Simulator): null → ws://127.0.0.1:8787/voice
+ * Local dev (Android emulator): null → ws://10.0.2.2:8787/voice
+ * Physical iPhone on LAN: set VOICE_SERVER_HOST_OVERRIDE to your Mac's LAN IP
+ * Production (Railway): set VOICE_WS_URL_OVERRIDE below
  */
-export const VOICE_SERVER_HOST_OVERRIDE: string | null = '192.168.8.7';
+export const VOICE_WS_URL_OVERRIDE: string | null =
+  'wss://donna-server-production.up.railway.app/voice';
+
+/** LAN host override for local dev on a physical device (no protocol, no port). */
+export const VOICE_SERVER_HOST_OVERRIDE: string | null = null;
+
+function isLocalHost(host: string): boolean {
+  return (
+    host === '127.0.0.1' ||
+    host === '10.0.2.2' ||
+    host.startsWith('192.168.') ||
+    host.startsWith('10.')
+  );
+}
 
 function resolveVoiceHost(): string {
   if (VOICE_SERVER_HOST_OVERRIDE) {
@@ -20,8 +33,19 @@ function resolveVoiceHost(): string {
   return '127.0.0.1';
 }
 
+function resolveVoiceWsUrl(): string {
+  if (VOICE_WS_URL_OVERRIDE) {
+    return VOICE_WS_URL_OVERRIDE;
+  }
+  const host = resolveVoiceHost();
+  if (isLocalHost(host)) {
+    return `ws://${host}:8787/voice`;
+  }
+  return `wss://${host}/voice`;
+}
+
 export const VOICE_SERVER_HOST = resolveVoiceHost();
-export const VOICE_WS_URL = `ws://${VOICE_SERVER_HOST}:8787/voice`;
+export const VOICE_WS_URL = resolveVoiceWsUrl();
 
 export const AUDIO_SAMPLE_RATE = 16_000;
 export const AUDIO_CHANNELS = 1;
