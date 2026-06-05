@@ -25,7 +25,7 @@ npm run ios
 
 Requires Xcode and the [React Native environment](https://reactnative.dev/docs/set-up-your-environment) for iOS.
 
-Bundle ID: `com.donna.app`
+Bundle ID: `com.kishansagathiya.donna`
 
 ## Voice backend URL
 

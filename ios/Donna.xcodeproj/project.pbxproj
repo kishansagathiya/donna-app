@@ -275,7 +275,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.donna.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kishansagathiya.donna;
 				PRODUCT_NAME = Donna;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -305,7 +305,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.donna.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kishansagathiya.donna;
 				PRODUCT_NAME = Donna;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;
