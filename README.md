@@ -9,7 +9,16 @@ npm install
 cd ios && pod install && cd ..
 ```
 
-From the repo root, start the voice server (see [../README.md](../README.md)):
+### Supabase + Sign in with Apple
+
+1. Create a [Supabase](https://supabase.com) project.
+2. In Supabase → **Authentication → Providers → Apple**, enable Apple and set Client ID to `com.kishansagathiya.donna`.
+3. In Apple Developer → Identifiers → `com.kishansagathiya.donna`, enable **Sign in with Apple**.
+4. Copy your Supabase URL and publishable key into [`src/config.ts`](src/config.ts).
+
+Optional dev sign-in (simulator): create an email/password user in Supabase Auth and set `DEV_EMAIL` / `DEV_PASSWORD` in `src/config.ts`.
+
+From the repo root, add `SUPABASE_URL` to `.env` so the voice server validates JWTs (see [../README.md](../README.md)):
 
 ```bash
 npm run dev:server

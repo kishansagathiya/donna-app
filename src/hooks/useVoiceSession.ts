@@ -15,6 +15,7 @@ import { floatToPcm16, pcm16ToBase64 } from '../voice/pcm';
 import { playEncodedAudio, resetPlaybackSession } from '../voice/playback';
 import type { ServerMessage, TurnPhase } from '../voice/protocol';
 import { EnergyVad } from '../voice/vad';
+import { getAccessToken } from '../services/auth';
 import { VoiceClient } from '../voice/voiceClient';
 
 type VoiceStatus = {
@@ -212,8 +213,14 @@ export function useVoiceSession() {
       return;
     }
 
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      setVoiceError('Not signed in. Please sign in to continue.');
+      return;
+    }
+
     const client = ensureClient();
-    await client.connect();
+    await client.connect(accessToken);
 
     const readyPromise = new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {

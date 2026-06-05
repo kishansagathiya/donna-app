@@ -1,4 +1,26 @@
 PODS:
+  - AsyncStorage (3.1.1):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - FBLazyVector (0.85.3)
   - hermes-engine (250829098.0.10):
     - hermes-engine/Pre-built (= 250829098.0.10)
@@ -1856,6 +1878,8 @@ PODS:
     - React-utils (= 0.85.3)
     - ReactNativeDependencies
   - ReactNativeDependencies (0.85.3)
+  - RNAppleAuthentication (2.5.1):
+    - React-Core
   - RNAudioAPI (0.12.2):
     - hermes-engine
     - RCTRequired
@@ -1995,6 +2019,7 @@ PODS:
   - Yoga (0.0.0)
 
 DEPENDENCIES:
+  - "AsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -2070,11 +2095,14 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
+  - "RNAppleAuthentication (from `../node_modules/@invertase/react-native-apple-authentication`)"
   - RNAudioAPI (from `../node_modules/react-native-audio-api`)
   - RNPermissions (from `../node_modules/react-native-permissions`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 EXTERNAL SOURCES:
+  AsyncStorage:
+    :path: "../node_modules/@react-native-async-storage/async-storage"
   FBLazyVector:
     :path: "../node_modules/react-native/Libraries/FBLazyVector"
   hermes-engine:
@@ -2224,6 +2252,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   ReactNativeDependencies:
     :podspec: "../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec"
+  RNAppleAuthentication:
+    :path: "../node_modules/@invertase/react-native-apple-authentication"
   RNAudioAPI:
     :path: "../node_modules/react-native-audio-api"
   RNPermissions:
@@ -2232,6 +2262,7 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
+  AsyncStorage: dba9d05b9aa34413760ea5a74f63a7e7f9fddf73
   FBLazyVector: 24e62c765683b8d89006a88a2c8f5cf019f0074d
   hermes-engine: 838fbd5316e24c98b8dce21885a34ca972c96e17
   RCTDeprecation: a4c521821fab57cbb125b36effe84d897d0dfa12
@@ -2306,6 +2337,7 @@ SPEC CHECKSUMS:
   ReactCodegen: 9af5798e943781fd2318dab7b60f25337388047c
   ReactCommon: 3ec2a55999d296af90c24beb66c8a77dc660d3ef
   ReactNativeDependencies: 2cd29d32e3c889dd760c5f8e9e60e70d4b31e749
+  RNAppleAuthentication: d6fe579e5f43cf8db54bdc48518bccea61c592a4
   RNAudioAPI: 927f57ea9183e4bbe7ece2b8d2ffe20c9060fc60
   RNPermissions: 59afdc9c6b29f94d5c03c72ef4f663f6ca9751f7
   Yoga: 77dfa8673de2874e1855002ae59c68b8be9b007b

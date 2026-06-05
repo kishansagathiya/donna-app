@@ -18,7 +18,7 @@ export class VoiceClient {
     this.handlers = handlers;
   }
 
-  connect(): Promise<void> {
+  connect(accessToken?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         resolve();
@@ -33,8 +33,12 @@ export class VoiceClient {
         reject(new Error(message));
       };
 
-      console.log('[donna-app] connecting to', this.url);
-      const ws = new WebSocket(this.url);
+      const url = accessToken
+        ? `${this.url}${this.url.includes('?') ? '&' : '?'}token=${encodeURIComponent(accessToken)}`
+        : this.url;
+
+      console.log('[donna-app] connecting to', url.replace(/token=[^&]+/, 'token=***'));
+      const ws = new WebSocket(url);
       this.ws = ws;
 
       ws.onopen = () => {
@@ -55,10 +59,23 @@ export class VoiceClient {
 
       ws.onclose = (event) => {
         if (!settled) {
-          fail(
-            `Voice socket closed before connect (${this.url}, code ${event.code}). ` +
-              'Is donna-server running?',
-          );
+          const reason = event.reason?.trim();
+          if (event.code === 4401) {
+            const authMessages: Record<string, string> = {
+              missing_token: 'Not signed in. Please sign in to continue.',
+              token_expired: 'Your session expired. Please sign in again.',
+              invalid_token: 'Invalid session. Please sign in again.',
+            };
+            fail(
+              authMessages[reason] ??
+                (reason || 'Authentication failed. Please sign in again.'),
+            );
+          } else {
+            fail(
+              `Voice socket closed before connect (${this.url}, code ${event.code}). ` +
+                'Is donna-server running?',
+            );
+          }
         }
         this.handlers.onClose?.();
         this.ws = null;

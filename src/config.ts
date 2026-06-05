@@ -1,5 +1,16 @@
 import { Platform } from 'react-native';
 
+/** Supabase project URL */
+export const SUPABASE_URL = 'https://eghhxjlhautsikejocze.supabase.co';
+
+/** Supabase publishable key — safe to embed in the app */
+export const SUPABASE_ANON_KEY =
+  'sb_publishable_sFpDOcCxs9aKq283JIQPBg_eZRIpUTB';
+
+/** Optional dev email/password for simulator testing without Apple Sign In */
+export const DEV_EMAIL: string | null = null;
+export const DEV_PASSWORD: string | null = null;
+
 /**
  * Voice backend — set a full WebSocket URL to use production, or null for local dev.
  *

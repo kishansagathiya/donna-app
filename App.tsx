@@ -9,6 +9,7 @@
 
 import React from 'react';
 import {
+  ActivityIndicator,
   StatusBar,
   StyleSheet,
   Text,
@@ -20,7 +21,9 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import { MicButton } from './src/components/MicButton';
+import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import { useVoiceSession } from './src/hooks/useVoiceSession';
+import { LoginScreen } from './src/screens/LoginScreen';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -28,9 +31,29 @@ function App() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
+      <AuthProvider>
+        <AppShell />
+      </AuthProvider>
     </SafeAreaProvider>
   );
+}
+
+function AppShell() {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#9A7B2F" />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginScreen onSuccess={() => {}} />;
+  }
+
+  return <AppContent />;
 }
 
 function AppContent() {
@@ -63,6 +86,12 @@ function AppContent() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
   container: {
     flex: 1,
     alignItems: 'center',
