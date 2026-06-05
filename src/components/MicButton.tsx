@@ -2,10 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import {
   Animated,
   Easing,
+  Image,
   Pressable,
   StyleSheet,
   View,
 } from 'react-native';
+import logo from '../../assets/logo.png';
 
 export type MicState =
   | 'idle'
@@ -198,7 +200,14 @@ export function MicButton({ state, onPress, disabled }: MicButtonProps) {
               transform: [{ scale: isListening ? coreScale : 1 }],
             },
           ]}
-        />
+        >
+          <Image
+            source={logo}
+            style={styles.coreLogo}
+            resizeMode="cover"
+            accessibilityIgnoresInvertColors
+          />
+        </Animated.View>
       </Pressable>
     </View>
   );
@@ -223,6 +232,7 @@ const styles = StyleSheet.create({
     width: CORE_SIZE,
     height: CORE_SIZE,
     borderRadius: CORE_SIZE / 2,
+    overflow: 'hidden',
     backgroundColor: GOLD_CORE,
     alignItems: 'center',
     justifyContent: 'center',
@@ -231,6 +241,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 6,
+  },
+  coreLogo: {
+    width: CORE_SIZE,
+    height: CORE_SIZE,
   },
   coreListening: {
     shadowOpacity: 0.4,
