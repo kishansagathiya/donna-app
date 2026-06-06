@@ -3,6 +3,10 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "sync-env": "node scripts/sync-env.mjs",
+    "prestart": "node scripts/sync-env.mjs",
+    "preios": "node scripts/sync-env.mjs",
+    "preandroid": "node scripts/sync-env.mjs",
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",

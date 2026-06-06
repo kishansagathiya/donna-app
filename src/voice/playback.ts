@@ -2,6 +2,7 @@ import { AudioContext, AudioManager } from 'react-native-audio-api';
 import { base64ToBytes } from './pcm';
 
 let audioContext: AudioContext | null = null;
+let activeSource: AudioBufferSourceNode | null = null;
 
 async function getAudioContext(): Promise<AudioContext> {
   if (!audioContext) {
@@ -24,12 +25,25 @@ export async function playEncodedAudio(
   ) as ArrayBuffer;
   const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
 
+  if (activeSource) {
+    try {
+      activeSource.stop();
+    } catch {
+      // already stopped
+    }
+    activeSource = null;
+  }
+
   await new Promise<void>((resolve, reject) => {
     try {
       const source = ctx.createBufferSource();
+      activeSource = source;
       source.buffer = audioBuffer;
       source.connect(ctx.destination);
-      source.onEnded = () => resolve();
+      source.onEnded = () => {
+        if (activeSource === source) activeSource = null;
+        resolve();
+      };
       source.start();
     } catch (err) {
       reject(err);
@@ -48,6 +62,18 @@ function concatBytes(chunks: Uint8Array[]): Uint8Array {
   return out;
 }
 
+export function stopActivePlayback(): void {
+  if (activeSource) {
+    try {
+      activeSource.stop();
+    } catch {
+      // already stopped
+    }
+    activeSource = null;
+  }
+}
+
 export async function resetPlaybackSession(): Promise<void> {
+  stopActivePlayback();
   await AudioManager.setAudioSessionActivity(false);
 }

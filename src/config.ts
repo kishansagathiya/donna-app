@@ -1,4 +1,9 @@
 import { Platform } from 'react-native';
+import {
+  ENV_VOICE_HOST_OVERRIDE,
+  ENV_VOICE_TARGET,
+  ENV_VOICE_WS_URL_OVERRIDE,
+} from './env.generated';
 
 /** Supabase project URL */
 export const SUPABASE_URL = 'https://eghhxjlhautsikejocze.supabase.co';
@@ -18,19 +23,18 @@ export const DEV_PASSWORD: string | null = null;
 export type ScreenshotMode = 'login' | 'voice-idle' | 'voice-listening' | null;
 export const SCREENSHOT_MODE: ScreenshotMode = null;
 
-/**
- * Voice backend — set a full WebSocket URL to use production, or null for local dev.
- *
- * Local dev (iOS Simulator): null → ws://127.0.0.1:8787/voice
- * Local dev (Android emulator): null → ws://10.0.2.2:8787/voice
- * Physical iPhone on LAN: set VOICE_SERVER_HOST_OVERRIDE to your Mac's LAN IP
- * Production (Railway): set VOICE_WS_URL_OVERRIDE below
- */
-export const VOICE_WS_URL_OVERRIDE: string | null =
+/** Production voice WebSocket (release builds always use this). */
+const PRODUCTION_VOICE_WS_URL =
   'wss://donna-server-production.up.railway.app/voice';
 
-/** LAN host override for local dev on a physical device (no protocol, no port). */
-export const VOICE_SERVER_HOST_OVERRIDE: string | null = null;
+/**
+ * Voice backend is configured via repo-root `.env` (synced on npm start).
+ *
+ * DONNA_VOICE_TARGET=local       → ws://127.0.0.1:8787/voice (default in dev)
+ * DONNA_VOICE_TARGET=production  → Railway URL while debugging
+ * DONNA_VOICE_HOST_OVERRIDE=…    → Mac LAN IP for a physical iPhone
+ * DONNA_VOICE_WS_URL=…           → full WebSocket URL override
+ */
 
 function isLocalHost(host: string): boolean {
   return (
@@ -42,8 +46,8 @@ function isLocalHost(host: string): boolean {
 }
 
 function resolveVoiceHost(): string {
-  if (VOICE_SERVER_HOST_OVERRIDE) {
-    return VOICE_SERVER_HOST_OVERRIDE;
+  if (ENV_VOICE_HOST_OVERRIDE) {
+    return ENV_VOICE_HOST_OVERRIDE;
   }
   if (Platform.OS === 'android') {
     return '10.0.2.2';
@@ -52,9 +56,18 @@ function resolveVoiceHost(): string {
 }
 
 function resolveVoiceWsUrl(): string {
-  if (VOICE_WS_URL_OVERRIDE) {
-    return VOICE_WS_URL_OVERRIDE;
+  if (!__DEV__) {
+    return PRODUCTION_VOICE_WS_URL;
   }
+
+  if (ENV_VOICE_WS_URL_OVERRIDE) {
+    return ENV_VOICE_WS_URL_OVERRIDE;
+  }
+
+  if (ENV_VOICE_TARGET === 'production') {
+    return PRODUCTION_VOICE_WS_URL;
+  }
+
   const host = resolveVoiceHost();
   if (isLocalHost(host)) {
     return `ws://${host}:8787/voice`;

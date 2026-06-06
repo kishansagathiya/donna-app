@@ -55,6 +55,8 @@ export function useVoiceSession() {
   );
   const activeRef = useRef(false);
   const readyResolverRef = useRef<(() => void) | null>(null);
+  const isPlayingRef = useRef(false);
+  const messageChainRef = useRef(Promise.resolve());
 
   const setVoiceError = useCallback((message: string) => {
     setState('error');
@@ -74,7 +76,11 @@ export function useVoiceSession() {
         if (BUSY_PHASES.includes(message.phase)) {
           setState('processing');
           vadRef.current.pause();
-        } else if (message.phase === 'idle' && activeRef.current) {
+        } else if (
+          message.phase === 'idle' &&
+          activeRef.current &&
+          !isPlayingRef.current
+        ) {
           setState('listening');
           vadRef.current.resume();
         }
@@ -91,8 +97,9 @@ export function useVoiceSession() {
           format: message.format,
         });
         break;
-      case 'turn.done':
+      case 'turn.done': {
         try {
+          isPlayingRef.current = true;
           await playEncodedAudio(audioOutRef.current);
         } catch (err) {
           setVoiceError(
@@ -100,10 +107,16 @@ export function useVoiceSession() {
           );
           return;
         } finally {
+          isPlayingRef.current = false;
           audioOutRef.current = [];
           vadRef.current.reset();
+          if (activeRef.current) {
+            setState('listening');
+            vadRef.current.resume();
+          }
         }
         break;
+      }
       case 'error':
         setVoiceError(message.message);
         break;
@@ -117,7 +130,9 @@ export function useVoiceSession() {
       const client = new VoiceClient(VOICE_WS_URL);
       client.setHandlers({
         onMessage: (message) => {
-          void handleServerMessage(message);
+          messageChainRef.current = messageChainRef.current
+            .then(() => handleServerMessage(message))
+            .catch(() => {});
         },
         onError: (message) => setVoiceError(message),
         onClose: () => {
@@ -144,6 +159,7 @@ export function useVoiceSession() {
         ({ buffer }) => {
           if (!activeRef.current || !sessionReadyRef.current) return;
           if (!clientRef.current?.isConnected) return;
+          if (isPlayingRef.current) return;
 
           const channel = buffer.getChannelData(0);
           const pcm = floatToPcm16(channel);
@@ -170,8 +186,10 @@ export function useVoiceSession() {
   const stopSession = useCallback(async () => {
     activeRef.current = false;
     sessionReadyRef.current = false;
+    isPlayingRef.current = false;
     chunkSeqRef.current = 0;
     audioOutRef.current = [];
+    messageChainRef.current = Promise.resolve();
     vadRef.current.resume();
 
     recorderRef.current?.stop();

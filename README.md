@@ -38,17 +38,18 @@ Bundle ID: `com.kishansagathiya.donna`
 
 ## Voice backend URL
 
-Configured in [`src/config.ts`](src/config.ts):
+Configured via the **repo-root** [`.env`](../.env) (synced automatically on `npm start` / `npm run ios`). No code edits needed.
 
-| Where you run the app | Host used |
-|-----------------------|-----------|
-| iOS Simulator | `127.0.0.1` (default) |
-| Android Emulator | `10.0.2.2` (default) |
-| Physical iPhone | Set `VOICE_SERVER_HOST_OVERRIDE` to your Mac's LAN IP |
+| Where you run the app | `.env` |
+|-----------------------|--------|
+| iOS Simulator + local server | `DONNA_VOICE_TARGET=local` (default) |
+| Android Emulator + local server | `DONNA_VOICE_TARGET=local` (uses `10.0.2.2`) |
+| Physical iPhone on LAN | `DONNA_VOICE_HOST_OVERRIDE=<Mac IP>` |
+| Dev build → production | `DONNA_VOICE_TARGET=production` |
 
 Find your Mac's IP: `ipconfig getifaddr en0`
 
-When you start the server, it prints the exact `ws://` URLs to use. Restart the iOS app after changing `config.ts`.
+Restart Metro after changing `.env`. Release builds always use production.
 
 ## How it works
 
