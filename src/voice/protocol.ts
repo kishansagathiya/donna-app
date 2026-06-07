@@ -34,6 +34,7 @@ export type ServerMessage =
   | {
       type: 'turn.done';
       timings: Record<string, number>;
+      skipped?: boolean;
     }
   | { type: 'error'; code: string; message: string };
 

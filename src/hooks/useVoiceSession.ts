@@ -7,6 +7,7 @@ import {
   AUDIO_CHANNELS,
   AUDIO_SAMPLE_RATE,
   VAD_ENERGY_THRESHOLD,
+  VAD_MIN_SPEECH_MS,
   VAD_SILENCE_MS,
   VOICE_WS_URL,
 } from '../config';
@@ -46,6 +47,8 @@ export function useVoiceSession() {
     new EnergyVad({
       silenceMs: VAD_SILENCE_MS,
       energyThreshold: VAD_ENERGY_THRESHOLD,
+      minSpeechMs: VAD_MIN_SPEECH_MS,
+      sampleRate: AUDIO_SAMPLE_RATE,
     }),
   );
   const chunkSeqRef = useRef(0);
@@ -98,6 +101,15 @@ export function useVoiceSession() {
         });
         break;
       case 'turn.done': {
+        if (message.skipped) {
+          setStatus({ transcript: null, reply: null, phase: null });
+          vadRef.current.reset();
+          if (activeRef.current) {
+            setState('listening');
+            vadRef.current.resume();
+          }
+          break;
+        }
         try {
           isPlayingRef.current = true;
           await playEncodedAudio(audioOutRef.current);
