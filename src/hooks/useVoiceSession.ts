@@ -17,6 +17,7 @@ import { playEncodedAudio, resetPlaybackSession } from '../voice/playback';
 import type { ServerMessage, TurnPhase } from '../voice/protocol';
 import { EnergyVad } from '../voice/vad';
 import { getAccessToken } from '../services/auth';
+import { voiceErrorMessage } from '../voice/voiceErrors';
 import { VoiceClient } from '../voice/voiceClient';
 
 type VoiceStatus = {
@@ -61,11 +62,33 @@ export function useVoiceSession() {
   const isPlayingRef = useRef(false);
   const messageChainRef = useRef(Promise.resolve());
 
-  const setVoiceError = useCallback((message: string) => {
-    setState('error');
-    setErrorMsg(message);
+  const stopRecorder = useCallback(() => {
     activeRef.current = false;
+    sessionReadyRef.current = false;
+    isPlayingRef.current = false;
+    readyResolverRef.current = null;
+    chunkSeqRef.current = 0;
+    audioOutRef.current = [];
+    messageChainRef.current = Promise.resolve();
+    vadRef.current.resume();
+    recorderRef.current?.stop();
   }, []);
+
+  const setVoiceError = useCallback(
+    (message: string) => {
+      stopRecorder();
+      if (clientRef.current?.isConnected) {
+        try {
+          clientRef.current.disconnect();
+        } catch {
+          // socket may already be closing
+        }
+      }
+      setState('error');
+      setErrorMsg(message);
+    },
+    [stopRecorder],
+  );
 
   const handleServerMessage = useCallback(async (message: ServerMessage) => {
     switch (message.type) {
@@ -130,7 +153,8 @@ export function useVoiceSession() {
         break;
       }
       case 'error':
-        setVoiceError(message.message);
+        console.warn('[donna-app] voice error', message.code, message.message);
+        setVoiceError(voiceErrorMessage(message.code));
         break;
       default:
         break;
@@ -196,15 +220,7 @@ export function useVoiceSession() {
   }, []);
 
   const stopSession = useCallback(async () => {
-    activeRef.current = false;
-    sessionReadyRef.current = false;
-    isPlayingRef.current = false;
-    chunkSeqRef.current = 0;
-    audioOutRef.current = [];
-    messageChainRef.current = Promise.resolve();
-    vadRef.current.resume();
-
-    recorderRef.current?.stop();
+    stopRecorder();
 
     if (clientRef.current?.isConnected) {
       try {
@@ -218,12 +234,13 @@ export function useVoiceSession() {
     await resetPlaybackSession();
     setState('idle');
     setStatus({ transcript: null, reply: null, phase: null });
-  }, []);
+  }, [stopRecorder]);
 
   const startSession = useCallback(async () => {
     setState('requesting');
     setErrorMsg(null);
     setStatus({ transcript: null, reply: null, phase: null });
+    sessionReadyRef.current = false;
 
     AudioManager.setAudioSessionOptions({
       iosCategory: 'playAndRecord',
@@ -250,34 +267,44 @@ export function useVoiceSession() {
     }
 
     const client = ensureClient();
-    await client.connect(accessToken);
 
-    const readyPromise = new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        readyResolverRef.current = null;
-        reject(new Error('Session setup timed out'));
-      }, 8_000);
-      readyResolverRef.current = () => {
-        clearTimeout(timeout);
-        resolve();
-      };
-    });
+    try {
+      await client.connect(accessToken);
 
-    client.send({ type: 'session.start' });
-    await readyPromise;
+      const readyPromise = new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          readyResolverRef.current = null;
+          reject(new Error('Session setup timed out'));
+        }, 8_000);
+        readyResolverRef.current = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+      });
 
-    const recorder = ensureRecorder();
-    const result = recorder.start();
-    if (result.status === 'error') {
-      setVoiceError(result.message ?? 'Failed to start recording');
-      client.disconnect();
-      return;
+      client.send({ type: 'session.start' });
+      await readyPromise;
+
+      activeRef.current = true;
+
+      const recorder = ensureRecorder();
+      const result = recorder.start();
+      if (result.status === 'error') {
+        activeRef.current = false;
+        setVoiceError(result.message ?? 'Failed to start recording');
+        return;
+      }
+
+      vadRef.current.resume();
+      setState('listening');
+    } catch {
+      stopRecorder();
+      if (client.isConnected) {
+        client.disconnect();
+      }
+      setVoiceError("Couldn't start listening. Please try again.");
     }
-
-    activeRef.current = true;
-    vadRef.current.resume();
-    setState('listening');
-  }, [ensureClient, ensureRecorder, setVoiceError]);
+  }, [ensureClient, ensureRecorder, setVoiceError, stopRecorder]);
 
   const toggleTalk = useCallback(async () => {
     if (state === 'listening' || state === 'processing') {
