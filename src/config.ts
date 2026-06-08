@@ -1,6 +1,6 @@
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import {
-  ENV_VOICE_HOST_OVERRIDE,
+  ENV_VOICE_DEV_HOST,
   ENV_VOICE_TARGET,
   ENV_VOICE_WS_URL_OVERRIDE,
 } from './env.generated';
@@ -30,27 +30,42 @@ const PRODUCTION_VOICE_WS_URL =
 /**
  * Voice backend is configured via repo-root `.env` (synced on npm start).
  *
- * DONNA_VOICE_TARGET=local       → ws://127.0.0.1:8787/voice (default in dev)
+ * DONNA_VOICE_TARGET=local       → local dev server (host auto-detected on npm start)
  * DONNA_VOICE_TARGET=production  → Railway URL while debugging
- * DONNA_VOICE_HOST_OVERRIDE=…    → Mac LAN IP for a physical iPhone
- * DONNA_VOICE_WS_URL=…           → full WebSocket URL override
+ * DONNA_VOICE_WS_URL=…           → full WebSocket URL override (escape hatch)
  */
+
+function isIOSSimulator(): boolean {
+  if (Platform.OS !== 'ios') {
+    return false;
+  }
+  const model = (
+    NativeModules.PlatformConstants as { model?: string } | undefined
+  )?.model;
+  return typeof model === 'string' && /simulator/i.test(model);
+}
 
 function isLocalHost(host: string): boolean {
   return (
     host === '127.0.0.1' ||
     host === '10.0.2.2' ||
+    host.endsWith('.local') ||
     host.startsWith('192.168.') ||
     host.startsWith('10.')
   );
 }
 
 function resolveVoiceHost(): string {
-  if (ENV_VOICE_HOST_OVERRIDE) {
-    return ENV_VOICE_HOST_OVERRIDE;
-  }
   if (Platform.OS === 'android') {
     return '10.0.2.2';
+  }
+  if (Platform.OS === 'ios') {
+    if (isIOSSimulator()) {
+      return '127.0.0.1';
+    }
+    if (ENV_VOICE_DEV_HOST) {
+      return ENV_VOICE_DEV_HOST;
+    }
   }
   return '127.0.0.1';
 }

@@ -44,10 +44,8 @@ Configured via the **repo-root** [`.env`](../.env) (synced automatically on `npm
 |-----------------------|--------|
 | iOS Simulator + local server | `DONNA_VOICE_TARGET=local` (default) |
 | Android Emulator + local server | `DONNA_VOICE_TARGET=local` (uses `10.0.2.2`) |
-| Physical iPhone on LAN | `DONNA_VOICE_HOST_OVERRIDE=<Mac IP>` |
+| Physical iPhone on LAN | `DONNA_VOICE_TARGET=local` (Mac Bonjour host auto-detected on `npm start`) |
 | Dev build → production | `DONNA_VOICE_TARGET=production` |
-
-Find your Mac's IP: `ipconfig getifaddr en0`
 
 Restart Metro after changing `.env`. Release builds always use production.
 

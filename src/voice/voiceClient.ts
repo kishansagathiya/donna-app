@@ -53,7 +53,7 @@ export class VoiceClient {
         fail(
           `Cannot reach Donna server at ${this.url}. ` +
             'Start it with npm run dev:server. ' +
-            'On a physical iPhone, set DONNA_VOICE_HOST_OVERRIDE in the repo-root .env to your Mac LAN IP, then restart Metro.',
+            'On a physical iPhone, ensure the phone and Mac are on the same Wi‑Fi, then restart Metro (npm start) to refresh the auto-detected dev host.',
         );
       };
 
