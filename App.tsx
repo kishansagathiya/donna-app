@@ -1,7 +1,7 @@
 /**
  * Donna — tap to talk with the voice backend.
  *
- * Mic on → stream PCM to donna-server → client VAD commits turns →
+ * Mic on → stream PCM to donna-server-go → client VAD commits turns →
  * play Donna's reply audio. Tap again to end the session.
  *
  * @format

@@ -73,7 +73,7 @@ export class VoiceClient {
           } else {
             fail(
               `Voice socket closed before connect (${this.url}, code ${event.code}). ` +
-                'Is donna-server running?',
+                'Is the voice server running?',
             );
           }
         }
