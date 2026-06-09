@@ -54,10 +54,9 @@ export function useVoiceSession() {
   );
   const chunkSeqRef = useRef(0);
   const sessionReadyRef = useRef(false);
-  const audioSegmentRef = useRef<Array<{ data: string; format: 'mp3' | 'wav' }>>(
+  const audioOutRef = useRef<Array<{ data: string; format: 'mp3' | 'wav' }>>(
     [],
   );
-  const playbackQueueRef = useRef(Promise.resolve());
   const activeRef = useRef(false);
   const readyResolverRef = useRef<(() => void) | null>(null);
   const isPlayingRef = useRef(false);
@@ -69,8 +68,7 @@ export function useVoiceSession() {
     isPlayingRef.current = false;
     readyResolverRef.current = null;
     chunkSeqRef.current = 0;
-    audioSegmentRef.current = [];
-    playbackQueueRef.current = Promise.resolve();
+    audioOutRef.current = [];
     messageChainRef.current = Promise.resolve();
     vadRef.current.resume();
     recorderRef.current?.stop();
@@ -120,28 +118,11 @@ export function useVoiceSession() {
         setStatus((prev) => ({ ...prev, reply: message.text }));
         break;
       case 'audio.out':
-        audioSegmentRef.current.push({
+        audioOutRef.current.push({
           data: message.data,
           format: message.format,
         });
         break;
-      case 'audio.flush': {
-        const segment = audioSegmentRef.current.splice(
-          0,
-          audioSegmentRef.current.length,
-        );
-        if (segment.length > 0) {
-          isPlayingRef.current = true;
-          playbackQueueRef.current = playbackQueueRef.current
-            .then(() => playEncodedAudio(segment))
-            .catch((err: unknown) => {
-              setVoiceError(
-                err instanceof Error ? err.message : 'Playback failed',
-              );
-            });
-        }
-        break;
-      }
       case 'turn.done': {
         if (message.skipped) {
           setStatus({ transcript: null, reply: null, phase: null });
@@ -152,27 +133,17 @@ export function useVoiceSession() {
           }
           break;
         }
-        if (audioSegmentRef.current.length > 0) {
-          const tail = audioSegmentRef.current.splice(
-            0,
-            audioSegmentRef.current.length,
-          );
-          isPlayingRef.current = true;
-          playbackQueueRef.current = playbackQueueRef.current
-            .then(() => playEncodedAudio(tail))
-            .catch((err: unknown) => {
-              setVoiceError(
-                err instanceof Error ? err.message : 'Playback failed',
-              );
-            });
-        }
         try {
-          await playbackQueueRef.current;
-        } catch {
+          isPlayingRef.current = true;
+          await playEncodedAudio(audioOutRef.current);
+        } catch (err) {
+          setVoiceError(
+            err instanceof Error ? err.message : 'Playback failed',
+          );
           return;
         } finally {
           isPlayingRef.current = false;
-          audioSegmentRef.current = [];
+          audioOutRef.current = [];
           vadRef.current.reset();
           if (activeRef.current) {
             setState('listening');

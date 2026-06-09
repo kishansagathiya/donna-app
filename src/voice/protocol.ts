@@ -32,10 +32,6 @@ export type ServerMessage =
       data: string;
     }
   | {
-      type: 'audio.flush';
-      format: 'mp3' | 'wav';
-    }
-  | {
       type: 'turn.done';
       timings: Record<string, number>;
       skipped?: boolean;
