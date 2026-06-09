@@ -8,7 +8,7 @@
 	<string>4NGJJ36R7V</string>
 	<key>uploadSymbols</key>
 	<true/>
-	<key>destination</key>
-	<string>upload</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
 </dict>
 </plist>

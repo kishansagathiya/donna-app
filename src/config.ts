@@ -25,7 +25,7 @@ export const SCREENSHOT_MODE: ScreenshotMode = null;
 
 /** Production voice WebSocket (release builds always use this). */
 const PRODUCTION_VOICE_WS_URL =
-  'wss://donna-server-production.up.railway.app/voice';
+  'wss://donna-server-go-production.up.railway.app/voice';
 
 /**
  * Voice backend is configured via repo-root `.env` (synced on npm start).
