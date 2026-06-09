@@ -3,4 +3,4 @@
 
 export const ENV_VOICE_TARGET = "local" as 'local' | 'production';
 export const ENV_VOICE_WS_URL_OVERRIDE = null as string | null;
-export const ENV_VOICE_DEV_HOST = null as string | null;
+export const ENV_VOICE_DEV_HOST = "Kishans-MacBook-Pro-470.local" as string | null;

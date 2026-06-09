@@ -12,6 +12,7 @@
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		CA1535EE40BB2FD9D456E98D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
+		D0NN4SH01HANDLER01 /* ShareURLHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = D0NN4SH01HANDLER02 /* ShareURLHandler.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +26,8 @@
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Donna/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Donna/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		A1B2C3D41E680F5B00A75B9A /* Donna.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = Donna.entitlements; path = Donna/Donna.entitlements; sourceTree = "<group>"; };
+		D0NN4SH01HANDLER02 /* ShareURLHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = ShareURLHandler.m; path = Donna/ShareURLHandler.m; sourceTree = "<group>"; };
+		D0NN4SH01HANDLER03 /* ShareURLHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ShareURLHandler.h; path = Donna/ShareURLHandler.h; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -45,6 +48,8 @@
 			children = (
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
+				D0NN4SH01HANDLER03 /* ShareURLHandler.h */,
+				D0NN4SH01HANDLER02 /* ShareURLHandler.m */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				A1B2C3D41E680F5B00A75B9A /* Donna.entitlements */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
@@ -250,6 +255,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				D0NN4SH01HANDLER01 /* ShareURLHandler.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -263,7 +269,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Donna/Donna.entitlements;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 4NGJJ36R7V;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Donna/Info.plist;
@@ -281,6 +287,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.kishansagathiya.donna;
 				PRODUCT_NAME = Donna;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "Donna/Donna-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -295,7 +302,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Donna/Donna.entitlements;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 4NGJJ36R7V;
 				INFOPLIST_FILE = Donna/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
@@ -312,6 +319,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.kishansagathiya.donna;
 				PRODUCT_NAME = Donna;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "Donna/Donna-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";

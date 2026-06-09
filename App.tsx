@@ -7,9 +7,10 @@
  * @format
  */
 
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   StatusBar,
   StyleSheet,
   Text,
@@ -20,7 +21,11 @@ import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import { AddMemorySheet } from './src/components/AddMemorySheet';
+import { IngestToast } from './src/components/IngestToast';
 import { MicButton, type MicState } from './src/components/MicButton';
+import { useAssetIngest } from './src/hooks/useAssetIngest';
+import { useIncomingShare } from './src/hooks/useIncomingShare';
 import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import { useVoiceSession } from './src/hooks/useVoiceSession';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -93,6 +98,24 @@ function AppContent() {
   const isDarkMode = useColorScheme() === 'dark';
   const safeAreaInsets = useSafeAreaInsets();
   const { state, toggleTalk, statusText, disabled } = useVoiceSession();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const {
+    toast,
+    busy: ingestBusy,
+    addLink,
+    pickDocument,
+    pickPhoto,
+    ingestSharedPayload,
+  } = useAssetIngest();
+
+  const handleShare = useCallback(
+    (payload: Parameters<typeof ingestSharedPayload>[0]) => {
+      void ingestSharedPayload(payload);
+    },
+    [ingestSharedPayload],
+  );
+
+  useIncomingShare(handleShare);
 
   return (
     <View
@@ -105,6 +128,16 @@ function AppContent() {
         },
       ]}
     >
+      <Pressable
+        style={[styles.addButton, { top: safeAreaInsets.top + 12 }]}
+        onPress={() => setSheetOpen(true)}
+        accessibilityLabel="Add to memory"
+        accessibilityRole="button"
+        disabled={ingestBusy}
+      >
+        <Text style={styles.addButtonText}>+</Text>
+      </Pressable>
+
       <MicButton state={state} onPress={toggleTalk} disabled={disabled} />
       {statusText ? (
         <Text
@@ -114,6 +147,22 @@ function AppContent() {
           {statusText}
         </Text>
       ) : null}
+
+      <AddMemorySheet
+        visible={sheetOpen}
+        busy={ingestBusy}
+        onClose={() => setSheetOpen(false)}
+        onAddLink={(url) => {
+          void addLink(url);
+        }}
+        onPickDocument={() => {
+          void pickDocument();
+        }}
+        onPickPhoto={() => {
+          void pickPhoto();
+        }}
+      />
+      <IngestToast toast={toast} />
     </View>
   );
 }
@@ -144,6 +193,24 @@ const styles = StyleSheet.create({
   },
   statusDark: {
     color: '#aaaaaa',
+  },
+  addButton: {
+    position: 'absolute',
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f2efe6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e0d8c4',
+  },
+  addButtonText: {
+    fontSize: 24,
+    lineHeight: 26,
+    color: '#9A7B2F',
+    fontWeight: '500',
   },
 });
 

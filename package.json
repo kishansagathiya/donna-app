@@ -22,8 +22,11 @@
     "react": "19.2.3",
     "react-native": "0.85.3",
     "react-native-audio-api": "^0.12.2",
+    "react-native-document-picker": "^9.3.1",
+    "react-native-image-picker": "^8.2.1",
     "react-native-permissions": "^5.4.2",
     "react-native-safe-area-context": "^5.5.2",
+    "react-native-share-menu": "^6.0.0",
     "react-native-url-polyfill": "^3.0.0"
   },
   "devDependencies": {

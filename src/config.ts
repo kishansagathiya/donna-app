@@ -93,6 +93,14 @@ function resolveVoiceWsUrl(): string {
 export const VOICE_SERVER_HOST = resolveVoiceHost();
 export const VOICE_WS_URL = resolveVoiceWsUrl();
 
+function httpBaseFromVoiceUrl(wsUrl: string): string {
+  const normalized = wsUrl.replace(/^ws/, 'http').replace(/^wss/, 'https');
+  const url = new URL(normalized);
+  return `${url.protocol}//${url.host}`;
+}
+
+export const API_BASE_URL = httpBaseFromVoiceUrl(VOICE_WS_URL);
+
 export const AUDIO_SAMPLE_RATE = 16_000;
 export const AUDIO_CHANNELS = 1;
 export const VAD_SILENCE_MS = 500;

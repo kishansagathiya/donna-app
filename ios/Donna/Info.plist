@@ -37,6 +37,21 @@
 	<string>Donna connects to the voice server on your local network during development.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Donna needs the microphone so you can talk to the app.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Donna can save photos you choose to your personal memory.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.kishansagathiya.donna</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>donna</string>
+			</array>
+		</dict>
+	</array>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
