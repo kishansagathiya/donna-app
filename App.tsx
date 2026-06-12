@@ -30,6 +30,7 @@ import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import { useVoiceSession } from './src/hooks/useVoiceSession';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { AIDataConsentScreen } from './src/screens/AIDataConsentScreen';
+import { AccountScreen } from './src/screens/AccountScreen';
 import { SCREENSHOT_MODE } from './src/config';
 import { useAiDataConsent } from './src/hooks/useAiDataConsent';
 
@@ -107,6 +108,7 @@ function AppContent() {
   const safeAreaInsets = useSafeAreaInsets();
   const { state, toggleTalk, statusText, disabled } = useVoiceSession();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const {
     toast,
     busy: ingestBusy,
@@ -136,6 +138,15 @@ function AppContent() {
         },
       ]}
     >
+      <Pressable
+        style={[styles.accountButton, { top: safeAreaInsets.top + 12 }]}
+        onPress={() => setAccountOpen(true)}
+        accessibilityLabel="Account settings"
+        accessibilityRole="button"
+      >
+        <Text style={styles.accountButtonText}>⚙</Text>
+      </Pressable>
+
       <Pressable
         style={[styles.addButton, { top: safeAreaInsets.top + 12 }]}
         onPress={() => setSheetOpen(true)}
@@ -171,6 +182,10 @@ function AppContent() {
         }}
       />
       <IngestToast toast={toast} />
+      <AccountScreen
+        visible={accountOpen}
+        onClose={() => setAccountOpen(false)}
+      />
     </View>
   );
 }
@@ -213,6 +228,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#e0d8c4',
+  },
+  accountButton: {
+    position: 'absolute',
+    left: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f2efe6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e0d8c4',
+  },
+  accountButtonText: {
+    fontSize: 20,
+    lineHeight: 22,
+    color: '#9A7B2F',
   },
   addButtonText: {
     fontSize: 24,

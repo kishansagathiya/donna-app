@@ -10,3 +10,7 @@ export async function hasAiDataConsent(): Promise<boolean> {
 export async function grantAiDataConsent(): Promise<void> {
   await AsyncStorage.setItem(AI_DATA_CONSENT_KEY, 'true');
 }
+
+export async function revokeAiDataConsent(): Promise<void> {
+  await AsyncStorage.removeItem(AI_DATA_CONSENT_KEY);
+}
