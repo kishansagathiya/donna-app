@@ -46,7 +46,8 @@ export function AddMemorySheet({
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <Text style={styles.title}>Add to memory</Text>
           <Text style={styles.subtitle}>
-            Links, documents, and photos are saved invisibly for Donna to recall.
+            Links, documents, and photos you add are sent to our servers and
+            third-party AI services so Donna can recall them later.
           </Text>
 
           <Text style={styles.label}>Paste a link</Text>

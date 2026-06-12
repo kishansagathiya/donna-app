@@ -36,9 +36,9 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Donna connects to the voice server on your local network during development.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Donna needs the microphone so you can talk to the app.</string>
+	<string>Donna uses your microphone to record your voice when you tap the mic button. For example, when you ask "What's on my mind about that project?", your speech is sent to our servers and third-party AI services to transcribe your question and generate a spoken reply.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Donna can save photos you choose to your personal memory.</string>
+	<string>Donna accesses photos you select so they can be saved to your personal memory and recalled in future conversations. For example, a screenshot of a recipe you choose will be processed and stored for Donna to reference later.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

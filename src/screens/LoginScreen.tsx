@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -10,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SignInButton } from '../components/SignInButton';
-import { DEV_EMAIL, DEV_PASSWORD } from '../config';
+import { DEV_EMAIL, DEV_PASSWORD, PRIVACY_POLICY_URL } from '../config';
 import { signInWithDevCredentials } from '../services/auth';
 import logo from '../../assets/logo.png';
 
@@ -73,6 +75,14 @@ export function LoginScreen({ onSuccess }: Props) {
             )}
           </TouchableOpacity>
         )}
+
+        <Pressable
+          style={styles.privacyLink}
+          onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+          accessibilityRole="link"
+        >
+          <Text style={styles.privacyLinkText}>Privacy Policy</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -133,5 +143,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#666666',
+  },
+  privacyLink: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+  },
+  privacyLinkText: {
+    fontSize: 14,
+    color: '#9A7B2F',
+    textDecorationLine: 'underline',
   },
 });

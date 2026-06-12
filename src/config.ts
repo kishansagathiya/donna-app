@@ -3,7 +3,11 @@ import {
   ENV_VOICE_DEV_HOST,
   ENV_VOICE_TARGET,
   ENV_VOICE_WS_URL_OVERRIDE,
+  ENV_PRIVACY_POLICY_URL,
 } from './env.generated';
+
+/** Public privacy policy (hosted on donna-web). Override via DONNA_PRIVACY_POLICY_URL in .env */
+export const PRIVACY_POLICY_URL = ENV_PRIVACY_POLICY_URL;
 
 /** Supabase project URL */
 export const SUPABASE_URL = 'https://eghhxjlhautsikejocze.supabase.co';

@@ -29,7 +29,9 @@ import { useIncomingShare } from './src/hooks/useIncomingShare';
 import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import { useVoiceSession } from './src/hooks/useVoiceSession';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { AIDataConsentScreen } from './src/screens/AIDataConsentScreen';
 import { SCREENSHOT_MODE } from './src/config';
+import { useAiDataConsent } from './src/hooks/useAiDataConsent';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -78,8 +80,10 @@ function AppShell() {
   }
 
   const { isAuthenticated, loading } = useAuth();
+  const { accepted: consentAccepted, refresh: refreshConsent } =
+    useAiDataConsent();
 
-  if (loading) {
+  if (loading || (isAuthenticated && consentAccepted === null)) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#9A7B2F" />
@@ -89,6 +93,10 @@ function AppShell() {
 
   if (!isAuthenticated) {
     return <LoginScreen onSuccess={() => {}} />;
+  }
+
+  if (!consentAccepted) {
+    return <AIDataConsentScreen onAccepted={() => void refreshConsent()} />;
   }
 
   return <AppContent />;
