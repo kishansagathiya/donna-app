@@ -13,6 +13,11 @@ node_require('react-native-permissions/scripts/setup.rb')
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
+# App Store requires iOS 26 SDK (Xcode 26). Prebuilt RN/Hermes binaries ship with an older SDK.
+ENV['RCT_USE_PREBUILT_RNCORE'] = '0'
+ENV['RCT_USE_RN_DEP'] = '0'
+ENV['RCT_BUILD_HERMES_FROM_SOURCE'] = 'true'
+
 setup_permissions([
   'Microphone',
 ])
