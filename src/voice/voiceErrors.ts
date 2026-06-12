@@ -6,6 +6,9 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
   turn_failed: "Something went wrong. Please try again.",
 };
 
-export function voiceErrorMessage(code: string): string {
+export function voiceErrorMessage(code: string, detail?: string): string {
+  if (__DEV__ && code === 'turn_failed' && detail) {
+    return `Voice turn failed: ${detail}`;
+  }
   return USER_ERROR_MESSAGES[code] ?? 'Something went wrong. Please try again.';
 }

@@ -154,7 +154,7 @@ export function useVoiceSession() {
       }
       case 'error':
         console.warn('[donna-app] voice error', message.code, message.message);
-        setVoiceError(voiceErrorMessage(message.code));
+        setVoiceError(voiceErrorMessage(message.code, message.message));
         break;
       default:
         break;
