@@ -12,11 +12,19 @@ async function getAudioContext(): Promise<AudioContext> {
   return audioContext;
 }
 
-type EncodedChunk = { data: string; format: 'mp3' | 'wav' };
+export type EncodedChunk = {
+  data: string;
+  format: 'mp3' | 'wav' | 'pcm16';
+  sampleRate?: number;
+  channels?: number;
+};
 
 class StreamingPlayback {
-  private chunks: Uint8Array[] = [];
-  private format: 'mp3' | 'wav' | null = null;
+  private encodedChunks: Uint8Array[] = [];
+  private pcmQueue: Uint8Array[] = [];
+  private format: EncodedChunk['format'] | null = null;
+  private pcmSampleRate = 24_000;
+  private pcmChannels = 1;
   private scheduledDuration = 0;
   private scheduledEndTime = 0;
   private lastSource: AudioBufferSourceNode | null = null;
@@ -24,17 +32,35 @@ class StreamingPlayback {
   private stopped = false;
   private pumping = false;
   private pumpAgain = false;
+  private startedPlayback = false;
   private doneResolve: (() => void) | null = null;
   private doneReject: ((err: Error) => void) | null = null;
   private donePromise: Promise<void> | null = null;
+  private onPlaybackStart: (() => void) | null = null;
+
+  setOnPlaybackStart(handler: () => void): void {
+    this.onPlaybackStart = handler;
+  }
 
   enqueue(chunk: EncodedChunk): void {
     if (this.stopped) return;
     if (!this.format) {
       this.format = chunk.format;
+      if (chunk.format === 'pcm16') {
+        this.pcmSampleRate = chunk.sampleRate ?? 24_000;
+        this.pcmChannels = chunk.channels ?? 1;
+      }
     }
-    this.chunks.push(base64ToBytes(chunk.data));
-    void this.pump();
+
+    const bytes = base64ToBytes(chunk.data);
+    if (chunk.format === 'pcm16') {
+      this.pcmQueue.push(bytes);
+      void this.pumpPcm();
+      return;
+    }
+
+    this.encodedChunks.push(bytes);
+    void this.pumpEncoded();
   }
 
   finish(): Promise<void> {
@@ -49,7 +75,11 @@ class StreamingPlayback {
       this.doneResolve = resolve;
       this.doneReject = reject;
     });
-    void this.pump();
+    if (this.format === 'pcm16') {
+      void this.pumpPcm();
+    } else {
+      void this.pumpEncoded();
+    }
     return this.donePromise;
   }
 
@@ -67,25 +97,86 @@ class StreamingPlayback {
     this.doneResolve?.();
     this.doneResolve = null;
     this.doneReject = null;
-    this.chunks = [];
+    this.encodedChunks = [];
+    this.pcmQueue = [];
   }
 
-  private bytesBuffered(): number {
-    return this.chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  private markPlaybackStarted(): void {
+    if (this.startedPlayback) return;
+    this.startedPlayback = true;
+    this.onPlaybackStart?.();
   }
 
-  private concatChunks(): Uint8Array {
-    const total = this.bytesBuffered();
+  private concatEncoded(): Uint8Array {
+    const total = this.encodedChunks.reduce((sum, chunk) => sum + chunk.length, 0);
     const out = new Uint8Array(total);
     let offset = 0;
-    for (const chunk of this.chunks) {
+    for (const chunk of this.encodedChunks) {
       out.set(chunk, offset);
       offset += chunk.length;
     }
     return out;
   }
 
-  private async pump(): Promise<void> {
+  private async pumpPcm(): Promise<void> {
+    if (this.stopped) return;
+    if (this.pumping) {
+      this.pumpAgain = true;
+      return;
+    }
+
+    this.pumping = true;
+    try {
+      const ctx = await getAudioContext();
+      while (this.pcmQueue.length > 0) {
+        const pcm = this.pcmQueue.shift()!;
+        const frameSamples = pcm.length / (2 * this.pcmChannels);
+        if (frameSamples <= 0) continue;
+
+        const buffer = ctx.createBuffer(
+          this.pcmChannels,
+          frameSamples,
+          this.pcmSampleRate,
+        );
+        const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+        for (let ch = 0; ch < this.pcmChannels; ch++) {
+          const channel = buffer.getChannelData(ch);
+          for (let i = 0; i < frameSamples; i++) {
+            channel[i] =
+              view.getInt16((i * this.pcmChannels + ch) * 2, true) / 32768;
+          }
+        }
+
+        const startTime = Math.max(ctx.currentTime, this.scheduledEndTime);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(startTime);
+
+        this.scheduledEndTime = startTime + buffer.duration;
+        this.lastSource = source;
+        this.markPlaybackStarted();
+
+        source.onEnded = () => {
+          if (this.lastSource === source && this.finished && this.pcmQueue.length === 0) {
+            this.resolveDone();
+          }
+        };
+      }
+
+      if (this.finished && this.pcmQueue.length === 0 && !this.lastSource) {
+        this.resolveDone();
+      }
+    } finally {
+      this.pumping = false;
+      if (this.pumpAgain && !this.stopped) {
+        this.pumpAgain = false;
+        void this.pumpPcm();
+      }
+    }
+  }
+
+  private async pumpEncoded(): Promise<void> {
     if (this.stopped) return;
     if (this.pumping) {
       this.pumpAgain = true;
@@ -97,7 +188,10 @@ class StreamingPlayback {
       do {
         this.pumpAgain = false;
 
-        const byteCount = this.bytesBuffered();
+        const byteCount = this.encodedChunks.reduce(
+          (sum, chunk) => sum + chunk.length,
+          0,
+        );
         if (byteCount === 0) {
           if (this.finished) {
             this.resolveDone();
@@ -106,7 +200,7 @@ class StreamingPlayback {
         }
 
         const ctx = await getAudioContext();
-        const bytes = this.concatChunks();
+        const bytes = this.concatEncoded();
         const arrayBuffer = bytes.buffer.slice(
           bytes.byteOffset,
           bytes.byteOffset + bytes.byteLength,
@@ -136,6 +230,7 @@ class StreamingPlayback {
           this.scheduledDuration = totalDuration;
           this.scheduledEndTime = startTime + duration;
           this.lastSource = source;
+          this.markPlaybackStarted();
 
           source.onEnded = () => {
             if (this.lastSource === source && this.finished) {
@@ -149,7 +244,7 @@ class StreamingPlayback {
     } finally {
       this.pumping = false;
       if (this.pumpAgain && !this.stopped) {
-        void this.pump();
+        void this.pumpEncoded();
       }
     }
   }
@@ -177,9 +272,7 @@ export function createStreamingPlayback(): StreamingPlayback {
 }
 
 /** @deprecated Use createStreamingPlayback for turn audio. */
-export async function playEncodedAudio(
-  chunks: Array<{ data: string; format: 'mp3' | 'wav' }>,
-): Promise<void> {
+export async function playEncodedAudio(chunks: EncodedChunk[]): Promise<void> {
   if (chunks.length === 0) return;
   const session = createStreamingPlayback();
   for (const chunk of chunks) {

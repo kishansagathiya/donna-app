@@ -28,8 +28,10 @@ export type ServerMessage =
   | {
       type: 'audio.out';
       seq: number;
-      format: 'mp3' | 'wav';
+      format: 'mp3' | 'wav' | 'pcm16';
       data: string;
+      sampleRate?: number;
+      channels?: number;
     }
   | {
       type: 'turn.done';

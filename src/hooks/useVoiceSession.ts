@@ -61,6 +61,7 @@ export function useVoiceSession() {
   const playbackRef = useRef<ReturnType<typeof createStreamingPlayback> | null>(
     null,
   );
+  const pendingReplyRef = useRef<string | null>(null);
   const activeRef = useRef(false);
   const readyResolverRef = useRef<(() => void) | null>(null);
   const isPlayingRef = useRef(false);
@@ -74,6 +75,7 @@ export function useVoiceSession() {
     chunkSeqRef.current = 0;
     stopActivePlayback();
     playbackRef.current = null;
+    pendingReplyRef.current = null;
     messageChainRef.current = Promise.resolve();
     vadRef.current.resume();
     recorderRef.current?.stop();
@@ -120,16 +122,26 @@ export function useVoiceSession() {
         setStatus((prev) => ({ ...prev, transcript: message.text }));
         break;
       case 'turn.reply':
-        setStatus((prev) => ({ ...prev, reply: message.text }));
+        pendingReplyRef.current = message.text;
         break;
       case 'audio.out': {
         if (!playbackRef.current) {
-          playbackRef.current = createStreamingPlayback();
+          const session = createStreamingPlayback();
+          session.setOnPlaybackStart(() => {
+            if (pendingReplyRef.current) {
+              const reply = pendingReplyRef.current;
+              pendingReplyRef.current = null;
+              setStatus((prev) => ({ ...prev, reply }));
+            }
+          });
+          playbackRef.current = session;
           isPlayingRef.current = true;
         }
         playbackRef.current.enqueue({
           data: message.data,
           format: message.format,
+          sampleRate: message.sampleRate,
+          channels: message.channels,
         });
         break;
       }
@@ -137,6 +149,7 @@ export function useVoiceSession() {
         if (message.skipped) {
           stopActivePlayback();
           playbackRef.current = null;
+          pendingReplyRef.current = null;
           setStatus({ transcript: null, reply: null, phase: null });
           vadRef.current.reset();
           if (activeRef.current) {
@@ -148,6 +161,11 @@ export function useVoiceSession() {
         try {
           if (playbackRef.current) {
             await playbackRef.current.finish();
+          }
+          if (pendingReplyRef.current) {
+            const reply = pendingReplyRef.current;
+            pendingReplyRef.current = null;
+            setStatus((prev) => ({ ...prev, reply }));
           }
         } catch (err) {
           setVoiceError(
