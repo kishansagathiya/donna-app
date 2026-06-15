@@ -107,6 +107,6 @@ export const API_BASE_URL = httpBaseFromVoiceUrl(VOICE_WS_URL);
 
 export const AUDIO_SAMPLE_RATE = 16_000;
 export const AUDIO_CHANNELS = 1;
-export const VAD_SILENCE_MS = 500;
+export const VAD_SILENCE_MS = 350;
 export const VAD_ENERGY_THRESHOLD = 0.02;
 export const VAD_MIN_SPEECH_MS = 400;
