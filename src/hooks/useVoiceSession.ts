@@ -13,7 +13,11 @@ import {
 } from '../config';
 import type { MicState } from '../components/MicButton';
 import { floatToPcm16, pcm16ToBase64 } from '../voice/pcm';
-import { playEncodedAudio, resetPlaybackSession } from '../voice/playback';
+import {
+  createStreamingPlayback,
+  resetPlaybackSession,
+  stopActivePlayback,
+} from '../voice/playback';
 import type { ServerMessage, TurnPhase } from '../voice/protocol';
 import { EnergyVad } from '../voice/vad';
 import { getAccessToken } from '../services/auth';
@@ -54,8 +58,8 @@ export function useVoiceSession() {
   );
   const chunkSeqRef = useRef(0);
   const sessionReadyRef = useRef(false);
-  const audioOutRef = useRef<Array<{ data: string; format: 'mp3' | 'wav' }>>(
-    [],
+  const playbackRef = useRef<ReturnType<typeof createStreamingPlayback> | null>(
+    null,
   );
   const activeRef = useRef(false);
   const readyResolverRef = useRef<(() => void) | null>(null);
@@ -68,7 +72,8 @@ export function useVoiceSession() {
     isPlayingRef.current = false;
     readyResolverRef.current = null;
     chunkSeqRef.current = 0;
-    audioOutRef.current = [];
+    stopActivePlayback();
+    playbackRef.current = null;
     messageChainRef.current = Promise.resolve();
     vadRef.current.resume();
     recorderRef.current?.stop();
@@ -117,14 +122,21 @@ export function useVoiceSession() {
       case 'turn.reply':
         setStatus((prev) => ({ ...prev, reply: message.text }));
         break;
-      case 'audio.out':
-        audioOutRef.current.push({
+      case 'audio.out': {
+        if (!playbackRef.current) {
+          playbackRef.current = createStreamingPlayback();
+          isPlayingRef.current = true;
+        }
+        playbackRef.current.enqueue({
           data: message.data,
           format: message.format,
         });
         break;
+      }
       case 'turn.done': {
         if (message.skipped) {
+          stopActivePlayback();
+          playbackRef.current = null;
           setStatus({ transcript: null, reply: null, phase: null });
           vadRef.current.reset();
           if (activeRef.current) {
@@ -134,8 +146,9 @@ export function useVoiceSession() {
           break;
         }
         try {
-          isPlayingRef.current = true;
-          await playEncodedAudio(audioOutRef.current);
+          if (playbackRef.current) {
+            await playbackRef.current.finish();
+          }
         } catch (err) {
           setVoiceError(
             err instanceof Error ? err.message : 'Playback failed',
@@ -143,7 +156,7 @@ export function useVoiceSession() {
           return;
         } finally {
           isPlayingRef.current = false;
-          audioOutRef.current = [];
+          playbackRef.current = null;
           vadRef.current.reset();
           if (activeRef.current) {
             setState('listening');
