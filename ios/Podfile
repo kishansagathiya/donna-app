@@ -49,6 +49,27 @@ target 'Donna' do
         build_config.build_settings['APPLICATION_EXTENSION_API_ONLY'] = 'NO'
       end
     end
+
+    # Source-built Hermes omits MinimumOSVersion; App Store validation rejects the IPA.
+    hermes_min_os = '15.1'
+    hermes_plists = Dir.glob(
+      File.join(installer.sandbox.root, 'hermes-engine', '**', 'hermesvm.framework', 'Info.plist'),
+    )
+    hermes_plists.each do |plist|
+      system('/usr/libexec/PlistBuddy', '-c', 'Delete :MinimumOSVersion', plist)
+      added = system(
+        '/usr/libexec/PlistBuddy',
+        '-c',
+        "Add :MinimumOSVersion string #{hermes_min_os}",
+        plist,
+      )
+      system(
+        '/usr/libexec/PlistBuddy',
+        '-c',
+        "Set :MinimumOSVersion #{hermes_min_os}",
+        plist,
+      ) unless added
+    end
   end
 end
 
