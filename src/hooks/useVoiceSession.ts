@@ -129,9 +129,7 @@ export function useVoiceSession(mode: DonnaMode) {
       case 'turn.reply':
         if (sessionModeRef.current === 'listen') break;
         pendingReplyRef.current = message.text;
-        if (playbackRef.current || isPlayingRef.current) {
-          setStatus((prev) => ({ ...prev, reply: message.text }));
-        }
+        setStatus((prev) => ({ ...prev, reply: message.text }));
         break;
       case 'audio.out': {
         if (sessionModeRef.current === 'listen') break;

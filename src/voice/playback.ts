@@ -4,6 +4,11 @@ import { base64ToBytes } from './pcm';
 let audioContext: AudioContext | null = null;
 let activeSession: StreamingPlayback | null = null;
 
+/** ~100ms of mono PCM16 at 24 kHz — batch small network chunks before scheduling. */
+const MIN_PCM_SCHEDULE_BYTES = 4_800;
+const PCM_FADE_SAMPLES = 128;
+const PCM_GAP_FADE_SECONDS = 0.003;
+
 async function getAudioContext(): Promise<AudioContext> {
   if (!audioContext) {
     audioContext = new AudioContext();
@@ -19,9 +24,26 @@ export type EncodedChunk = {
   channels?: number;
 };
 
+function appendBytes(existing: Uint8Array, chunk: Uint8Array): Uint8Array {
+  if (existing.length === 0) {
+    return chunk;
+  }
+  const out = new Uint8Array(existing.length + chunk.length);
+  out.set(existing);
+  out.set(chunk, existing.length);
+  return out;
+}
+
+function applyFadeIn(samples: Float32Array, fadeSamples: number): void {
+  const count = Math.min(fadeSamples, samples.length);
+  for (let i = 0; i < count; i++) {
+    samples[i] *= (i + 1) / count;
+  }
+}
+
 class StreamingPlayback {
   private encodedChunks: Uint8Array[] = [];
-  private pcmQueue: Uint8Array[] = [];
+  private pendingPcm = new Uint8Array(0);
   private format: EncodedChunk['format'] | null = null;
   private pcmSampleRate = 24_000;
   private pcmChannels = 1;
@@ -54,7 +76,7 @@ class StreamingPlayback {
 
     const bytes = base64ToBytes(chunk.data);
     if (chunk.format === 'pcm16') {
-      this.pcmQueue.push(bytes);
+      this.pendingPcm = appendBytes(this.pendingPcm, bytes);
       void this.pumpPcm();
       return;
     }
@@ -98,13 +120,23 @@ class StreamingPlayback {
     this.doneResolve = null;
     this.doneReject = null;
     this.encodedChunks = [];
-    this.pcmQueue = [];
+    this.pendingPcm = new Uint8Array(0);
   }
 
   private markPlaybackStarted(): void {
     if (this.startedPlayback) return;
     this.startedPlayback = true;
     this.onPlaybackStart?.();
+  }
+
+  private maybeResolveDone(): void {
+    if (!this.finished || this.pendingPcm.length > 0 || this.pumping) {
+      return;
+    }
+    if (this.lastSource) {
+      return;
+    }
+    this.resolveDone();
   }
 
   private concatEncoded(): Uint8Array {
@@ -118,6 +150,59 @@ class StreamingPlayback {
     return out;
   }
 
+  private pcmFrameBytes(): number {
+    return 2 * this.pcmChannels;
+  }
+
+  private schedulePcmBuffer(ctx: AudioContext, pcm: Uint8Array): void {
+    const frameBytes = this.pcmFrameBytes();
+    const alignedLength = pcm.length - (pcm.length % frameBytes);
+    if (alignedLength === 0) {
+      return;
+    }
+
+    const aligned = alignedLength === pcm.length ? pcm : pcm.slice(0, alignedLength);
+    const frameSamples = alignedLength / frameBytes;
+    const duration = frameSamples / this.pcmSampleRate;
+    const startTime = Math.max(ctx.currentTime, this.scheduledEndTime);
+    const gap = startTime - this.scheduledEndTime;
+    const needsFadeIn =
+      this.startedPlayback && gap > PCM_GAP_FADE_SECONDS;
+
+    const buffer = ctx.createBuffer(
+      this.pcmChannels,
+      frameSamples,
+      this.pcmSampleRate,
+    );
+    const view = new DataView(aligned.buffer, aligned.byteOffset, aligned.byteLength);
+    for (let ch = 0; ch < this.pcmChannels; ch++) {
+      const channel = buffer.getChannelData(ch);
+      for (let i = 0; i < frameSamples; i++) {
+        channel[i] =
+          view.getInt16((i * this.pcmChannels + ch) * 2, true) / 32768;
+      }
+      if (needsFadeIn) {
+        applyFadeIn(channel, PCM_FADE_SAMPLES);
+      }
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.start(startTime);
+
+    this.scheduledEndTime = startTime + duration;
+    this.lastSource = source;
+    this.markPlaybackStarted();
+
+    source.onEnded = () => {
+      if (this.lastSource === source) {
+        this.lastSource = null;
+      }
+      this.maybeResolveDone();
+    };
+  }
+
   private async pumpPcm(): Promise<void> {
     if (this.stopped) return;
     if (this.pumping) {
@@ -128,45 +213,28 @@ class StreamingPlayback {
     this.pumping = true;
     try {
       const ctx = await getAudioContext();
-      while (this.pcmQueue.length > 0) {
-        const pcm = this.pcmQueue.shift()!;
-        const frameSamples = pcm.length / (2 * this.pcmChannels);
-        if (frameSamples <= 0) continue;
+      const frameBytes = this.pcmFrameBytes();
 
-        const buffer = ctx.createBuffer(
-          this.pcmChannels,
-          frameSamples,
-          this.pcmSampleRate,
-        );
-        const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
-        for (let ch = 0; ch < this.pcmChannels; ch++) {
-          const channel = buffer.getChannelData(ch);
-          for (let i = 0; i < frameSamples; i++) {
-            channel[i] =
-              view.getInt16((i * this.pcmChannels + ch) * 2, true) / 32768;
-          }
+      while (this.pendingPcm.length >= frameBytes) {
+        const canFlushAll =
+          this.finished ||
+          this.pendingPcm.length >= MIN_PCM_SCHEDULE_BYTES;
+        if (!canFlushAll) {
+          break;
         }
 
-        const startTime = Math.max(ctx.currentTime, this.scheduledEndTime);
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        source.start(startTime);
+        let scheduleBytes = this.pendingPcm.length;
+        scheduleBytes -= scheduleBytes % frameBytes;
+        if (scheduleBytes === 0) {
+          break;
+        }
 
-        this.scheduledEndTime = startTime + buffer.duration;
-        this.lastSource = source;
-        this.markPlaybackStarted();
-
-        source.onEnded = () => {
-          if (this.lastSource === source && this.finished && this.pcmQueue.length === 0) {
-            this.resolveDone();
-          }
-        };
+        const pcm = this.pendingPcm.slice(0, scheduleBytes);
+        this.pendingPcm = this.pendingPcm.slice(scheduleBytes);
+        this.schedulePcmBuffer(ctx, pcm);
       }
 
-      if (this.finished && this.pcmQueue.length === 0 && !this.lastSource) {
-        this.resolveDone();
-      }
+      this.maybeResolveDone();
     } finally {
       this.pumping = false;
       if (this.pumpAgain && !this.stopped) {
