@@ -23,6 +23,7 @@ import { EnergyVad } from '../voice/vad';
 import { getAccessToken } from '../services/auth';
 import { voiceErrorMessage } from '../voice/voiceErrors';
 import { VoiceClient } from '../voice/voiceClient';
+import type { DonnaMode } from '../types/mode';
 
 type VoiceStatus = {
   transcript: string | null;
@@ -37,7 +38,7 @@ const BUSY_PHASES: TurnPhase[] = [
   'synthesizing',
 ];
 
-export function useVoiceSession() {
+export function useVoiceSession(mode: DonnaMode) {
   const [state, setState] = useState<MicState>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [status, setStatus] = useState<VoiceStatus>({
@@ -45,6 +46,10 @@ export function useVoiceSession() {
     reply: null,
     phase: null,
   });
+
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const sessionModeRef = useRef<DonnaMode>(mode);
 
   const clientRef = useRef<VoiceClient | null>(null);
   const recorderRef = useRef<AudioRecorder | null>(null);
@@ -122,12 +127,14 @@ export function useVoiceSession() {
         setStatus((prev) => ({ ...prev, transcript: message.text }));
         break;
       case 'turn.reply':
+        if (sessionModeRef.current === 'listen') break;
         pendingReplyRef.current = message.text;
         if (playbackRef.current || isPlayingRef.current) {
           setStatus((prev) => ({ ...prev, reply: message.text }));
         }
         break;
       case 'audio.out': {
+        if (sessionModeRef.current === 'listen') break;
         if (!playbackRef.current) {
           const session = createStreamingPlayback();
           session.setOnPlaybackStart(() => {
@@ -275,6 +282,7 @@ export function useVoiceSession() {
     setErrorMsg(null);
     setStatus({ transcript: null, reply: null, phase: null });
     sessionReadyRef.current = false;
+    sessionModeRef.current = modeRef.current;
 
     AudioManager.setAudioSessionOptions({
       iosCategory: 'playAndRecord',
@@ -316,7 +324,7 @@ export function useVoiceSession() {
         };
       });
 
-      client.send({ type: 'session.start' });
+      client.send({ type: 'session.start', mode: sessionModeRef.current });
       await readyPromise;
 
       activeRef.current = true;
@@ -359,13 +367,19 @@ export function useVoiceSession() {
     state === 'error'
       ? (errorMsg ?? 'Something went wrong')
       : status.transcript
-        ? status.reply
-          ? `You: ${status.transcript}\nDonna: ${status.reply}`
-          : `You: ${status.transcript}`
+        ? sessionModeRef.current === 'listen'
+          ? `You: ${status.transcript}`
+          : status.reply
+            ? `You: ${status.transcript}\nDonna: ${status.reply}`
+            : `You: ${status.transcript}`
         : state === 'processing'
-          ? 'Donna is thinking…'
+          ? sessionModeRef.current === 'listen'
+            ? 'Saving…'
+            : 'Donna is thinking…'
           : state === 'listening'
-            ? 'Listening…'
+            ? sessionModeRef.current === 'listen'
+              ? 'Listening only…'
+              : 'Listening…'
             : null;
 
   return {

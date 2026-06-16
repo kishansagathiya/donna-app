@@ -8,7 +8,7 @@ export type TurnPhase =
   | 'error';
 
 export type ClientMessage =
-  | { type: 'session.start'; userId?: string; sessionId?: string }
+  | { type: 'session.start'; userId?: string; sessionId?: string; mode?: 'listen' | 'talk' }
   | {
       type: 'audio.chunk';
       seq: number;

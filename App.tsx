@@ -28,6 +28,8 @@ import { useAssetIngest } from './src/hooks/useAssetIngest';
 import { useIncomingShare } from './src/hooks/useIncomingShare';
 import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import { useVoiceSession } from './src/hooks/useVoiceSession';
+import { ModeToggle } from './src/components/ModeToggle';
+import type { DonnaMode } from './src/types/mode';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { AIDataConsentScreen } from './src/screens/AIDataConsentScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
@@ -106,7 +108,9 @@ function AppShell() {
 function AppContent() {
   const isDarkMode = useColorScheme() === 'dark';
   const safeAreaInsets = useSafeAreaInsets();
-  const { state, toggleTalk, statusText, disabled } = useVoiceSession();
+  const [mode, setMode] = useState<DonnaMode>('listen');
+  const { state, toggleTalk, statusText, disabled } = useVoiceSession(mode);
+  const sessionActive = state === 'listening' || state === 'processing';
   const [sheetOpen, setSheetOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const {
@@ -156,6 +160,12 @@ function AppContent() {
       >
         <Text style={styles.addButtonText}>+</Text>
       </Pressable>
+
+      <ModeToggle
+        mode={mode}
+        onChange={setMode}
+        disabled={sessionActive || disabled}
+      />
 
       <MicButton state={state} onPress={toggleTalk} disabled={disabled} />
       {statusText ? (
