@@ -142,40 +142,44 @@ function AppContent() {
         },
       ]}
     >
-      <Pressable
-        style={[styles.accountButton, { top: safeAreaInsets.top + 12 }]}
-        onPress={() => setAccountOpen(true)}
-        accessibilityLabel="Account settings"
-        accessibilityRole="button"
-      >
-        <Text style={styles.accountButtonText}>⚙</Text>
-      </Pressable>
-
-      <Pressable
-        style={[styles.addButton, { top: safeAreaInsets.top + 12 }]}
-        onPress={() => setSheetOpen(true)}
-        accessibilityLabel="Add to memory"
-        accessibilityRole="button"
-        disabled={ingestBusy}
-      >
-        <Text style={styles.addButtonText}>+</Text>
-      </Pressable>
-
-      <ModeToggle
-        mode={mode}
-        onChange={setMode}
-        disabled={sessionActive || disabled}
-      />
-
-      <MicButton state={state} onPress={toggleTalk} disabled={disabled} />
-      {statusText ? (
-        <Text
-          style={[styles.status, isDarkMode && styles.statusDark]}
-          accessibilityRole="text"
+      <View style={styles.header}>
+        <Pressable
+          style={styles.headerButton}
+          onPress={() => setAccountOpen(true)}
+          accessibilityLabel="Account settings"
+          accessibilityRole="button"
         >
-          {statusText}
-        </Text>
-      ) : null}
+          <Text style={styles.accountButtonText}>⚙</Text>
+        </Pressable>
+
+        <ModeToggle
+          mode={mode}
+          onChange={setMode}
+          disabled={sessionActive || disabled}
+        />
+
+        <Pressable
+          style={styles.headerButton}
+          onPress={() => setSheetOpen(true)}
+          accessibilityLabel="Add to memory"
+          accessibilityRole="button"
+          disabled={ingestBusy}
+        >
+          <Text style={styles.addButtonText}>+</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.main}>
+        <MicButton state={state} onPress={toggleTalk} disabled={disabled} />
+        {statusText ? (
+          <Text
+            style={[styles.status, isDarkMode && styles.statusDark]}
+            accessibilityRole="text"
+          >
+            {statusText}
+          </Text>
+        ) : null}
+      </View>
 
       <AddMemorySheet
         visible={sheetOpen}
@@ -209,12 +213,23 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: '#ffffff',
   },
   containerDark: {
     backgroundColor: '#000000',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  main: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   status: {
     marginTop: 16,
@@ -227,21 +242,7 @@ const styles = StyleSheet.create({
   statusDark: {
     color: '#aaaaaa',
   },
-  addButton: {
-    position: 'absolute',
-    right: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f2efe6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e0d8c4',
-  },
-  accountButton: {
-    position: 'absolute',
-    left: 20,
+  headerButton: {
     width: 40,
     height: 40,
     borderRadius: 20,

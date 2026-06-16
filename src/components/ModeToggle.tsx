@@ -45,7 +45,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e0d8c4',
     padding: 3,
-    marginBottom: 24,
   },
   segment: {
     paddingHorizontal: 16,
