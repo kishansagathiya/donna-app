@@ -22,7 +22,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import { AddMemorySheet } from './src/components/AddMemorySheet';
-import { SearchNotesModal } from './src/components/SearchNotesModal';
+import { SearchContextModal } from './src/components/SearchContextModal';
 import { IngestToast } from './src/components/IngestToast';
 import { MicButton, type MicState } from './src/components/MicButton';
 import { useAssetIngest } from './src/hooks/useAssetIngest';
@@ -164,7 +164,7 @@ function AppContent() {
           <Pressable
             style={styles.headerButton}
             onPress={() => setSearchOpen(true)}
-            accessibilityLabel="Search notes"
+            accessibilityLabel="Search context"
             accessibilityRole="button"
           >
             <Text style={styles.searchButtonText}>⌕</Text>
@@ -208,7 +208,7 @@ function AppContent() {
         }}
       />
       <IngestToast toast={toast} />
-      <SearchNotesModal
+      <SearchContextModal
         visible={searchOpen}
         onClose={() => setSearchOpen(false)}
       />

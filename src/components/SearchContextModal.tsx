@@ -21,7 +21,7 @@ type Props = {
   onClose: () => void;
 };
 
-export function SearchNotesModal({ visible, onClose }: Props) {
+export function SearchContextModal({ visible, onClose }: Props) {
   const isDarkMode = useColorScheme() === 'dark';
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<NoteSearchResult[]>([]);
@@ -38,8 +38,7 @@ export function SearchNotesModal({ visible, onClose }: Props) {
     setSearched(true);
     setError(null);
     try {
-      const notes = await searchNotes(trimmed);
-      setResults(notes);
+      setResults(await searchNotes(trimmed));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Search failed');
       setResults([]);
@@ -70,7 +69,7 @@ export function SearchNotesModal({ visible, onClose }: Props) {
     >
       <View style={[styles.container, { backgroundColor: surfaceColor }]}>
         <View style={[styles.header, { borderBottomColor: borderColor }]}>
-          <Text style={[styles.title, { color: '#9A7B2F' }]}>Search notes</Text>
+          <Text style={[styles.title, { color: '#9A7B2F' }]}>Search context</Text>
           <Pressable onPress={handleClose} accessibilityRole="button">
             <Text style={[styles.close, { color: secondaryColor }]}>Done</Text>
           </Pressable>
@@ -84,7 +83,7 @@ export function SearchNotesModal({ visible, onClose }: Props) {
             ]}
             value={query}
             onChangeText={setQuery}
-            placeholder="Search notes…"
+            placeholder="Search context…"
             placeholderTextColor={secondaryColor}
             returnKeyType="search"
             onSubmitEditing={() => void handleSearch()}
