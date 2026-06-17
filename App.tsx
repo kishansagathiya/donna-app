@@ -22,6 +22,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import { AddMemorySheet } from './src/components/AddMemorySheet';
+import { SearchNotesModal } from './src/components/SearchNotesModal';
 import { IngestToast } from './src/components/IngestToast';
 import { MicButton, type MicState } from './src/components/MicButton';
 import { useAssetIngest } from './src/hooks/useAssetIngest';
@@ -112,6 +113,7 @@ function AppContent() {
   const { state, toggleTalk, statusText, disabled } = useVoiceSession(mode);
   const sessionActive = state === 'listening' || state === 'processing';
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const {
     toast,
@@ -158,15 +160,25 @@ function AppContent() {
           disabled={sessionActive || disabled}
         />
 
-        <Pressable
-          style={styles.headerButton}
-          onPress={() => setSheetOpen(true)}
-          accessibilityLabel="Add to memory"
-          accessibilityRole="button"
-          disabled={ingestBusy}
-        >
-          <Text style={styles.addButtonText}>+</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            style={styles.headerButton}
+            onPress={() => setSearchOpen(true)}
+            accessibilityLabel="Search notes"
+            accessibilityRole="button"
+          >
+            <Text style={styles.searchButtonText}>⌕</Text>
+          </Pressable>
+          <Pressable
+            style={styles.headerButton}
+            onPress={() => setSheetOpen(true)}
+            accessibilityLabel="Add to memory"
+            accessibilityRole="button"
+            disabled={ingestBusy}
+          >
+            <Text style={styles.addButtonText}>+</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.main}>
@@ -196,6 +208,10 @@ function AppContent() {
         }}
       />
       <IngestToast toast={toast} />
+      <SearchNotesModal
+        visible={searchOpen}
+        onClose={() => setSearchOpen(false)}
+      />
       <AccountScreen
         visible={accountOpen}
         onClose={() => setAccountOpen(false)}
@@ -225,6 +241,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 8,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   main: {
     flex: 1,
@@ -260,6 +281,12 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 24,
     lineHeight: 26,
+    color: '#9A7B2F',
+    fontWeight: '500',
+  },
+  searchButtonText: {
+    fontSize: 22,
+    lineHeight: 24,
     color: '#9A7B2F',
     fontWeight: '500',
   },
