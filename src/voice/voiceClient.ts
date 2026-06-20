@@ -58,23 +58,30 @@ export class VoiceClient {
       };
 
       ws.onclose = (event) => {
-        if (!settled) {
-          const reason = event.reason?.trim();
-          if (event.code === 4401) {
-            const authMessages: Record<string, string> = {
-              missing_token: 'Not signed in. Please sign in to continue.',
-              token_expired: 'Your session expired. Please sign in again.',
-              invalid_token: 'Invalid session. Please sign in again.',
-            };
-            fail(
-              authMessages[reason] ??
-                (reason || 'Authentication failed. Please sign in again.'),
-            );
+        const reason = event.reason?.trim();
+        let message: string | null = null;
+        if (event.code === 4401) {
+          const authMessages: Record<string, string> = {
+            missing_token: 'Not signed in. Please sign in to continue.',
+            token_expired: 'Your session expired. Please sign in again.',
+            invalid_token: 'Invalid session. Please sign in again.',
+          };
+          message =
+            authMessages[reason] ??
+            (reason || 'Authentication failed. Please sign in again.');
+        } else if (!settled) {
+          message =
+            `Voice socket closed before connect (${this.url}, code ${event.code}). ` +
+            'Is the voice server running?';
+        }
+
+        if (message) {
+          if (!settled) {
+            fail(message);
           } else {
-            fail(
-              `Voice socket closed before connect (${this.url}, code ${event.code}). ` +
-                'Is the voice server running?',
-            );
+            // Auth can finish after onopen; the session must fail fast instead of
+            // waiting for session.ready.
+            this.handlers.onError?.(message);
           }
         }
         this.handlers.onClose?.();

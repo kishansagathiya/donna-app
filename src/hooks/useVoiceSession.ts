@@ -38,6 +38,23 @@ const BUSY_PHASES: TurnPhase[] = [
   'synthesizing',
 ];
 
+function formatStartSessionError(message: string): string {
+  if (message === 'Session setup timed out') {
+    return (
+      'Donna server connected but did not respond. ' +
+      'For local dev, run npm run dev:server. ' +
+      'On a physical iPhone, use the same Wi‑Fi as your Mac and restart Metro (npm start).'
+    );
+  }
+  if (message.startsWith('Cannot reach Donna server')) {
+    return message;
+  }
+  if (message.startsWith('Voice socket closed before connect')) {
+    return message;
+  }
+  return message || "Couldn't start listening. Please try again.";
+}
+
 export function useVoiceSession(mode: DonnaMode) {
   const [state, setState] = useState<MicState>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -69,6 +86,7 @@ export function useVoiceSession(mode: DonnaMode) {
   const pendingReplyRef = useRef<string | null>(null);
   const activeRef = useRef(false);
   const readyResolverRef = useRef<(() => void) | null>(null);
+  const rejectReadyRef = useRef<((err: Error) => void) | null>(null);
   const isPlayingRef = useRef(false);
   const messageChainRef = useRef(Promise.resolve());
 
@@ -209,9 +227,23 @@ export function useVoiceSession(mode: DonnaMode) {
             .then(() => handleServerMessage(message))
             .catch(() => {});
         },
-        onError: (message) => setVoiceError(message),
+        onError: (message) => {
+          if (rejectReadyRef.current) {
+            rejectReadyRef.current(new Error(message));
+            return;
+          }
+          setVoiceError(message);
+        },
         onClose: () => {
           sessionReadyRef.current = false;
+          if (rejectReadyRef.current) {
+            rejectReadyRef.current(
+              new Error(
+                'Lost connection to Donna server before the voice session started.',
+              ),
+            );
+            return;
+          }
           if (activeRef.current) {
             setVoiceError('Disconnected from Donna server');
           }
@@ -314,11 +346,19 @@ export function useVoiceSession(mode: DonnaMode) {
       const readyPromise = new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           readyResolverRef.current = null;
+          rejectReadyRef.current = null;
           reject(new Error('Session setup timed out'));
         }, 8_000);
         readyResolverRef.current = () => {
           clearTimeout(timeout);
+          rejectReadyRef.current = null;
           resolve();
+        };
+        rejectReadyRef.current = (err) => {
+          clearTimeout(timeout);
+          readyResolverRef.current = null;
+          rejectReadyRef.current = null;
+          reject(err);
         };
       });
 
@@ -337,12 +377,17 @@ export function useVoiceSession(mode: DonnaMode) {
 
       vadRef.current.resume();
       setState('listening');
-    } catch {
+    } catch (err) {
       stopRecorder();
+      rejectReadyRef.current = null;
       if (client.isConnected) {
         client.disconnect();
       }
-      setVoiceError("Couldn't start listening. Please try again.");
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Couldn't start listening. Please try again.";
+      setVoiceError(formatStartSessionError(message));
     }
   }, [ensureClient, ensureRecorder, setVoiceError, stopRecorder]);
 
