@@ -22,6 +22,67 @@ jest.mock('../src/hooks/useVoiceSession', () => ({
   }),
 }));
 
+jest.mock('../src/hooks/useAuth', () => ({
+  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
+  useAuth: () => ({
+    isAuthenticated: true,
+    loading: false,
+    session: { user: { id: 'user-1' } },
+    signOut: jest.fn(),
+  }),
+}));
+
+jest.mock('../src/hooks/useAiDataConsent', () => ({
+  useAiDataConsent: () => ({
+    accepted: true,
+    refresh: jest.fn(),
+  }),
+}));
+
+jest.mock('../src/components/SearchContextModal', () => ({
+  SearchContextModal: () => null,
+}));
+
+jest.mock('../src/services/auth', () => ({
+  getAccessToken: jest.fn(async () => 'token'),
+  signInWithApple: jest.fn(),
+  signOut: jest.fn(),
+  getSession: jest.fn(async () => ({ user: { id: 'user-1' } })),
+  onAuthStateChange: jest.fn(() => jest.fn()),
+}));
+
+jest.mock('../src/screens/LoginScreen', () => ({
+  LoginScreen: () => null,
+}));
+
+jest.mock('../src/screens/AIDataConsentScreen', () => ({
+  AIDataConsentScreen: () => null,
+}));
+
+jest.mock('../src/screens/AccountScreen', () => ({
+  AccountScreen: () => null,
+}));
+
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(async () => null),
+  setItem: jest.fn(async () => undefined),
+  removeItem: jest.fn(async () => undefined),
+}));
+
+jest.mock('../src/hooks/useAssetIngest', () => ({
+  useAssetIngest: () => ({
+    ingestFile: jest.fn(),
+    busy: false,
+  }),
+}));
+
+jest.mock('../src/hooks/useIncomingShare', () => ({
+  useIncomingShare: () => ({
+    pendingShare: null,
+    clearPendingShare: jest.fn(),
+  }),
+}));
+
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import App from '../App';
