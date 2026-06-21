@@ -1,6 +1,17 @@
 import type { ClientMessage, ServerMessage } from './protocol';
 import { parseServerMessage } from './protocol';
 
+function connectionErrorMessage(url: string): string {
+  const base = `Cannot reach Donna server at ${url}.`;
+  if (__DEV__) {
+    return (
+      `${base} Start it with npm run dev:server. ` +
+      'On a physical iPhone, ensure the phone and Mac are on the same Wi‑Fi, then restart Metro (npm start) to refresh the auto-detected dev host.'
+    );
+  }
+  return `${base} Check your internet connection and try again in a moment.`;
+}
+
 export type VoiceClientHandlers = {
   onOpen?: () => void;
   onClose?: () => void;
@@ -50,11 +61,7 @@ export class VoiceClient {
       };
 
       ws.onerror = () => {
-        fail(
-          `Cannot reach Donna server at ${this.url}. ` +
-            'Start it with npm run dev:server. ' +
-            'On a physical iPhone, ensure the phone and Mac are on the same Wi‑Fi, then restart Metro (npm start) to refresh the auto-detected dev host.',
-        );
+        fail(connectionErrorMessage(this.url));
       };
 
       ws.onclose = (event) => {
@@ -70,9 +77,9 @@ export class VoiceClient {
             authMessages[reason] ??
             (reason || 'Authentication failed. Please sign in again.');
         } else if (!settled) {
-          message =
-            `Voice socket closed before connect (${this.url}, code ${event.code}). ` +
-            'Is the voice server running?';
+          message = __DEV__
+            ? `Voice socket closed before connect (${this.url}, code ${event.code}). Is the voice server running?`
+            : 'Could not connect to Donna. Please try again.';
         }
 
         if (message) {

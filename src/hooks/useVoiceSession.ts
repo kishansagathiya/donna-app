@@ -40,11 +40,14 @@ const BUSY_PHASES: TurnPhase[] = [
 
 function formatStartSessionError(message: string): string {
   if (message === 'Session setup timed out') {
-    return (
-      'Donna server connected but did not respond. ' +
-      'For local dev, run npm run dev:server. ' +
-      'On a physical iPhone, use the same Wi‑Fi as your Mac and restart Metro (npm start).'
-    );
+    if (__DEV__) {
+      return (
+        'Donna server connected but did not respond. ' +
+        'For local dev, run npm run dev:server. ' +
+        'On a physical iPhone, use the same Wi‑Fi as your Mac and restart Metro (npm start).'
+      );
+    }
+    return 'Donna could not start listening. Please try again in a moment.';
   }
   if (message.startsWith('Cannot reach Donna server')) {
     return message;
