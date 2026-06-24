@@ -33,3 +33,32 @@ export async function deleteAccount(): Promise<void> {
   await revokeAiDataConsent();
   await signOut();
 }
+
+export type AccountPreferences = {
+  llm_model: string;
+  available_models: string[];
+};
+
+export async function getAccountPreferences(): Promise<AccountPreferences> {
+  const res = await authorizedFetch('/account');
+  const body = (await res.json()) as AccountPreferences & {
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok) {
+    throw new Error(body.message ?? body.error ?? `Load failed (${res.status})`);
+  }
+  return body;
+}
+
+export async function updateLLMModel(llmModel: string): Promise<void> {
+  const res = await authorizedFetch('/account', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ llm_model: llmModel }),
+  });
+  const body = (await res.json()) as { error?: string; message?: string };
+  if (!res.ok) {
+    throw new Error(body.message ?? body.error ?? `Save failed (${res.status})`);
+  }
+}

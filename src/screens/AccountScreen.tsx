@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -9,7 +9,11 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { deleteAccount } from '../services/accountApi';
+import {
+  deleteAccount,
+  getAccountPreferences,
+  updateLLMModel,
+} from '../services/accountApi';
 import { signOut } from '../services/auth';
 
 type Props = {
@@ -21,7 +25,50 @@ export function AccountScreen({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const [signingOut, setSigningOut] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const busy = signingOut || deleting;
+  const [models, setModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [savingModel, setSavingModel] = useState(false);
+  const busy = signingOut || deleting || savingModel;
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    setLoadingModels(true);
+    getAccountPreferences()
+      .then(preferences => {
+        setModels(preferences.available_models);
+        setSelectedModel(preferences.llm_model);
+      })
+      .catch(error => {
+        Alert.alert(
+          'Could Not Load Models',
+          error instanceof Error ? error.message : 'Please try again.',
+        );
+      })
+      .finally(() => setLoadingModels(false));
+  }, [visible]);
+
+  async function handleModelChange(model: string) {
+    if (model === selectedModel || savingModel) {
+      return;
+    }
+    const previous = selectedModel;
+    setSelectedModel(model);
+    setSavingModel(true);
+    try {
+      await updateLLMModel(model);
+    } catch (error) {
+      setSelectedModel(previous);
+      Alert.alert(
+        'Could Not Save Model',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setSavingModel(false);
+    }
+  }
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -97,6 +144,33 @@ export function AccountScreen({ visible, onClose }: Props) {
           your conversations, memories, and sign-in from our servers.
         </Text>
 
+        <Text style={styles.sectionTitle}>AI model</Text>
+        <Text style={styles.sectionDescription}>
+          Choose the model Donna uses for your text and voice replies.
+        </Text>
+        {loadingModels ? (
+          <ActivityIndicator color="#9A7B2F" style={styles.modelLoader} />
+        ) : (
+          <View style={styles.modelList}>
+            {models.map(model => {
+              const selected = model === selectedModel;
+              return (
+                <Pressable
+                  key={model}
+                  style={[styles.modelOption, selected && styles.modelOptionSelected]}
+                  onPress={() => void handleModelChange(model)}
+                  disabled={busy}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
+                >
+                  <Text style={styles.modelName}>{model}</Text>
+                  <Text style={styles.modelCheck}>{selected ? '✓' : ''}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
         <Pressable
           style={[styles.button, styles.secondaryButton, busy && styles.buttonDisabled]}
           onPress={() => void handleSignOut()}
@@ -154,7 +228,54 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: '#555555',
-    marginBottom: 28,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 4,
+  },
+  sectionDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#666666',
+    marginBottom: 12,
+  },
+  modelLoader: {
+    marginVertical: 16,
+  },
+  modelList: {
+    marginBottom: 24,
+  },
+  modelOption: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: '#e0d8c4',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ffffff',
+  },
+  modelOptionSelected: {
+    borderColor: '#9A7B2F',
+    backgroundColor: '#f8f4e8',
+  },
+  modelName: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1a1a1a',
+  },
+  modelCheck: {
+    width: 20,
+    marginLeft: 8,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#9A7B2F',
+    textAlign: 'right',
   },
   button: {
     borderRadius: 12,
