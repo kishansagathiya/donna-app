@@ -8,18 +8,22 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useTheme } from '../hooks/useTheme';
+import { useThemedStyles } from '../hooks/useThemedStyles';
 import {
   formatNoteDate,
   searchNotes,
   type NoteSearchResult,
 } from '../services/notesApi';
-import { colors } from '../theme/colors';
+import type { ThemeColors } from '../theme/colors';
 
 type Props = {
   onAddPress: () => void;
 };
 
 export function MemoryScreen({ onAddPress }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<NoteSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -129,129 +133,131 @@ export function MemoryScreen({ onAddPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  addButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addButtonText: {
-    fontSize: 22,
-    lineHeight: 24,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  searchRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: colors.text,
-    backgroundColor: colors.surface,
-  },
-  searchButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-    minWidth: 72,
-    alignItems: 'center',
-  },
-  searchButtonDisabled: {
-    opacity: 0.6,
-  },
-  searchButtonText: {
-    color: colors.white,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  error: {
-    color: colors.destructive,
-    paddingHorizontal: 20,
-    marginBottom: 8,
-    fontSize: 14,
-  },
-  empty: {
-    paddingHorizontal: 20,
-    fontSize: 15,
-    color: colors.muted,
-  },
-  hint: {
-    paddingHorizontal: 20,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.muted,
-  },
-  list: {
-    paddingHorizontal: 20,
-    paddingBottom: 32,
-  },
-  resultCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    backgroundColor: colors.background,
-  },
-  resultHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  resultTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  flags: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  resultPreview: {
-    marginTop: 6,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.muted,
-  },
-  resultDate: {
-    marginTop: 8,
-    fontSize: 12,
-    color: colors.muted,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    addButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    addButtonText: {
+      fontSize: 22,
+      lineHeight: 24,
+      color: colors.primary,
+      fontWeight: '500',
+    },
+    searchRow: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+    },
+    input: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 16,
+      color: colors.text,
+      backgroundColor: colors.surface,
+    },
+    searchButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      justifyContent: 'center',
+      minWidth: 72,
+      alignItems: 'center',
+    },
+    searchButtonDisabled: {
+      opacity: 0.6,
+    },
+    searchButtonText: {
+      color: colors.white,
+      fontWeight: '600',
+      fontSize: 15,
+    },
+    error: {
+      color: colors.destructive,
+      paddingHorizontal: 20,
+      marginBottom: 8,
+      fontSize: 14,
+    },
+    empty: {
+      paddingHorizontal: 20,
+      fontSize: 15,
+      color: colors.muted,
+    },
+    hint: {
+      paddingHorizontal: 20,
+      fontSize: 15,
+      lineHeight: 22,
+      color: colors.muted,
+    },
+    list: {
+      paddingHorizontal: 20,
+      paddingBottom: 32,
+    },
+    resultCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 12,
+      backgroundColor: colors.background,
+    },
+    resultHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 8,
+    },
+    resultTitle: {
+      flex: 1,
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    flags: {
+      flexDirection: 'row',
+      gap: 4,
+    },
+    resultPreview: {
+      marginTop: 6,
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.muted,
+    },
+    resultDate: {
+      marginTop: 8,
+      fontSize: 12,
+      color: colors.muted,
+    },
+  });
+}

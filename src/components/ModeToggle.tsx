@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import type { ThemeColors } from '../theme/colors';
 import type { DonnaMode } from '../types/mode';
-import { colors } from '../theme/colors';
 
 type ModeToggleProps = {
   mode: DonnaMode;
@@ -10,6 +11,8 @@ type ModeToggleProps = {
 };
 
 export function ModeToggle({ mode, onChange, disabled }: ModeToggleProps) {
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View style={styles.container} accessibilityRole="tablist">
       <Pressable
@@ -38,29 +41,31 @@ export function ModeToggle({ mode, onChange, disabled }: ModeToggleProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 3,
-  },
-  segment: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 16,
-  },
-  segmentActive: {
-    backgroundColor: colors.primary,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.muted,
-  },
-  labelActive: {
-    color: colors.white,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+    },
+    segment: {
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 16,
+    },
+    segmentActive: {
+      backgroundColor: colors.primary,
+    },
+    label: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.muted,
+    },
+    labelActive: {
+      color: colors.white,
+    },
+  });
+}

@@ -4,10 +4,12 @@ import {
   Easing,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
-import { colors } from '../theme/colors';
+import { useTheme } from '../hooks/useTheme';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import type { ThemeColors } from '../theme/colors';
+import { MicIcon } from './icons';
 
 export type MicState =
   | 'idle'
@@ -16,8 +18,8 @@ export type MicState =
   | 'processing'
   | 'error';
 
-const CORE_SIZE = 88;
-const WRAPPER_SIZE = 160;
+const CORE_SIZE = 96;
+const WRAPPER_SIZE = 176;
 const RING_COUNT = 3;
 const RING_STAGGER_MS = 200;
 const PULSE_DURATION_MS = 1400;
@@ -75,6 +77,8 @@ function buildRingPulse(ring: {
 }
 
 export function MicButton({ state, onPress, disabled }: MicButtonProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const ringsRef = useRef(createRingValues());
   const ringLoopsRef = useRef<Animated.CompositeAnimation[]>([]);
   const breatheLoopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -196,51 +200,50 @@ export function MicButton({ state, onPress, disabled }: MicButtonProps) {
             },
           ]}
         >
-          <Text style={styles.micIcon}>🎤</Text>
+          <MicIcon size={36} color={colors.primary} />
         </Animated.View>
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    width: WRAPPER_SIZE,
-    height: WRAPPER_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ring: {
-    position: 'absolute',
-    width: CORE_SIZE,
-    height: CORE_SIZE,
-    borderRadius: CORE_SIZE / 2,
-    borderWidth: 2,
-    backgroundColor: 'transparent',
-  },
-  core: {
-    width: CORE_SIZE,
-    height: CORE_SIZE,
-    borderRadius: CORE_SIZE / 2,
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  micIcon: {
-    fontSize: 36,
-  },
-  coreListening: {
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-  },
-  corePressed: {
-    opacity: 0.85,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    wrapper: {
+      width: WRAPPER_SIZE,
+      height: WRAPPER_SIZE,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    ring: {
+      position: 'absolute',
+      width: CORE_SIZE,
+      height: CORE_SIZE,
+      borderRadius: CORE_SIZE / 2,
+      borderWidth: 2,
+      backgroundColor: 'transparent',
+    },
+    core: {
+      width: CORE_SIZE,
+      height: CORE_SIZE,
+      borderRadius: CORE_SIZE / 2,
+      backgroundColor: colors.white,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 16,
+      elevation: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    coreListening: {
+      shadowOpacity: 0.28,
+      shadowRadius: 20,
+    },
+    corePressed: {
+      opacity: 0.85,
+    },
+  });
+}

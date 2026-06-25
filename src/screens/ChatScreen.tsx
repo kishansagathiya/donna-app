@@ -4,8 +4,9 @@ import { AppHeader } from '../components/AppHeader';
 import { ChatHero } from '../components/ChatHero';
 import { ChatInput } from '../components/ChatInput';
 import type { MicState } from '../components/MicButton';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import type { ThemeColors } from '../theme/colors';
 import type { DonnaMode } from '../types/mode';
-import { colors } from '../theme/colors';
 
 type Props = {
   mode: DonnaMode;
@@ -32,6 +33,7 @@ export function ChatScreen({
   onOpenProfile,
   onOpenMemory,
 }: Props) {
+  const styles = useThemedStyles(createStyles);
   const [draftReply, setDraftReply] = useState<string | null>(null);
 
   function handleSend(text: string) {
@@ -76,38 +78,41 @@ export function ChatScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  main: {
-    flex: 1,
-  },
-  status: {
-    position: 'absolute',
-    bottom: 12,
-    left: 24,
-    right: 24,
-    color: colors.muted,
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  draftBubble: {
-    position: 'absolute',
-    bottom: 48,
-    right: 24,
-    maxWidth: '75%',
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    borderBottomRightRadius: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  draftText: {
-    color: colors.white,
-    fontSize: 15,
-    lineHeight: 20,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    main: {
+      flex: 1,
+      backgroundColor: colors.surface,
+    },
+    status: {
+      position: 'absolute',
+      bottom: 12,
+      left: 24,
+      right: 24,
+      color: colors.muted,
+      fontSize: 14,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    draftBubble: {
+      position: 'absolute',
+      bottom: 48,
+      right: 24,
+      maxWidth: '75%',
+      backgroundColor: colors.primary,
+      borderRadius: 16,
+      borderBottomRightRadius: 4,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    draftText: {
+      color: colors.white,
+      fontSize: 15,
+      lineHeight: 20,
+    },
+  });
+}

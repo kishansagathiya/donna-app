@@ -36,21 +36,34 @@ import { MemoryScreen } from './src/screens/MemoryScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SCREENSHOT_MODE } from './src/config';
 import { useAiDataConsent } from './src/hooks/useAiDataConsent';
-import { colors } from './src/theme/colors';
+import { ThemeProvider, useTheme } from './src/hooks/useTheme';
+import { useThemedStyles } from './src/hooks/useThemedStyles';
+import type { ThemeColors } from './src/theme/colors';
 
 function App() {
   return (
     <SafeAreaProvider>
+      <ThemeProvider>
+        <ThemedApp />
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function ThemedApp() {
+  return (
+    <>
       <StatusBar barStyle="dark-content" />
       <AuthProvider>
         <AppShell />
       </AuthProvider>
-    </SafeAreaProvider>
+    </>
   );
 }
 
 function ScreenshotShell() {
   const safeAreaInsets = useSafeAreaInsets();
+  const styles = useThemedStyles(createStyles);
 
   if (SCREENSHOT_MODE === 'login') {
     return <LoginScreen onSuccess={() => {}} />;
@@ -78,6 +91,9 @@ function ScreenshotShell() {
 }
 
 function AppShell() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   if (SCREENSHOT_MODE) {
     return <ScreenshotShell />;
   }
@@ -106,6 +122,7 @@ function AppShell() {
 }
 
 function AppContent() {
+  const styles = useThemedStyles(createStyles);
   const safeAreaInsets = useSafeAreaInsets();
   const [tab, setTab] = useState<AppTab>('chat');
   const [mode, setMode] = useState<DonnaMode>('talk');
@@ -187,25 +204,27 @@ function AppContent() {
   );
 }
 
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  status: {
-    marginTop: 16,
-    paddingHorizontal: 24,
-    color: colors.muted,
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    loadingContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+    },
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    status: {
+      marginTop: 16,
+      paddingHorizontal: 24,
+      color: colors.muted,
+      fontSize: 14,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+  });
+}
 
 export default App;

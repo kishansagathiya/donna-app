@@ -8,6 +8,9 @@ import {
   Text,
   View,
 } from 'react-native';
+import { ThemeToggle } from '../components/ThemeToggle';
+import { useTheme } from '../hooks/useTheme';
+import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
 import {
   deleteAccount,
@@ -15,9 +18,11 @@ import {
   updateLLMModel,
 } from '../services/accountApi';
 import { signOut } from '../services/auth';
-import { colors } from '../theme/colors';
+import type { ThemeColors } from '../theme/colors';
 
 export function ProfileScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { session } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -156,6 +161,8 @@ export function ProfileScreen() {
         </View>
       )}
 
+      <ThemeToggle />
+
       <Pressable
         style={[styles.button, styles.secondaryButton, busy && styles.buttonDisabled]}
         onPress={() => void handleSignOut()}
@@ -185,123 +192,125 @@ export function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 32,
-  },
-  pageTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 20,
-  },
-  profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 28,
-  },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  name: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  email: {
-    marginTop: 2,
-    fontSize: 14,
-    color: colors.muted,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  sectionDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.muted,
-    marginBottom: 12,
-  },
-  modelLoader: {
-    marginVertical: 16,
-  },
-  modelList: {
-    marginBottom: 24,
-  },
-  modelOption: {
-    minHeight: 46,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.background,
-  },
-  modelOptionSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surface,
-  },
-  modelName: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.text,
-  },
-  modelCheck: {
-    width: 20,
-    marginLeft: 8,
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.primary,
-    textAlign: 'right',
-  },
-  button: {
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  secondaryButton: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  destructiveButton: {
-    backgroundColor: colors.destructive,
-  },
-  destructiveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.white,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      paddingHorizontal: 24,
+      paddingTop: 12,
+      paddingBottom: 32,
+    },
+    pageTitle: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: 20,
+    },
+    profileRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+      marginBottom: 28,
+    },
+    avatar: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      fontSize: 26,
+      fontWeight: '700',
+      color: colors.primary,
+    },
+    name: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    email: {
+      marginTop: 2,
+      fontSize: 14,
+      color: colors.muted,
+    },
+    sectionTitle: {
+      fontSize: 17,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: 4,
+    },
+    sectionDescription: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.muted,
+      marginBottom: 12,
+    },
+    modelLoader: {
+      marginVertical: 16,
+    },
+    modelList: {
+      marginBottom: 24,
+    },
+    modelOption: {
+      minHeight: 46,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      marginBottom: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.background,
+    },
+    modelOptionSelected: {
+      borderColor: colors.primary,
+      backgroundColor: colors.surface,
+    },
+    modelName: {
+      flex: 1,
+      fontSize: 14,
+      color: colors.text,
+    },
+    modelCheck: {
+      width: 20,
+      marginLeft: 8,
+      fontSize: 17,
+      fontWeight: '700',
+      color: colors.primary,
+      textAlign: 'right',
+    },
+    button: {
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    buttonDisabled: {
+      opacity: 0.7,
+    },
+    secondaryButton: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    secondaryButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    destructiveButton: {
+      backgroundColor: colors.destructive,
+    },
+    destructiveButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.white,
+    },
+  });
+}
