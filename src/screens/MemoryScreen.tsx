@@ -1,8 +1,11 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,79 +14,188 @@ import {
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import {
-  formatNoteDate,
-  searchNotes,
-  type NoteSearchResult,
-} from '../services/notesApi';
+  createMemoryFact,
+  deleteMemoryFact,
+  formatFactDate,
+  getMemoryProfile,
+  listMemoryFacts,
+  updateMemoryFact,
+  updateMemoryProfile,
+  type MemoryFact,
+} from '../services/memoryApi';
 import type { ThemeColors } from '../theme/colors';
 
 type Props = {
-  onAddPress: () => void;
+  onAddSourcePress: () => void;
 };
 
-export function MemoryScreen({ onAddPress }: Props) {
+export function MemoryScreen({ onAddSourcePress }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState('');
+  const [identityFactsText, setIdentityFactsText] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<NoteSearchResult[]>([]);
+  const [facts, setFacts] = useState<MemoryFact[]>([]);
   const [searching, setSearching] = useState(false);
-  const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedFact, setSelectedFact] = useState<MemoryFact | null>(null);
+  const [editText, setEditText] = useState('');
+  const [savingFact, setSavingFact] = useState(false);
+  const [showAddFact, setShowAddFact] = useState(false);
+  const [newFactText, setNewFactText] = useState('');
 
-  const handleSearch = useCallback(async () => {
-    const trimmed = query.trim();
-    if (!trimmed) {
-      return;
-    }
+  const loadFacts = useCallback(async (searchQuery = '') => {
     setSearching(true);
-    setSearched(true);
     setError(null);
     try {
-      setResults(await searchNotes(trimmed));
+      setFacts(await listMemoryFacts(searchQuery));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Search failed');
-      setResults([]);
+      setError(err instanceof Error ? err.message : 'Failed to load facts');
+      setFacts([]);
     } finally {
       setSearching(false);
     }
-  }, [query]);
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const profile = await getMemoryProfile();
+        setSummary(profile.summary);
+        setIdentityFactsText(profile.identity_facts.join('\n'));
+        await loadFacts();
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to load memory');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [loadFacts]);
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    setError(null);
+    try {
+      const identity_facts = identityFactsText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
+      const updated = await updateMemoryProfile({ summary, identity_facts });
+      setSummary(updated.summary);
+      setIdentityFactsText(updated.identity_facts.join('\n'));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save profile');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const openFact = (fact: MemoryFact) => {
+    setSelectedFact(fact);
+    setEditText(fact.fact);
+  };
+
+  const handleSaveFact = async () => {
+    if (!selectedFact || !editText.trim()) {
+      return;
+    }
+    setSavingFact(true);
+    setError(null);
+    try {
+      const updated = await updateMemoryFact(selectedFact.id, {
+        fact: editText.trim(),
+      });
+      setFacts(prev =>
+        prev.map(f => (f.id === selectedFact.id ? updated : f)),
+      );
+      setSelectedFact(null);
+      setEditText('');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save fact');
+    } finally {
+      setSavingFact(false);
+    }
+  };
+
+  const handleDeleteFact = () => {
+    if (!selectedFact) {
+      return;
+    }
+    Alert.alert(
+      'Delete fact',
+      'Remove this fact from Donna\'s memory?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setError(null);
+              try {
+                await deleteMemoryFact(selectedFact.id);
+                setFacts(prev => prev.filter(f => f.id !== selectedFact.id));
+                setSelectedFact(null);
+                setEditText('');
+              } catch (err: unknown) {
+                setError(
+                  err instanceof Error ? err.message : 'Failed to delete fact',
+                );
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
+  const handleAddFact = async () => {
+    if (!newFactText.trim()) {
+      return;
+    }
+    setSavingFact(true);
+    setError(null);
+    try {
+      const created = await createMemoryFact({ fact: newFactText.trim() });
+      setFacts(prev => [created, ...prev]);
+      setNewFactText('');
+      setShowAddFact(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to add fact');
+    } finally {
+      setSavingFact(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Memory</Text>
-        <Pressable
-          style={styles.addButton}
-          onPress={onAddPress}
-          accessibilityRole="button"
-          accessibilityLabel="Add to memory"
-        >
-          <Text style={styles.addButtonText}>+</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.searchRow}>
-        <TextInput
-          style={styles.input}
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search context…"
-          placeholderTextColor={colors.muted}
-          returnKeyType="search"
-          onSubmitEditing={() => void handleSearch()}
-        />
-        <Pressable
-          style={[styles.searchButton, searching && styles.searchButtonDisabled]}
-          onPress={() => void handleSearch()}
-          disabled={searching || !query.trim()}
-          accessibilityRole="button"
-        >
-          {searching ? (
-            <ActivityIndicator size="small" color={colors.white} />
-          ) : (
-            <Text style={styles.searchButtonText}>Search</Text>
-          )}
-        </Pressable>
+        <View>
+          <Text style={styles.title}>Memory</Text>
+          <Text style={styles.subtitle}>What Donna knows about you</Text>
+        </View>
+        <View style={styles.headerActions}>
+          <Pressable
+            style={styles.addButton}
+            onPress={() => setShowAddFact(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Add fact"
+          >
+            <Text style={styles.addButtonText}>+</Text>
+          </Pressable>
+        </View>
       </View>
 
       {error ? (
@@ -92,43 +204,167 @@ export function MemoryScreen({ onAddPress }: Props) {
         </Text>
       ) : null}
 
-      {searched && results.length === 0 && !error ? (
-        <Text style={styles.empty}>No matches found</Text>
-      ) : null}
-
-      {!searched && !error ? (
-        <Text style={styles.hint}>
-          Search your saved context from voice, links, and documents.
-        </Text>
-      ) : null}
-
-      <FlatList
-        data={results}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.list}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
-        renderItem={({ item }) => (
-          <View style={styles.resultCard}>
-            <View style={styles.resultHeader}>
-              <Text style={styles.resultTitle} numberOfLines={2}>
-                {item.title}
-              </Text>
-              <View style={styles.flags}>
-                {item.is_urgent ? <Text>🔥</Text> : null}
-                {item.is_important ? <Text>⭐</Text> : null}
-              </View>
+      >
+        <Text style={styles.sectionTitle}>Profile</Text>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          value={summary}
+          onChangeText={setSummary}
+          placeholder="Summary about you…"
+          placeholderTextColor={colors.muted}
+          multiline
+        />
+        <Text style={styles.fieldLabel}>Identity facts (one per line)</Text>
+        <TextInput
+          style={[styles.input, styles.textAreaSmall]}
+          value={identityFactsText}
+          onChangeText={setIdentityFactsText}
+          placeholder={"User's name is …"}
+          placeholderTextColor={colors.muted}
+          multiline
+        />
+        <Pressable
+          style={[styles.primaryButton, savingProfile && styles.buttonDisabled]}
+          onPress={() => void handleSaveProfile()}
+          disabled={savingProfile}
+        >
+          <Text style={styles.primaryButtonText}>
+            {savingProfile ? 'Saving…' : 'Save profile'}
+          </Text>
+        </Pressable>
+
+        <View style={styles.searchRow}>
+          <TextInput
+            style={[styles.input, styles.searchInput]}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search facts…"
+            placeholderTextColor={colors.muted}
+            returnKeyType="search"
+            onSubmitEditing={() => void loadFacts(query)}
+          />
+          <Pressable
+            style={[styles.searchButton, searching && styles.buttonDisabled]}
+            onPress={() => void loadFacts(query)}
+            disabled={searching}
+          >
+            {searching ? (
+              <ActivityIndicator size="small" color={colors.white} />
+            ) : (
+              <Text style={styles.searchButtonText}>Search</Text>
+            )}
+          </Pressable>
+        </View>
+
+        <Text style={styles.sectionTitle}>Facts</Text>
+        {facts.length === 0 && !searching ? (
+          <Text style={styles.hint}>
+            Donna learns from conversations, or add facts with +.
+          </Text>
+        ) : null}
+
+        <FlatList
+          data={facts}
+          keyExtractor={item => item.id}
+          scrollEnabled={false}
+          renderItem={({ item }) => (
+            <Pressable style={styles.factCard} onPress={() => openFact(item)}>
+              <Text style={styles.factText}>{item.fact}</Text>
+              {item.created_at ? (
+                <Text style={styles.factDate}>
+                  {formatFactDate(item.created_at)}
+                </Text>
+              ) : null}
+            </Pressable>
+          )}
+        />
+
+        <Pressable style={styles.linkButton} onPress={onAddSourcePress}>
+          <Text style={styles.linkButtonText}>Add source material (link/file)</Text>
+        </Pressable>
+      </ScrollView>
+
+      <Modal visible={selectedFact !== null} animationType="slide" transparent>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Edit fact</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={editText}
+              onChangeText={setEditText}
+              multiline
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.primaryButton, savingFact && styles.buttonDisabled]}
+                onPress={() => void handleSaveFact()}
+                disabled={savingFact || !editText.trim()}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {savingFact ? 'Saving…' : 'Save'}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={styles.destructiveButton}
+                onPress={handleDeleteFact}
+              >
+                <Text style={styles.destructiveButtonText}>Delete</Text>
+              </Pressable>
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => {
+                  setSelectedFact(null);
+                  setEditText('');
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </Pressable>
             </View>
-            {item.preview ? (
-              <Text style={styles.resultPreview} numberOfLines={3}>
-                {item.preview}
-              </Text>
-            ) : null}
-            <Text style={styles.resultDate}>
-              {formatNoteDate(item.note_date)}
-            </Text>
           </View>
-        )}
-      />
+        </View>
+      </Modal>
+
+      <Modal visible={showAddFact} animationType="slide" transparent>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>New fact</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={newFactText}
+              onChangeText={setNewFactText}
+              placeholder="Something Donna should remember…"
+              placeholderTextColor={colors.muted}
+              multiline
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.primaryButton, savingFact && styles.buttonDisabled]}
+                onPress={() => void handleAddFact()}
+                disabled={savingFact || !newFactText.trim()}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {savingFact ? 'Adding…' : 'Add'}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => {
+                  setShowAddFact(false);
+                  setNewFactText('');
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -139,9 +375,15 @@ function createStyles(colors: ThemeColors) {
       flex: 1,
       backgroundColor: colors.background,
     },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+    },
     header: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'space-between',
       paddingHorizontal: 20,
       paddingTop: 12,
@@ -153,6 +395,15 @@ function createStyles(colors: ThemeColors) {
       fontSize: 22,
       fontWeight: '700',
       color: colors.text,
+    },
+    subtitle: {
+      marginTop: 2,
+      fontSize: 14,
+      color: colors.muted,
+    },
+    headerActions: {
+      flexDirection: 'row',
+      gap: 8,
     },
     addButton: {
       width: 36,
@@ -170,14 +421,32 @@ function createStyles(colors: ThemeColors) {
       color: colors.primary,
       fontWeight: '500',
     },
-    searchRow: {
-      flexDirection: 'row',
-      gap: 8,
+    error: {
+      color: colors.destructive,
       paddingHorizontal: 20,
-      paddingVertical: 16,
+      paddingTop: 8,
+      fontSize: 14,
+    },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: 20,
+      paddingBottom: 32,
+    },
+    sectionTitle: {
+      marginTop: 16,
+      marginBottom: 8,
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    fieldLabel: {
+      marginTop: 8,
+      fontSize: 12,
+      color: colors.muted,
     },
     input: {
-      flex: 1,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 12,
@@ -187,6 +456,37 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
       backgroundColor: colors.surface,
     },
+    textArea: {
+      minHeight: 88,
+      textAlignVertical: 'top',
+    },
+    textAreaSmall: {
+      minHeight: 64,
+      textAlignVertical: 'top',
+    },
+    primaryButton: {
+      marginTop: 10,
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    primaryButtonText: {
+      color: colors.white,
+      fontWeight: '600',
+      fontSize: 15,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    searchRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: 20,
+    },
+    searchInput: {
+      flex: 1,
+    },
     searchButton: {
       backgroundColor: colors.primary,
       borderRadius: 12,
@@ -195,69 +495,87 @@ function createStyles(colors: ThemeColors) {
       minWidth: 72,
       alignItems: 'center',
     },
-    searchButtonDisabled: {
-      opacity: 0.6,
-    },
     searchButtonText: {
       color: colors.white,
       fontWeight: '600',
       fontSize: 15,
     },
-    error: {
-      color: colors.destructive,
-      paddingHorizontal: 20,
-      marginBottom: 8,
-      fontSize: 14,
-    },
-    empty: {
-      paddingHorizontal: 20,
-      fontSize: 15,
-      color: colors.muted,
-    },
     hint: {
-      paddingHorizontal: 20,
       fontSize: 15,
       lineHeight: 22,
       color: colors.muted,
+      marginBottom: 8,
     },
-    list: {
-      paddingHorizontal: 20,
-      paddingBottom: 32,
-    },
-    resultCard: {
+    factCard: {
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 12,
       padding: 14,
-      marginBottom: 12,
+      marginBottom: 10,
       backgroundColor: colors.background,
     },
-    resultHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      gap: 8,
-    },
-    resultTitle: {
-      flex: 1,
-      fontSize: 16,
-      fontWeight: '600',
+    factText: {
+      fontSize: 15,
+      lineHeight: 22,
       color: colors.text,
     },
-    flags: {
-      flexDirection: 'row',
-      gap: 4,
-    },
-    resultPreview: {
-      marginTop: 6,
-      fontSize: 14,
-      lineHeight: 20,
-      color: colors.muted,
-    },
-    resultDate: {
+    factDate: {
       marginTop: 8,
       fontSize: 12,
       color: colors.muted,
+    },
+    linkButton: {
+      marginTop: 16,
+      paddingVertical: 8,
+    },
+    linkButtonText: {
+      fontSize: 14,
+      color: colors.primary,
+      fontWeight: '500',
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      justifyContent: 'flex-end',
+    },
+    modalCard: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      padding: 20,
+      paddingBottom: 32,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 12,
+    },
+    modalActions: {
+      marginTop: 12,
+      gap: 8,
+    },
+    destructiveButton: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.destructive,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    destructiveButtonText: {
+      color: colors.destructive,
+      fontWeight: '600',
+      fontSize: 15,
+    },
+    secondaryButton: {
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    secondaryButtonText: {
+      color: colors.muted,
+      fontWeight: '600',
+      fontSize: 15,
     },
   });
 }

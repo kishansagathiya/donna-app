@@ -174,7 +174,7 @@ function AppContent() {
       ) : null}
 
       {tab === 'memory' ? (
-        <MemoryScreen onAddPress={() => setSheetOpen(true)} />
+        <MemoryScreen onAddSourcePress={() => setSheetOpen(true)} />
       ) : null}
 
       {tab === 'profile' ? <ProfileScreen /> : null}
