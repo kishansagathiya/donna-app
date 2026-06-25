@@ -2,12 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import {
   Animated,
   Easing,
-  Image,
   Pressable,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
-import logo from '../../assets/logo.png';
+import { colors } from '../theme/colors';
 
 export type MicState =
   | 'idle'
@@ -22,9 +22,6 @@ const RING_COUNT = 3;
 const RING_STAGGER_MS = 200;
 const PULSE_DURATION_MS = 1400;
 
-/** Dark antique gold — button & pulse rings */
-const GOLD_CORE = '#9A7B2F';
-const GOLD_RING = '#B89446';
 type MicButtonProps = {
   state: MicState;
   onPress: () => void;
@@ -164,8 +161,6 @@ export function MicButton({ state, onPress, disabled }: MicButtonProps) {
     return () => pulse.stop();
   }, [isRequesting, coreOpacity]);
 
-  const accentColor = GOLD_RING;
-
   return (
     <View style={styles.wrapper} testID="mic-toggle">
       {isListening &&
@@ -176,7 +171,7 @@ export function MicButton({ state, onPress, disabled }: MicButtonProps) {
             style={[
               styles.ring,
               {
-                borderColor: accentColor,
+                borderColor: colors.primaryRing,
                 opacity: ring.opacity,
                 transform: [{ scale: ring.scale }],
               },
@@ -201,12 +196,7 @@ export function MicButton({ state, onPress, disabled }: MicButtonProps) {
             },
           ]}
         >
-          <Image
-            source={logo}
-            style={styles.coreLogo}
-            resizeMode="cover"
-            accessibilityIgnoresInvertColors
-          />
+          <Text style={styles.micIcon}>🎤</Text>
         </Animated.View>
       </Pressable>
     </View>
@@ -232,23 +222,23 @@ const styles = StyleSheet.create({
     width: CORE_SIZE,
     height: CORE_SIZE,
     borderRadius: CORE_SIZE / 2,
-    overflow: 'hidden',
-    backgroundColor: GOLD_CORE,
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: GOLD_RING,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
     elevation: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  coreLogo: {
-    width: CORE_SIZE,
-    height: CORE_SIZE,
+  micIcon: {
+    fontSize: 36,
   },
   coreListening: {
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
   },
   corePressed: {
     opacity: 0.85,

@@ -10,39 +10,38 @@
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   StatusBar,
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import { AddMemorySheet } from './src/components/AddMemorySheet';
-import { SearchContextModal } from './src/components/SearchContextModal';
+import { BottomTabBar, type AppTab } from './src/components/BottomTabBar';
 import { IngestToast } from './src/components/IngestToast';
 import { MicButton, type MicState } from './src/components/MicButton';
 import { useAssetIngest } from './src/hooks/useAssetIngest';
 import { useIncomingShare } from './src/hooks/useIncomingShare';
 import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import { useVoiceSession } from './src/hooks/useVoiceSession';
-import { ModeToggle } from './src/components/ModeToggle';
 import type { DonnaMode } from './src/types/mode';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { AIDataConsentScreen } from './src/screens/AIDataConsentScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
+import { ChatScreen } from './src/screens/ChatScreen';
+import { MemoryScreen } from './src/screens/MemoryScreen';
+import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SCREENSHOT_MODE } from './src/config';
 import { useAiDataConsent } from './src/hooks/useAiDataConsent';
+import { colors } from './src/theme/colors';
 
 function App() {
-  const isDarkMode = useColorScheme() === 'dark';
-
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle="dark-content" />
       <AuthProvider>
         <AppShell />
       </AuthProvider>
@@ -90,7 +89,7 @@ function AppShell() {
   if (loading || (isAuthenticated && consentAccepted === null)) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#9A7B2F" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -107,13 +106,12 @@ function AppShell() {
 }
 
 function AppContent() {
-  const isDarkMode = useColorScheme() === 'dark';
   const safeAreaInsets = useSafeAreaInsets();
-  const [mode, setMode] = useState<DonnaMode>('listen');
+  const [tab, setTab] = useState<AppTab>('chat');
+  const [mode, setMode] = useState<DonnaMode>('talk');
   const { state, toggleTalk, statusText, disabled } = useVoiceSession(mode);
   const sessionActive = state === 'listening' || state === 'processing';
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const {
     toast,
@@ -137,67 +135,40 @@ function AppContent() {
     <View
       style={[
         styles.container,
-        isDarkMode && styles.containerDark,
         {
           paddingTop: safeAreaInsets.top,
           paddingBottom: safeAreaInsets.bottom,
         },
       ]}
     >
-      <View style={styles.header}>
-        <Pressable
-          style={styles.headerButton}
-          onPress={() => setAccountOpen(true)}
-          accessibilityLabel="Account settings"
-          accessibilityRole="button"
-        >
-          <Text style={styles.accountButtonText}>⚙</Text>
-        </Pressable>
-
-        <ModeToggle
+      {tab === 'chat' ? (
+        <ChatScreen
           mode={mode}
-          onChange={setMode}
-          disabled={sessionActive || disabled}
+          onModeChange={setMode}
+          modeDisabled={sessionActive || disabled}
+          micState={state}
+          onMicPress={toggleTalk}
+          micDisabled={disabled}
+          statusText={statusText}
+          onOpenSettings={() => setAccountOpen(true)}
+          onOpenProfile={() => setTab('profile')}
+          onOpenMemory={() => setTab('memory')}
         />
+      ) : null}
 
-        <View style={styles.headerActions}>
-          <Pressable
-            style={styles.headerButton}
-            onPress={() => setSearchOpen(true)}
-            accessibilityLabel="Search context"
-            accessibilityRole="button"
-          >
-            <Text style={styles.searchButtonText}>⌕</Text>
-          </Pressable>
-          <Pressable
-            style={styles.headerButton}
-            onPress={() => setSheetOpen(true)}
-            accessibilityLabel="Add to memory"
-            accessibilityRole="button"
-            disabled={ingestBusy}
-          >
-            <Text style={styles.addButtonText}>+</Text>
-          </Pressable>
-        </View>
-      </View>
+      {tab === 'memory' ? (
+        <MemoryScreen onAddPress={() => setSheetOpen(true)} />
+      ) : null}
 
-      <View style={styles.main}>
-        <MicButton state={state} onPress={toggleTalk} disabled={disabled} />
-        {statusText ? (
-          <Text
-            style={[styles.status, isDarkMode && styles.statusDark]}
-            accessibilityRole="text"
-          >
-            {statusText}
-          </Text>
-        ) : null}
-      </View>
+      {tab === 'profile' ? <ProfileScreen /> : null}
+
+      <BottomTabBar active={tab} onChange={setTab} />
 
       <AddMemorySheet
         visible={sheetOpen}
         busy={ingestBusy}
         onClose={() => setSheetOpen(false)}
-        onAddLink={(url) => {
+        onAddLink={url => {
           void addLink(url);
         }}
         onPickDocument={() => {
@@ -208,10 +179,6 @@ function AppContent() {
         }}
       />
       <IngestToast toast={toast} />
-      <SearchContextModal
-        visible={searchOpen}
-        onClose={() => setSearchOpen(false)}
-      />
       <AccountScreen
         visible={accountOpen}
         onClose={() => setAccountOpen(false)}
@@ -225,70 +192,19 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.background,
   },
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  containerDark: {
-    backgroundColor: '#000000',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  main: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: colors.background,
   },
   status: {
     marginTop: 16,
     paddingHorizontal: 24,
-    color: '#666666',
+    color: colors.muted,
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  statusDark: {
-    color: '#aaaaaa',
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f2efe6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e0d8c4',
-  },
-  accountButtonText: {
-    fontSize: 20,
-    lineHeight: 22,
-    color: '#9A7B2F',
-  },
-  addButtonText: {
-    fontSize: 24,
-    lineHeight: 26,
-    color: '#9A7B2F',
-    fontWeight: '500',
-  },
-  searchButtonText: {
-    fontSize: 22,
-    lineHeight: 24,
-    color: '#9A7B2F',
-    fontWeight: '500',
   },
 });
 

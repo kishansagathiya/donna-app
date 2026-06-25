@@ -71,8 +71,12 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 jest.mock('../src/hooks/useAssetIngest', () => ({
   useAssetIngest: () => ({
-    ingestFile: jest.fn(),
+    toast: null,
     busy: false,
+    addLink: jest.fn(),
+    pickDocument: jest.fn(),
+    pickPhoto: jest.fn(),
+    ingestSharedPayload: jest.fn(),
   }),
 }));
 
@@ -94,5 +98,6 @@ test('renders correctly', async () => {
   });
   expect(tree!.root.findByProps({ testID: 'mic-toggle' })).toBeTruthy();
   const json = JSON.stringify(tree!.toJSON());
+  expect(json).toContain('Ask Donna anything');
   expect(json).not.toContain('Talk to Donna');
 });

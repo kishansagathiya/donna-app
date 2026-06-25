@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { DonnaMode } from '../types/mode';
+import { colors } from '../theme/colors';
 
 type ModeToggleProps = {
   mode: DonnaMode;
@@ -40,26 +41,26 @@ export function ModeToggle({ mode, onChange, disabled }: ModeToggleProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#f2efe6',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#e0d8c4',
+    borderColor: colors.border,
     padding: 3,
   },
   segment: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 16,
   },
   segmentActive: {
-    backgroundColor: '#9A7B2F',
+    backgroundColor: colors.primary,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#9A7B2F',
+    color: colors.muted,
   },
   labelActive: {
-    color: '#ffffff',
+    color: colors.white,
   },
 });
