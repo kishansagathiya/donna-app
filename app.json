@@ -1,4 +1,16 @@
 {
-  "name": "Donna",
-  "displayName": "Donna"
+  "expo": {
+    "name": "Donna",
+    "slug": "donna",
+    "version": "1.0.2",
+    "ios": {
+      "bundleIdentifier": "com.kishansagathiya.donna",
+      "buildNumber": "17"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9711ae91-e0aa-45b0-ad06-1b01d65c2c94"
+      }
+    }
+  }
 }

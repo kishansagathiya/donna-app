@@ -1,0 +1,15 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "kishansagathiya@gmail.com",
+        "ascAppId": "6776987368",
+        "appleTeamId": "4NGJJ36R7V"
+      }
+    }
+  }
+}

@@ -55,7 +55,6 @@ export function ChatScreen({
           micState={micState}
           onMicPress={onMicPress}
           micDisabled={micDisabled}
-          onSuggestionPress={handleSend}
         />
         {statusText ? (
           <Text style={styles.status} accessibilityRole="text">

@@ -73,7 +73,6 @@ export function AppHeader({
     <View style={styles.container}>
       <View style={styles.side}>
         <UserAvatar onPress={onAvatarPress} />
-        <Text style={styles.brand}>Donna</Text>
       </View>
 
       <ModeToggle
@@ -125,13 +124,6 @@ function createStyles(colors: ThemeColors) {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-    },
-    brand: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: colors.primary,
-      letterSpacing: -0.3,
     },
     settingsButton: {
       width: 36,

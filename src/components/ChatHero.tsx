@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import type { ThemeColors } from '../theme/colors';
 import { MicButton, type MicState } from './MicButton';
@@ -8,16 +8,12 @@ type Props = {
   micState: MicState;
   onMicPress: () => void;
   micDisabled?: boolean;
-  onSuggestionPress?: (prompt: string) => void;
 };
-
-const SUGGESTION = 'What did I save last week?';
 
 export function ChatHero({
   micState,
   onMicPress,
   micDisabled,
-  onSuggestionPress,
 }: Props) {
   const styles = useThemedStyles(createStyles);
 
@@ -30,15 +26,6 @@ export function ChatHero({
       <Text style={styles.subtitle}>
         Donna remembers what you save — links, files, and past conversations.
       </Text>
-      {onSuggestionPress ? (
-        <Pressable
-          style={styles.suggestion}
-          onPress={() => onSuggestionPress(SUGGESTION)}
-          accessibilityRole="button"
-        >
-          <Text style={styles.suggestionText}>“{SUGGESTION}”</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -84,19 +71,6 @@ function createStyles(colors: ThemeColors) {
       color: colors.muted,
       textAlign: 'center',
       maxWidth: 320,
-    },
-    suggestion: {
-      marginTop: 20,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 20,
-      backgroundColor: colors.primaryLight,
-    },
-    suggestionText: {
-      fontSize: 14,
-      fontStyle: 'italic',
-      color: colors.primary,
-      fontWeight: '500',
     },
   });
 }
