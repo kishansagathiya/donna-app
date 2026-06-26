@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   deleteAccount,
+  downloadAccountExport,
   getAccountPreferences,
   updateLLMModel,
 } from '../services/accountApi';
@@ -29,7 +30,8 @@ export function AccountScreen({ visible, onClose }: Props) {
   const [selectedModel, setSelectedModel] = useState('');
   const [loadingModels, setLoadingModels] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
-  const busy = signingOut || deleting || savingModel;
+  const [exporting, setExporting] = useState(false);
+  const busy = signingOut || deleting || savingModel || exporting;
 
   useEffect(() => {
     if (!visible) {
@@ -67,6 +69,20 @@ export function AccountScreen({ visible, onClose }: Props) {
       );
     } finally {
       setSavingModel(false);
+    }
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await downloadAccountExport();
+    } catch (error) {
+      Alert.alert(
+        'Download Failed',
+        error instanceof Error ? error.message : 'Could not download your data.',
+      );
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -170,6 +186,23 @@ export function AccountScreen({ visible, onClose }: Props) {
             })}
           </View>
         )}
+
+        <Text style={styles.sectionTitle}>Download my data</Text>
+        <Text style={styles.sectionDescription}>
+          Download a ZIP of your conversations, notes, and uploaded files.
+        </Text>
+        <Pressable
+          style={[styles.button, styles.secondaryButton, busy && styles.buttonDisabled]}
+          onPress={() => void handleExport()}
+          disabled={busy}
+          accessibilityRole="button"
+        >
+          {exporting ? (
+            <ActivityIndicator color="#1a1a1a" size="small" />
+          ) : (
+            <Text style={styles.secondaryButtonText}>Download my data</Text>
+          )}
+        </Pressable>
 
         <Pressable
           style={[styles.button, styles.secondaryButton, busy && styles.buttonDisabled]}

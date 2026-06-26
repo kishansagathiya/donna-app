@@ -1,6 +1,8 @@
 import { getAccessToken, signOut } from './auth';
 import { revokeAiDataConsent } from './privacyConsent';
 import { API_BASE_URL } from '../config';
+import ReactNativeBlobUtil from 'react-native-blob-util';
+import { Platform, Share } from 'react-native';
 
 async function authorizedFetch(
   path: string,
@@ -61,4 +63,40 @@ export async function updateLLMModel(llmModel: string): Promise<void> {
   if (!res.ok) {
     throw new Error(body.message ?? body.error ?? `Save failed (${res.status})`);
   }
+}
+
+export async function downloadAccountExport(): Promise<void> {
+  const token = await getAccessToken();
+  if (!token) {
+    throw new Error('Not signed in');
+  }
+
+  const date = new Date().toISOString().slice(0, 10);
+  const filename = `donna-export-${date}.zip`;
+  const path = `${ReactNativeBlobUtil.fs.dirs.CacheDir}/${filename}`;
+
+  const res = await ReactNativeBlobUtil.config({
+    path,
+    fileCache: true,
+  }).fetch('GET', `${API_BASE_URL}/account/export`, {
+    Authorization: `Bearer ${token}`,
+  });
+
+  const status = res.info().status;
+  if (status !== 200) {
+    let message = `Export failed (${status})`;
+    try {
+      const body = JSON.parse(await res.text()) as {
+        error?: string;
+        message?: string;
+      };
+      message = body.message ?? body.error ?? message;
+    } catch {
+      // Successful exports are ZIP, not JSON.
+    }
+    throw new Error(message);
+  }
+
+  const fileUrl = Platform.OS === 'ios' ? path : `file://${path}`;
+  await Share.share({ url: fileUrl, title: filename });
 }
