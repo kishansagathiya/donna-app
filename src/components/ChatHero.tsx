@@ -19,8 +19,6 @@ export function ChatHero({
 
   return (
     <View style={styles.container}>
-      <View style={styles.glowOuter} pointerEvents="none" />
-      <View style={styles.glowInner} pointerEvents="none" />
       <MicButton state={micState} onPress={onMicPress} disabled={micDisabled} />
       <Text style={styles.title}>Ask Donna anything</Text>
       <Text style={styles.subtitle}>
@@ -38,26 +36,8 @@ function createStyles(colors: ThemeColors) {
       justifyContent: 'center',
       paddingHorizontal: 24,
     },
-    glowOuter: {
-      position: 'absolute',
-      width: 300,
-      height: 300,
-      borderRadius: 150,
-      backgroundColor: colors.primaryLight,
-      opacity: 0.35,
-      top: '14%',
-    },
-    glowInner: {
-      position: 'absolute',
-      width: 220,
-      height: 220,
-      borderRadius: 110,
-      backgroundColor: colors.primaryLight,
-      opacity: 0.5,
-      top: '20%',
-    },
     title: {
-      marginTop: 24,
+      marginTop: 32,
       fontSize: 28,
       fontWeight: '700',
       color: colors.text,

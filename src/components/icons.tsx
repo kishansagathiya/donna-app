@@ -51,15 +51,6 @@ export function MicIcon({
         strokeWidth={strokeWidth}
         strokeLinecap="round"
       />
-      <Line
-        x1="8"
-        y1="22"
-        x2="16"
-        y2="22"
-        stroke={color}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-      />
     </IconFrame>
   );
 }
