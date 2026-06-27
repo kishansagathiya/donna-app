@@ -8,22 +8,28 @@ type Props = {
   micState: MicState;
   onMicPress: () => void;
   micDisabled?: boolean;
+  compact?: boolean;
 };
 
 export function ChatHero({
   micState,
   onMicPress,
   micDisabled,
+  compact = false,
 }: Props) {
   const styles = useThemedStyles(createStyles);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, compact && styles.containerCompact]}>
       <MicButton state={micState} onPress={onMicPress} disabled={micDisabled} />
-      <Text style={styles.title}>Ask Donna anything</Text>
-      <Text style={styles.subtitle}>
-        Donna remembers what you save — links, files, and past conversations.
-      </Text>
+      {compact ? null : (
+        <>
+          <Text style={styles.title}>Ask Donna anything</Text>
+          <Text style={styles.subtitle}>
+            Donna remembers what you save — links, files, and past conversations.
+          </Text>
+        </>
+      )}
     </View>
   );
 }
@@ -35,6 +41,10 @@ function createStyles(colors: ThemeColors) {
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 24,
+    },
+    containerCompact: {
+      flex: 0,
+      paddingVertical: 16,
     },
     title: {
       marginTop: 32,

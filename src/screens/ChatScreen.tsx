@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { ChatHero } from '../components/ChatHero';
 import { ChatInput } from '../components/ChatInput';
+import { ChatMessages, type ChatTurn } from '../components/ChatMessages';
 import type { MicState } from '../components/MicButton';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import type { ThemeColors } from '../theme/colors';
@@ -15,7 +16,10 @@ type Props = {
   micState: MicState;
   onMicPress: () => void;
   micDisabled?: boolean;
-  statusText?: string | null;
+  turns: ChatTurn[];
+  liveReply?: string | null;
+  phaseLabel?: string | null;
+  errorMsg?: string | null;
   onOpenSettings: () => void;
   onOpenProfile: () => void;
   onOpenMemory: () => void;
@@ -28,16 +32,41 @@ export function ChatScreen({
   micState,
   onMicPress,
   micDisabled,
-  statusText,
+  turns,
+  liveReply,
+  phaseLabel,
+  errorMsg,
   onOpenSettings,
   onOpenProfile,
   onOpenMemory,
 }: Props) {
   const styles = useThemedStyles(createStyles);
-  const [draftReply, setDraftReply] = useState<string | null>(null);
+  const [textMessages, setTextMessages] = useState<ChatTurn[]>([]);
+
+  const voiceMessages: ChatTurn[] = turns
+    .filter(turn => turn.assistant)
+    .map(turn => ({
+      id: turn.id,
+      user: '',
+      assistant: turn.assistant,
+    }));
+
+  if (liveReply) {
+    voiceMessages.push({
+      id: 'live-reply',
+      user: '',
+      assistant: liveReply,
+    });
+  }
+
+  const messages = [...textMessages, ...voiceMessages];
+  const hasMessages = messages.length > 0;
 
   function handleSend(text: string) {
-    setDraftReply(text);
+    setTextMessages(prev => [
+      ...prev,
+      { id: `text-${prev.length}`, user: text, assistant: null },
+    ]);
   }
 
   return (
@@ -51,20 +80,24 @@ export function ChatScreen({
       />
 
       <View style={styles.main}>
+        {hasMessages ? (
+          <ChatMessages
+            turns={messages}
+            phaseLabel={phaseLabel}
+          />
+        ) : null}
+
         <ChatHero
           micState={micState}
           onMicPress={onMicPress}
           micDisabled={micDisabled}
+          compact={hasMessages}
         />
-        {statusText ? (
-          <Text style={styles.status} accessibilityRole="text">
-            {statusText}
+
+        {errorMsg ? (
+          <Text style={styles.error} accessibilityRole="alert">
+            {errorMsg}
           </Text>
-        ) : null}
-        {draftReply ? (
-          <View style={styles.draftBubble}>
-            <Text style={styles.draftText}>{draftReply}</Text>
-          </View>
         ) : null}
       </View>
 
@@ -87,30 +120,12 @@ function createStyles(colors: ThemeColors) {
       flex: 1,
       backgroundColor: colors.surface,
     },
-    status: {
-      position: 'absolute',
-      bottom: 12,
-      left: 24,
-      right: 24,
-      color: colors.muted,
+    error: {
+      paddingHorizontal: 24,
+      paddingBottom: 8,
+      color: colors.destructive,
       fontSize: 14,
       textAlign: 'center',
-      lineHeight: 20,
-    },
-    draftBubble: {
-      position: 'absolute',
-      bottom: 48,
-      right: 24,
-      maxWidth: '75%',
-      backgroundColor: colors.primary,
-      borderRadius: 16,
-      borderBottomRightRadius: 4,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-    },
-    draftText: {
-      color: colors.white,
-      fontSize: 15,
       lineHeight: 20,
     },
   });

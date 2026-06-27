@@ -31,6 +31,12 @@ type VoiceStatus = {
   phase: TurnPhase | null;
 };
 
+export type VoiceTurn = {
+  id: string;
+  user: string;
+  assistant: string | null;
+};
+
 const BUSY_PHASES: TurnPhase[] = [
   'busy',
   'transcribing',
@@ -66,6 +72,10 @@ export function useVoiceSession(mode: DonnaMode) {
     reply: null,
     phase: null,
   });
+  const [turns, setTurns] = useState<VoiceTurn[]>([]);
+  const turnSeqRef = useRef(0);
+  const statusRef = useRef(status);
+  statusRef.current = status;
 
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -205,6 +215,19 @@ export function useVoiceSession(mode: DonnaMode) {
           isPlayingRef.current = false;
           playbackRef.current = null;
           vadRef.current.reset();
+          const { transcript, reply } = statusRef.current;
+          if (transcript) {
+            turnSeqRef.current += 1;
+            setTurns(prev => [
+              ...prev,
+              {
+                id: String(turnSeqRef.current),
+                user: transcript,
+                assistant: reply,
+              },
+            ]);
+          }
+          setStatus({ transcript: null, reply: null, phase: null });
           if (activeRef.current) {
             setState('listening');
             vadRef.current.resume();
@@ -409,29 +432,20 @@ export function useVoiceSession(mode: DonnaMode) {
     };
   }, [stopSession]);
 
-  const statusText =
-    state === 'error'
-      ? (errorMsg ?? 'Something went wrong')
-      : status.transcript
-        ? sessionModeRef.current === 'listen'
-          ? `You: ${status.transcript}`
-          : status.reply
-            ? `You: ${status.transcript}\nDonna: ${status.reply}`
-            : `You: ${status.transcript}`
-        : state === 'processing'
-          ? sessionModeRef.current === 'listen'
-            ? 'Saving…'
-            : 'Donna is thinking…'
-          : state === 'listening'
-            ? sessionModeRef.current === 'listen'
-              ? 'Listening only…'
-              : 'Listening…'
-            : null;
+  const phaseLabel =
+    state === 'processing'
+      ? sessionModeRef.current === 'listen'
+        ? 'Saving…'
+        : 'Donna is thinking…'
+      : null;
 
   return {
     state,
     toggleTalk,
-    statusText,
+    turns,
+    reply: status.reply,
+    phaseLabel,
+    errorMsg: state === 'error' ? (errorMsg ?? 'Something went wrong') : null,
     disabled: state === 'requesting',
   };
 }

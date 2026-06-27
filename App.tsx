@@ -126,7 +126,15 @@ function AppContent() {
   const safeAreaInsets = useSafeAreaInsets();
   const [tab, setTab] = useState<AppTab>('chat');
   const [mode, setMode] = useState<DonnaMode>('talk');
-  const { state, toggleTalk, statusText, disabled } = useVoiceSession(mode);
+  const {
+    state,
+    toggleTalk,
+    turns,
+    reply,
+    phaseLabel,
+    errorMsg,
+    disabled,
+  } = useVoiceSession(mode);
   const sessionActive = state === 'listening' || state === 'processing';
   const [sheetOpen, setSheetOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -166,7 +174,10 @@ function AppContent() {
           micState={state}
           onMicPress={toggleTalk}
           micDisabled={disabled}
-          statusText={statusText}
+          turns={turns}
+          liveReply={reply}
+          phaseLabel={phaseLabel}
+          errorMsg={errorMsg}
           onOpenSettings={() => setAccountOpen(true)}
           onOpenProfile={() => setTab('profile')}
           onOpenMemory={() => setTab('memory')}

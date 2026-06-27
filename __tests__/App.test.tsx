@@ -17,7 +17,10 @@ jest.mock('../src/hooks/useVoiceSession', () => ({
   useVoiceSession: () => ({
     state: 'idle',
     toggleTalk: jest.fn(),
-    statusText: null,
+    turns: [],
+    reply: null,
+    phaseLabel: null,
+    errorMsg: null,
     disabled: false,
   }),
 }));
