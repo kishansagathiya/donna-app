@@ -123,8 +123,6 @@ function PulseRing({
 
 function coreBackgroundColor(state: MicState, colors: ThemeColors): string {
   switch (state) {
-    case 'listening':
-      return colors.destructive;
     case 'processing':
       return colors.muted;
     case 'error':
@@ -135,9 +133,6 @@ function coreBackgroundColor(state: MicState, colors: ThemeColors): string {
 }
 
 function ringColor(state: MicState, colors: ThemeColors): string {
-  if (state === 'listening') {
-    return colors.destructive;
-  }
   if (state === 'processing') {
     return colors.muted;
   }

@@ -20,16 +20,12 @@ export function ChatHero({
   sessionLabel,
 }: Props) {
   const styles = useThemedStyles(createStyles);
-  const isListening = micState === 'listening';
 
   return (
     <View style={[styles.container, compact && styles.containerCompact]}>
       <MicButton state={micState} onPress={onMicPress} disabled={micDisabled} />
       {sessionLabel ? (
-        <Text
-          style={[styles.status, isListening && styles.statusListening]}
-          accessibilityRole="text"
-        >
+        <Text style={styles.status} accessibilityRole="text">
           {sessionLabel}
         </Text>
       ) : null}
@@ -64,9 +60,6 @@ function createStyles(colors: ThemeColors) {
       color: colors.muted,
       textAlign: 'center',
       lineHeight: 22,
-    },
-    statusListening: {
-      color: colors.destructive,
     },
     title: {
       marginTop: 32,
