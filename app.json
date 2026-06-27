@@ -1,11 +1,13 @@
 {
+  "name": "Donna",
+  "displayName": "Donna",
   "expo": {
     "name": "Donna",
     "slug": "donna",
     "version": "1.0.2",
     "ios": {
       "bundleIdentifier": "com.kishansagathiya.donna",
-      "buildNumber": "18"
+      "buildNumber": "19"
     },
     "extra": {
       "eas": {
