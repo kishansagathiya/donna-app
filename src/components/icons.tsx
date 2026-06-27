@@ -1,5 +1,5 @@
 import React from 'react';
-import Svg, { Ellipse, Line, Path, Polyline } from 'react-native-svg';
+import Svg, { Ellipse, Line, Path, Polyline, Rect } from 'react-native-svg';
 
 type IconProps = {
   size?: number;
@@ -50,6 +50,24 @@ export function MicIcon({
         stroke={color}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
+      />
+    </IconFrame>
+  );
+}
+
+export function StopIcon({
+  size = 24,
+  color = 'currentColor',
+}: Pick<IconProps, 'size' | 'color'>) {
+  return (
+    <IconFrame size={size}>
+      <Rect
+        x="6"
+        y="6"
+        width="12"
+        height="12"
+        rx="2"
+        fill={color}
       />
     </IconFrame>
   );

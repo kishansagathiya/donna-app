@@ -20,6 +20,7 @@ jest.mock('../src/hooks/useVoiceSession', () => ({
     turns: [],
     reply: null,
     phaseLabel: null,
+    sessionLabel: null,
     errorMsg: null,
     disabled: false,
   }),

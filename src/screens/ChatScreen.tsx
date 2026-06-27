@@ -19,6 +19,7 @@ type Props = {
   turns: ChatTurn[];
   liveReply?: string | null;
   phaseLabel?: string | null;
+  sessionLabel?: string | null;
   errorMsg?: string | null;
   onOpenSettings: () => void;
   onOpenProfile: () => void;
@@ -35,6 +36,7 @@ export function ChatScreen({
   turns,
   liveReply,
   phaseLabel,
+  sessionLabel,
   errorMsg,
   onOpenSettings,
   onOpenProfile,
@@ -92,6 +94,7 @@ export function ChatScreen({
           onMicPress={onMicPress}
           micDisabled={micDisabled}
           compact={hasMessages}
+          sessionLabel={sessionLabel}
         />
 
         {errorMsg ? (

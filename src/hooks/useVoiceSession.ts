@@ -439,12 +439,28 @@ export function useVoiceSession(mode: DonnaMode) {
         : 'Donna is thinking…'
       : null;
 
+  const sessionLabel =
+    state === 'error'
+      ? (errorMsg ?? 'Something went wrong')
+      : state === 'requesting'
+        ? 'Starting…'
+        : state === 'listening'
+          ? sessionModeRef.current === 'listen'
+            ? 'Listening only — tap to stop'
+            : 'Listening — tap to stop'
+          : state === 'processing'
+            ? sessionModeRef.current === 'listen'
+              ? 'Saving…'
+              : 'Donna is thinking…'
+            : null;
+
   return {
     state,
     toggleTalk,
     turns,
     reply: status.reply,
     phaseLabel,
+    sessionLabel,
     errorMsg: state === 'error' ? (errorMsg ?? 'Something went wrong') : null,
     disabled: state === 'requesting',
   };

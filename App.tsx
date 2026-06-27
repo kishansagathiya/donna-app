@@ -132,6 +132,7 @@ function AppContent() {
     turns,
     reply,
     phaseLabel,
+    sessionLabel,
     errorMsg,
     disabled,
   } = useVoiceSession(mode);
@@ -177,6 +178,7 @@ function AppContent() {
           turns={turns}
           liveReply={reply}
           phaseLabel={phaseLabel}
+          sessionLabel={sessionLabel}
           errorMsg={errorMsg}
           onOpenSettings={() => setAccountOpen(true)}
           onOpenProfile={() => setTab('profile')}
