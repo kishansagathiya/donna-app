@@ -17,6 +17,7 @@ type Props = {
   onMicPress: () => void;
   micDisabled?: boolean;
   turns: ChatTurn[];
+  liveTranscript?: string | null;
   liveReply?: string | null;
   phaseLabel?: string | null;
   sessionLabel?: string | null;
@@ -34,6 +35,7 @@ export function ChatScreen({
   onMicPress,
   micDisabled,
   turns,
+  liveTranscript,
   liveReply,
   phaseLabel,
   sessionLabel,
@@ -45,23 +47,16 @@ export function ChatScreen({
   const styles = useThemedStyles(createStyles);
   const [textMessages, setTextMessages] = useState<ChatTurn[]>([]);
 
-  const voiceMessages: ChatTurn[] = turns
-    .filter(turn => turn.assistant)
-    .map(turn => ({
-      id: turn.id,
-      user: '',
-      assistant: turn.assistant,
-    }));
+  const messages: ChatTurn[] = [...textMessages, ...turns];
 
-  if (liveReply) {
-    voiceMessages.push({
-      id: 'live-reply',
-      user: '',
-      assistant: liveReply,
+  if (liveTranscript || liveReply) {
+    messages.push({
+      id: 'live',
+      user: liveTranscript ?? '',
+      assistant: liveReply ?? null,
     });
   }
 
-  const messages = [...textMessages, ...voiceMessages];
   const hasMessages = messages.length > 0;
 
   function handleSend(text: string) {

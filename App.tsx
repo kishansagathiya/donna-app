@@ -130,6 +130,7 @@ function AppContent() {
     state,
     toggleTalk,
     turns,
+    transcript,
     reply,
     phaseLabel,
     sessionLabel,
@@ -176,6 +177,7 @@ function AppContent() {
           onMicPress={toggleTalk}
           micDisabled={disabled}
           turns={turns}
+          liveTranscript={transcript}
           liveReply={reply}
           phaseLabel={phaseLabel}
           sessionLabel={sessionLabel}
