@@ -30,7 +30,6 @@ import { useVoiceSession } from './src/hooks/useVoiceSession';
 import type { DonnaMode } from './src/types/mode';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { AIDataConsentScreen } from './src/screens/AIDataConsentScreen';
-import { AccountScreen } from './src/screens/AccountScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { MemoryScreen } from './src/screens/MemoryScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
@@ -139,7 +138,6 @@ function AppContent() {
   } = useVoiceSession(mode);
   const sessionActive = state === 'listening' || state === 'processing';
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const {
     toast,
     busy: ingestBusy,
@@ -182,7 +180,7 @@ function AppContent() {
           phaseLabel={phaseLabel}
           sessionLabel={sessionLabel}
           errorMsg={errorMsg}
-          onOpenSettings={() => setAccountOpen(true)}
+          onOpenSettings={() => setTab('profile')}
           onOpenProfile={() => setTab('profile')}
           onOpenMemory={() => setTab('memory')}
         />
@@ -211,10 +209,6 @@ function AppContent() {
         }}
       />
       <IngestToast toast={toast} />
-      <AccountScreen
-        visible={accountOpen}
-        onClose={() => setAccountOpen(false)}
-      />
     </View>
   );
 }

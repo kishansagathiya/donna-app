@@ -86,7 +86,7 @@ export function AppHeader({
           style={styles.settingsButton}
           onPress={onSettingsPress}
           accessibilityRole="button"
-          accessibilityLabel="Settings"
+          accessibilityLabel="Profile and settings"
         >
           <SettingsIcon size={22} color={colors.muted} />
         </Pressable>

@@ -64,8 +64,8 @@ jest.mock('../src/screens/AIDataConsentScreen', () => ({
   AIDataConsentScreen: () => null,
 }));
 
-jest.mock('../src/screens/AccountScreen', () => ({
-  AccountScreen: () => null,
+jest.mock('../src/screens/ProfileScreen', () => ({
+  ProfileScreen: () => null,
 }));
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
