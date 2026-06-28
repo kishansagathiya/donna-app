@@ -1,5 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import {
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { ChatHero } from '../components/ChatHero';
 import { ChatInput } from '../components/ChatInput';
@@ -76,7 +82,11 @@ export function ChatScreen({
         onSettingsPress={onOpenSettings}
       />
 
-      <View style={styles.main}>
+      <Pressable
+        style={styles.main}
+        onPress={Keyboard.dismiss}
+        accessible={false}
+      >
         {hasMessages ? (
           <ChatMessages
             turns={messages}
@@ -97,7 +107,7 @@ export function ChatScreen({
             {errorMsg}
           </Text>
         ) : null}
-      </View>
+      </Pressable>
 
       <ChatInput
         onSend={handleSend}

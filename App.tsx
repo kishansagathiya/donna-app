@@ -7,9 +7,12 @@
  * @format
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   StatusBar,
   StyleSheet,
   Text,
@@ -123,6 +126,7 @@ function AppShell() {
 function AppContent() {
   const styles = useThemedStyles(createStyles);
   const safeAreaInsets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [tab, setTab] = useState<AppTab>('chat');
   const [mode, setMode] = useState<DonnaMode>('talk');
   const {
@@ -156,43 +160,67 @@ function AppContent() {
 
   useIncomingShare(handleShare);
 
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent =
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () =>
+      setKeyboardVisible(true),
+    );
+    const hideSub = Keyboard.addListener(hideEvent, () =>
+      setKeyboardVisible(false),
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   return (
     <View
       style={[
         styles.container,
         {
           paddingTop: safeAreaInsets.top,
-          paddingBottom: safeAreaInsets.bottom,
+          paddingBottom: keyboardVisible ? 0 : safeAreaInsets.bottom,
         },
       ]}
     >
-      {tab === 'chat' ? (
-        <ChatScreen
-          mode={mode}
-          onModeChange={setMode}
-          modeDisabled={sessionActive || disabled}
-          micState={state}
-          onMicPress={toggleTalk}
-          micDisabled={disabled}
-          turns={turns}
-          liveTranscript={transcript}
-          liveReply={reply}
-          phaseLabel={phaseLabel}
-          sessionLabel={sessionLabel}
-          errorMsg={errorMsg}
-          onOpenSettings={() => setTab('profile')}
-          onOpenProfile={() => setTab('profile')}
-          onOpenMemory={() => setTab('memory')}
-        />
-      ) : null}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoiding}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {tab === 'chat' ? (
+          <ChatScreen
+            mode={mode}
+            onModeChange={setMode}
+            modeDisabled={sessionActive || disabled}
+            micState={state}
+            onMicPress={toggleTalk}
+            micDisabled={disabled}
+            turns={turns}
+            liveTranscript={transcript}
+            liveReply={reply}
+            phaseLabel={phaseLabel}
+            sessionLabel={sessionLabel}
+            errorMsg={errorMsg}
+            onOpenSettings={() => setTab('profile')}
+            onOpenProfile={() => setTab('profile')}
+            onOpenMemory={() => setTab('memory')}
+          />
+        ) : null}
 
-      {tab === 'memory' ? (
-        <MemoryScreen onAddSourcePress={() => setSheetOpen(true)} />
-      ) : null}
+        {tab === 'memory' ? (
+          <MemoryScreen onAddSourcePress={() => setSheetOpen(true)} />
+        ) : null}
 
-      {tab === 'profile' ? <ProfileScreen /> : null}
+        {tab === 'profile' ? <ProfileScreen /> : null}
 
-      <BottomTabBar active={tab} onChange={setTab} />
+        {keyboardVisible ? null : (
+          <BottomTabBar active={tab} onChange={setTab} />
+        )}
+      </KeyboardAvoidingView>
 
       <AddMemorySheet
         visible={sheetOpen}
@@ -224,6 +252,9 @@ function createStyles(colors: ThemeColors) {
     container: {
       flex: 1,
       backgroundColor: colors.background,
+    },
+    keyboardAvoiding: {
+      flex: 1,
     },
     status: {
       marginTop: 16,

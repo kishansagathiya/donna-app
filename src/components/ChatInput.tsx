@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import {
+  InputAccessoryView,
+  Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from 'react-native';
@@ -9,6 +13,8 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import type { ThemeColors } from '../theme/colors';
 import { ArrowUpIcon, DatabaseIcon } from './icons';
+
+const INPUT_ACCESSORY_ID = 'chat-input-accessory';
 
 type Props = {
   onSend?: (text: string) => void;
@@ -38,6 +44,20 @@ export function ChatInput({
 
   return (
     <View style={styles.container}>
+      {Platform.OS === 'ios' ? (
+        <InputAccessoryView nativeID={INPUT_ACCESSORY_ID}>
+          <View style={styles.accessory}>
+            <Pressable
+              onPress={Keyboard.dismiss}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss keyboard"
+            >
+              <Text style={styles.accessoryDone}>Done</Text>
+            </Pressable>
+          </View>
+        </InputAccessoryView>
+      ) : null}
       <View style={styles.row}>
         <View style={styles.bar}>
           {onMemoryPress ? (
@@ -62,6 +82,9 @@ export function ChatInput({
             multiline
             maxLength={2000}
             accessibilityLabel={placeholder}
+            inputAccessoryViewID={
+              Platform.OS === 'ios' ? INPUT_ACCESSORY_ID : undefined
+            }
           />
         </View>
         <Pressable
@@ -88,6 +111,21 @@ function createStyles(colors: ThemeColors) {
       paddingTop: 8,
       paddingBottom: 8,
       backgroundColor: colors.background,
+    },
+    accessory: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    accessoryDone: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.primary,
     },
     row: {
       flexDirection: 'row',

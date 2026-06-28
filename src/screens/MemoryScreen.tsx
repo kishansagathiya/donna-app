@@ -3,7 +3,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import {
@@ -28,6 +31,105 @@ import type { ThemeColors } from '../theme/colors';
 type Props = {
   onAddSourcePress: () => void;
 };
+
+type FactModalProps = {
+  visible: boolean;
+  title: string;
+  text: string;
+  placeholder?: string;
+  saving: boolean;
+  saveLabel: string;
+  savingLabel: string;
+  onChangeText: (text: string) => void;
+  onClose: () => void;
+  onSave: () => void;
+  onDelete?: () => void;
+};
+
+function FactModal({
+  visible,
+  title,
+  text,
+  placeholder,
+  saving,
+  saveLabel,
+  savingLabel,
+  onChangeText,
+  onClose,
+  onSave,
+  onDelete,
+}: FactModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalAvoiding}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={onClose}>
+          <Pressable
+            style={[
+              styles.modalCard,
+              { paddingBottom: Math.max(insets.bottom, 16) },
+            ]}
+            onPress={e => e.stopPropagation()}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{title}</Text>
+              <Pressable
+                onPress={onClose}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+              >
+                <Text style={styles.modalCloseText}>Cancel</Text>
+              </Pressable>
+            </View>
+            <ScrollView
+              style={styles.modalScroll}
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
+            >
+              <TextInput
+                style={[styles.input, styles.textArea, styles.modalTextArea]}
+                value={text}
+                onChangeText={onChangeText}
+                placeholder={placeholder}
+                placeholderTextColor={colors.muted}
+                multiline
+                autoFocus
+              />
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.primaryButton, saving && styles.buttonDisabled]}
+                onPress={onSave}
+                disabled={saving || !text.trim()}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {saving ? savingLabel : saveLabel}
+                </Text>
+              </Pressable>
+              {onDelete ? (
+                <Pressable style={styles.destructiveButton} onPress={onDelete}>
+                  <Text style={styles.destructiveButtonText}>Delete</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </Pressable>
+        </Pressable>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
 
 export function MemoryScreen({ onAddSourcePress }: Props) {
   const { colors } = useTheme();
@@ -288,83 +390,37 @@ export function MemoryScreen({ onAddSourcePress }: Props) {
         </Pressable>
       </ScrollView>
 
-      <Modal visible={selectedFact !== null} animationType="slide" transparent>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Edit fact</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={editText}
-              onChangeText={setEditText}
-              multiline
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <Pressable
-                style={[styles.primaryButton, savingFact && styles.buttonDisabled]}
-                onPress={() => void handleSaveFact()}
-                disabled={savingFact || !editText.trim()}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {savingFact ? 'Saving…' : 'Save'}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={styles.destructiveButton}
-                onPress={handleDeleteFact}
-              >
-                <Text style={styles.destructiveButtonText}>Delete</Text>
-              </Pressable>
-              <Pressable
-                style={styles.secondaryButton}
-                onPress={() => {
-                  setSelectedFact(null);
-                  setEditText('');
-                }}
-              >
-                <Text style={styles.secondaryButtonText}>Cancel</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <FactModal
+        visible={selectedFact !== null}
+        title="Edit fact"
+        text={editText}
+        saving={savingFact}
+        saveLabel="Save"
+        savingLabel="Saving…"
+        onChangeText={setEditText}
+        onClose={() => {
+          setSelectedFact(null);
+          setEditText('');
+        }}
+        onSave={() => void handleSaveFact()}
+        onDelete={handleDeleteFact}
+      />
 
-      <Modal visible={showAddFact} animationType="slide" transparent>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>New fact</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={newFactText}
-              onChangeText={setNewFactText}
-              placeholder="Something Donna should remember…"
-              placeholderTextColor={colors.muted}
-              multiline
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <Pressable
-                style={[styles.primaryButton, savingFact && styles.buttonDisabled]}
-                onPress={() => void handleAddFact()}
-                disabled={savingFact || !newFactText.trim()}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {savingFact ? 'Adding…' : 'Add'}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={styles.secondaryButton}
-                onPress={() => {
-                  setShowAddFact(false);
-                  setNewFactText('');
-                }}
-              >
-                <Text style={styles.secondaryButtonText}>Cancel</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <FactModal
+        visible={showAddFact}
+        title="New fact"
+        text={newFactText}
+        placeholder="Something Donna should remember…"
+        saving={savingFact}
+        saveLabel="Add"
+        savingLabel="Adding…"
+        onChangeText={setNewFactText}
+        onClose={() => {
+          setShowAddFact(false);
+          setNewFactText('');
+        }}
+        onSave={() => void handleAddFact()}
+      />
     </View>
   );
 }
@@ -533,6 +589,9 @@ function createStyles(colors: ThemeColors) {
       color: colors.primary,
       fontWeight: '500',
     },
+    modalAvoiding: {
+      flex: 1,
+    },
     modalBackdrop: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.4)',
@@ -542,14 +601,33 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.background,
       borderTopLeftRadius: 16,
       borderTopRightRadius: 16,
-      padding: 20,
-      paddingBottom: 32,
+      paddingHorizontal: 20,
+      paddingTop: 20,
+      maxHeight: '85%',
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 12,
     },
     modalTitle: {
       fontSize: 18,
       fontWeight: '600',
       color: colors.text,
-      marginBottom: 12,
+    },
+    modalCloseText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    modalScroll: {
+      flexGrow: 0,
+      flexShrink: 1,
+    },
+    modalTextArea: {
+      minHeight: 120,
+      maxHeight: 200,
     },
     modalActions: {
       marginTop: 12,
@@ -564,16 +642,6 @@ function createStyles(colors: ThemeColors) {
     },
     destructiveButtonText: {
       color: colors.destructive,
-      fontWeight: '600',
-      fontSize: 15,
-    },
-    secondaryButton: {
-      borderRadius: 12,
-      paddingVertical: 12,
-      alignItems: 'center',
-    },
-    secondaryButtonText: {
-      color: colors.muted,
       fontWeight: '600',
       fontSize: 15,
     },
