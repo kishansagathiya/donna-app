@@ -163,13 +163,13 @@ export function useVoiceSession(mode: DonnaMode) {
         setStatus((prev) => ({ ...prev, transcript: message.text }));
         break;
       case 'turn.reply':
-        if (sessionModeRef.current === 'listen') break;
+        if (sessionModeRef.current === 'notes') break;
         replyRef.current = message.text;
         pendingReplyRef.current = message.text;
         setStatus((prev) => ({ ...prev, reply: message.text }));
         break;
       case 'audio.out': {
-        if (sessionModeRef.current === 'listen') break;
+        if (sessionModeRef.current === 'notes') break;
         if (!playbackRef.current) {
           const session = createStreamingPlayback();
           session.setOnPlaybackStart(() => {
@@ -444,7 +444,7 @@ export function useVoiceSession(mode: DonnaMode) {
 
   const phaseLabel =
     state === 'processing'
-      ? sessionModeRef.current === 'listen'
+      ? sessionModeRef.current === 'notes'
         ? 'Saving…'
         : 'Donna is thinking…'
       : null;
@@ -455,11 +455,11 @@ export function useVoiceSession(mode: DonnaMode) {
       : state === 'requesting'
         ? 'Starting…'
         : state === 'listening'
-          ? sessionModeRef.current === 'listen'
-            ? 'Listening only — tap to stop'
+          ? sessionModeRef.current === 'notes'
+            ? 'Taking notes — tap to stop'
             : 'Listening — tap to stop'
           : state === 'processing'
-            ? sessionModeRef.current === 'listen'
+            ? sessionModeRef.current === 'notes'
               ? 'Saving…'
               : 'Donna is thinking…'
             : null;

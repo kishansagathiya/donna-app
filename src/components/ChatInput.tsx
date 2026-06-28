@@ -12,20 +12,20 @@ import {
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import type { ThemeColors } from '../theme/colors';
-import { ArrowUpIcon, DatabaseIcon } from './icons';
+import { ArrowUpIcon, PaperclipIcon } from './icons';
 
 const INPUT_ACCESSORY_ID = 'chat-input-accessory';
 
 type Props = {
   onSend?: (text: string) => void;
-  onMemoryPress?: () => void;
+  onAttachPress?: () => void;
   disabled?: boolean;
   placeholder?: string;
 };
 
 export function ChatInput({
   onSend,
-  onMemoryPress,
+  onAttachPress,
   disabled,
   placeholder = 'Message Donna...',
 }: Props) {
@@ -60,14 +60,15 @@ export function ChatInput({
       ) : null}
       <View style={styles.row}>
         <View style={styles.bar}>
-          {onMemoryPress ? (
+          {onAttachPress ? (
             <Pressable
-              style={styles.memoryButton}
-              onPress={onMemoryPress}
+              style={styles.attachButton}
+              onPress={onAttachPress}
+              disabled={disabled}
               accessibilityRole="button"
-              accessibilityLabel="Open memory"
+              accessibilityLabel="Attach file or link"
             >
-              <DatabaseIcon size={20} color={colors.muted} />
+              <PaperclipIcon size={20} color={colors.muted} />
             </Pressable>
           ) : null}
           <TextInput
@@ -145,7 +146,7 @@ function createStyles(colors: ThemeColors) {
       paddingVertical: 6,
       minHeight: 48,
     },
-    memoryButton: {
+    attachButton: {
       width: 36,
       height: 36,
       alignItems: 'center',

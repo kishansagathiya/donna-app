@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
 import {
+  InputAccessoryView,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const INPUT_ACCESSORY_ID = 'add-memory-link-accessory';
 
 type Props = {
   visible: boolean;
@@ -25,6 +33,7 @@ export function AddMemorySheet({
   onPickDocument,
   onPickPhoto,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const [url, setUrl] = useState('');
 
   const handleAddLink = () => {
@@ -42,68 +51,113 @@ export function AddMemorySheet({
       transparent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-          <Text style={styles.title}>Add to memory</Text>
-          <Text style={styles.subtitle}>
-            Links, documents, and photos you add are sent to our servers and
-            third-party AI services so Donna can recall them later.
-          </Text>
-
-          <Text style={styles.label}>Paste a link</Text>
-          <TextInput
-            style={styles.input}
-            value={url}
-            onChangeText={setUrl}
-            placeholder="https://…"
-            placeholderTextColor="#999"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            editable={!busy}
-          />
+      {Platform.OS === 'ios' ? (
+        <InputAccessoryView nativeID={INPUT_ACCESSORY_ID}>
+          <View style={styles.accessory}>
+            <Pressable
+              onPress={Keyboard.dismiss}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss keyboard"
+            >
+              <Text style={styles.accessoryDone}>Done</Text>
+            </Pressable>
+          </View>
+        </InputAccessoryView>
+      ) : null}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.avoiding}
+      >
+        <Pressable style={styles.backdrop} onPress={onClose}>
           <Pressable
-            style={[styles.primaryButton, busy && styles.buttonDisabled]}
-            onPress={handleAddLink}
-            disabled={busy || !url.trim()}
+            style={[
+              styles.sheet,
+              { paddingBottom: Math.max(insets.bottom, 16) },
+            ]}
+            onPress={e => e.stopPropagation()}
           >
-            <Text style={styles.primaryButtonText}>Save link</Text>
-          </Pressable>
+            <View style={styles.header}>
+              <Text style={styles.title}>Add to memory</Text>
+              <Pressable
+                onPress={onClose}
+                hitSlop={8}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+              >
+                <Text style={styles.cancelHeaderText}>Cancel</Text>
+              </Pressable>
+            </View>
 
-          <View style={styles.divider} />
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.subtitle}>
+                Links, documents, and photos you add are sent to our servers and
+                third-party AI services so Donna can recall them later.
+              </Text>
 
-          <Pressable
-            style={[styles.secondaryButton, busy && styles.buttonDisabled]}
-            onPress={() => {
-              onPickDocument();
-              onClose();
-            }}
-            disabled={busy}
-          >
-            <Text style={styles.secondaryButtonText}>Choose file</Text>
-          </Pressable>
+              <Text style={styles.label}>Paste a link</Text>
+              <TextInput
+                style={styles.input}
+                value={url}
+                onChangeText={setUrl}
+                placeholder="https://…"
+                placeholderTextColor="#999"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                editable={!busy}
+                inputAccessoryViewID={
+                  Platform.OS === 'ios' ? INPUT_ACCESSORY_ID : undefined
+                }
+              />
+              <Pressable
+                style={[styles.primaryButton, busy && styles.buttonDisabled]}
+                onPress={handleAddLink}
+                disabled={busy || !url.trim()}
+              >
+                <Text style={styles.primaryButtonText}>Save link</Text>
+              </Pressable>
 
-          <Pressable
-            style={[styles.secondaryButton, busy && styles.buttonDisabled]}
-            onPress={() => {
-              onPickPhoto();
-              onClose();
-            }}
-            disabled={busy}
-          >
-            <Text style={styles.secondaryButtonText}>Choose photo</Text>
-          </Pressable>
+              <View style={styles.divider} />
 
-          <Pressable style={styles.cancelButton} onPress={onClose} disabled={busy}>
-            <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Pressable
+                style={[styles.secondaryButton, busy && styles.buttonDisabled]}
+                onPress={() => {
+                  onPickDocument();
+                  onClose();
+                }}
+                disabled={busy}
+              >
+                <Text style={styles.secondaryButtonText}>Choose file</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.secondaryButton, busy && styles.buttonDisabled]}
+                onPress={() => {
+                  onPickPhoto();
+                  onClose();
+                }}
+                disabled={busy}
+              >
+                <Text style={styles.secondaryButtonText}>Choose photo</Text>
+              </Pressable>
+            </ScrollView>
           </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  avoiding: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -115,13 +169,23 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 32,
+    maxHeight: '90%',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   title: {
     fontSize: 20,
     fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 6,
+  },
+  cancelHeaderText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#9A7B2F',
   },
   subtitle: {
     fontSize: 14,
@@ -170,14 +234,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  cancelButton: {
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: '#666',
-    fontSize: 15,
-  },
   buttonDisabled: {
     opacity: 0.5,
   },
@@ -185,5 +241,20 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#eee',
     marginVertical: 16,
+  },
+  accessory: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
+    backgroundColor: '#f8f8f8',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  accessoryDone: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#9A7B2F',
   },
 });

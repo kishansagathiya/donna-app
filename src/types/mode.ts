@@ -1,1 +1,1 @@
-export type DonnaMode = 'listen' | 'talk';
+export type DonnaMode = 'notes' | 'talk';

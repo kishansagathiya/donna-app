@@ -27,14 +27,14 @@ export function ModeToggle({ mode, onChange, disabled }: ModeToggleProps) {
         </Text>
       </Pressable>
       <Pressable
-        style={[styles.segment, mode === 'listen' && styles.segmentActive]}
-        onPress={() => onChange('listen')}
+        style={[styles.segment, mode === 'notes' && styles.segmentActive]}
+        onPress={() => onChange('notes')}
         disabled={disabled}
         accessibilityRole="tab"
-        accessibilityState={{ selected: mode === 'listen', disabled: !!disabled }}
+        accessibilityState={{ selected: mode === 'notes', disabled: !!disabled }}
       >
-        <Text style={[styles.label, mode === 'listen' && styles.labelActive]}>
-          Listen
+        <Text style={[styles.label, mode === 'notes' && styles.labelActive]}>
+          Notes
         </Text>
       </Pressable>
     </View>

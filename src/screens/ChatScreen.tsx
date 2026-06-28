@@ -30,7 +30,7 @@ type Props = {
   errorMsg?: string | null;
   onOpenSettings: () => void;
   onOpenProfile: () => void;
-  onOpenMemory: () => void;
+  onAttachPress: () => void;
 };
 
 export function ChatScreen({
@@ -48,7 +48,7 @@ export function ChatScreen({
   errorMsg,
   onOpenSettings,
   onOpenProfile,
-  onOpenMemory,
+  onAttachPress,
 }: Props) {
   const styles = useThemedStyles(createStyles);
   const [textMessages, setTextMessages] = useState<ChatTurn[]>([]);
@@ -111,7 +111,7 @@ export function ChatScreen({
 
       <ChatInput
         onSend={handleSend}
-        onMemoryPress={onOpenMemory}
+        onAttachPress={onAttachPress}
         disabled={micDisabled}
       />
     </View>

@@ -207,7 +207,7 @@ function AppContent() {
             errorMsg={errorMsg}
             onOpenSettings={() => setTab('profile')}
             onOpenProfile={() => setTab('profile')}
-            onOpenMemory={() => setTab('memory')}
+            onAttachPress={() => setSheetOpen(true)}
           />
         ) : null}
 
