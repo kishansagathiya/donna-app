@@ -14,6 +14,10 @@ import type { MicState } from '../components/MicButton';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import type { ThemeColors } from '../theme/colors';
 import type { DonnaMode } from '../types/mode';
+import {
+  streamChatMessage,
+  type ChatTurnMessage,
+} from '../services/chatApi';
 
 type Props = {
   mode: DonnaMode;
@@ -52,6 +56,10 @@ export function ChatScreen({
 }: Props) {
   const styles = useThemedStyles(createStyles);
   const [textMessages, setTextMessages] = useState<ChatTurn[]>([]);
+  const [textSessionId, setTextSessionId] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [textError, setTextError] = useState<string | null>(null);
+  const [streamHasText, setStreamHasText] = useState(false);
 
   const messages: ChatTurn[] = [...textMessages, ...turns];
 
@@ -65,11 +73,74 @@ export function ChatScreen({
 
   const hasMessages = messages.length > 0;
 
-  function handleSend(text: string) {
+  async function handleSend(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || isSending) {
+      return;
+    }
+
+    setTextError(null);
+    setStreamHasText(false);
+    const turnId = `text-${textMessages.length}`;
+
     setTextMessages(prev => [
       ...prev,
-      { id: `text-${prev.length}`, user: text, assistant: null },
+      { id: turnId, user: trimmed, assistant: null },
     ]);
+    setIsSending(true);
+
+    const history: ChatTurnMessage[] = [];
+    for (const turn of textMessages) {
+      if (turn.user) {
+        history.push({ role: 'user', content: turn.user });
+      }
+      if (turn.assistant) {
+        history.push({ role: 'assistant', content: turn.assistant });
+      }
+    }
+
+    try {
+      await streamChatMessage(
+        {
+          message: trimmed,
+          history,
+          sessionId: textSessionId ?? undefined,
+          mode,
+        },
+        {
+          onSession: sessionId => {
+            setTextSessionId(sessionId);
+          },
+          onChunk: replyText => {
+            setStreamHasText(true);
+            setTextMessages(prev =>
+              prev.map(t =>
+                t.id === turnId ? { ...t, assistant: replyText } : t,
+              ),
+            );
+          },
+          onDone: result => {
+            setTextSessionId(result.sessionId);
+            setTextMessages(prev =>
+              prev.map(t =>
+                t.id === turnId ? { ...t, assistant: result.reply } : t,
+              ),
+            );
+          },
+          onError: message => {
+            setTextError(message);
+          },
+        },
+      );
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Failed to send message. Please try again.';
+      setTextError(message);
+    } finally {
+      setIsSending(false);
+    }
   }
 
   return (
@@ -90,7 +161,9 @@ export function ChatScreen({
         {hasMessages ? (
           <ChatMessages
             turns={messages}
-            phaseLabel={phaseLabel}
+            phaseLabel={
+              isSending && !streamHasText ? 'Donna is thinking…' : phaseLabel
+            }
           />
         ) : null}
 
@@ -102,9 +175,9 @@ export function ChatScreen({
           sessionLabel={sessionLabel}
         />
 
-        {errorMsg ? (
+        {(textError || errorMsg) ? (
           <Text style={styles.error} accessibilityRole="alert">
-            {errorMsg}
+            {textError ?? errorMsg}
           </Text>
         ) : null}
       </Pressable>
@@ -112,7 +185,7 @@ export function ChatScreen({
       <ChatInput
         onSend={handleSend}
         onAttachPress={onAttachPress}
-        disabled={micDisabled}
+        disabled={micDisabled || isSending}
       />
     </View>
   );
