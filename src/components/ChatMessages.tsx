@@ -5,10 +5,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
-import { ThinkingIndicator } from './ThinkingIndicator';
+import { AssistantThinkingBlock } from './ThinkingIndicator';
 
 export type ChatTurn = {
   id: string;
@@ -22,8 +23,16 @@ type Props = {
 };
 
 export function ChatMessages({ turns, phaseLabel }: Props) {
+  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const scrollRef = useRef<ScrollView>(null);
+  const isThinking = isDonnaThinkingPhase(phaseLabel);
+  const thinkingTurnId =
+    isThinking && turns.length > 0 ? turns[turns.length - 1]?.id : null;
+  const hasWaitingBubble = Boolean(
+    thinkingTurnId &&
+      turns.some(turn => turn.id === thinkingTurnId && turn.user && !turn.assistant),
+  );
 
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
@@ -36,24 +45,31 @@ export function ChatMessages({ turns, phaseLabel }: Props) {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
-      {turns.map(turn => (
-        <View key={turn.id} style={styles.turn}>
-          {turn.user ? (
-            <View style={[styles.bubble, styles.userBubble]}>
-              <Text style={styles.userText}>{turn.user}</Text>
-            </View>
-          ) : null}
-          {turn.assistant ? (
-            <View style={[styles.bubble, styles.assistantBubble]}>
-              <Text style={styles.assistantText}>{turn.assistant}</Text>
-            </View>
-          ) : null}
-        </View>
-      ))}
+      {turns.map(turn => {
+        const showWaitingBubble =
+          turn.id === thinkingTurnId && turn.user && !turn.assistant;
 
-      {isDonnaThinkingPhase(phaseLabel) ? (
-        <ThinkingIndicator style={styles.phase} />
-      ) : phaseLabel ? (
+        return (
+          <View key={turn.id} style={styles.turn}>
+            {turn.user ? (
+              <View style={[styles.bubble, styles.userBubble]}>
+                <Text style={styles.userText}>{turn.user}</Text>
+              </View>
+            ) : null}
+            {turn.assistant ? (
+              <View style={[styles.bubble, styles.assistantBubble]}>
+                <Text style={styles.assistantText}>{turn.assistant}</Text>
+              </View>
+            ) : showWaitingBubble ? (
+              <AssistantThinkingBlock colors={colors} />
+            ) : null}
+          </View>
+        );
+      })}
+
+      {isThinking && !hasWaitingBubble ? (
+        <AssistantThinkingBlock colors={colors} />
+      ) : phaseLabel && !isThinking ? (
         <Text style={styles.phase} accessibilityRole="text">
           {phaseLabel}
         </Text>
@@ -105,8 +121,12 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 22,
     },
     phase: {
-      alignSelf: 'center',
+      alignSelf: 'flex-start',
+      color: colors.muted,
+      fontSize: 14,
+      lineHeight: 20,
       marginTop: 4,
+      paddingLeft: 4,
     },
   });
 }
