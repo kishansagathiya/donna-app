@@ -134,13 +134,13 @@ function FactModal({
 export function MemoryScreen({ onAddSourcePress }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
-  const [loading, setLoading] = useState(true);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [summary, setSummary] = useState('');
   const [identityFactsText, setIdentityFactsText] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [query, setQuery] = useState('');
   const [facts, setFacts] = useState<MemoryFact[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [searching, setSearching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedFact, setSelectedFact] = useState<MemoryFact | null>(null);
   const [editText, setEditText] = useState('');
@@ -162,21 +162,58 @@ export function MemoryScreen({ onAddSourcePress }: Props) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     void (async () => {
-      setLoading(true);
+      setLoadingProfile(true);
+      setSearching(true);
       setError(null);
-      try {
-        const profile = await getMemoryProfile();
-        setSummary(profile.summary);
-        setIdentityFactsText(profile.identity_facts.join('\n'));
-        await loadFacts();
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Failed to load memory');
-      } finally {
-        setLoading(false);
+
+      const [profileResult, factsResult] = await Promise.allSettled([
+        getMemoryProfile(),
+        listMemoryFacts(),
+      ]);
+
+      if (cancelled) {
+        return;
       }
+
+      const failures: string[] = [];
+
+      if (profileResult.status === 'fulfilled') {
+        setSummary(profileResult.value.summary);
+        setIdentityFactsText(profileResult.value.identity_facts.join('\n'));
+      } else {
+        failures.push(
+          profileResult.reason instanceof Error
+            ? profileResult.reason.message
+            : 'Failed to load profile',
+        );
+      }
+
+      if (factsResult.status === 'fulfilled') {
+        setFacts(factsResult.value);
+      } else {
+        setFacts([]);
+        failures.push(
+          factsResult.reason instanceof Error
+            ? factsResult.reason.message
+            : 'Failed to load facts',
+        );
+      }
+
+      if (failures.length > 0) {
+        setError(failures.join(' · '));
+      }
+
+      setLoadingProfile(false);
+      setSearching(false);
     })();
-  }, [loadFacts]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -273,14 +310,6 @@ export function MemoryScreen({ onAddSourcePress }: Props) {
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -311,28 +340,38 @@ export function MemoryScreen({ onAddSourcePress }: Props) {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.sectionTitle}>Profile</Text>
+        <View style={styles.profileHeader}>
+          <Text style={[styles.sectionTitle, styles.profileTitle]}>Profile</Text>
+          {loadingProfile ? (
+            <ActivityIndicator size="small" color={colors.muted} />
+          ) : null}
+        </View>
         <TextInput
-          style={[styles.input, styles.textArea]}
+          style={[styles.input, styles.textArea, loadingProfile && styles.inputDisabled]}
           value={summary}
           onChangeText={setSummary}
           placeholder="Summary about you…"
           placeholderTextColor={colors.muted}
           multiline
+          editable={!loadingProfile}
         />
         <Text style={styles.fieldLabel}>Identity facts (one per line)</Text>
         <TextInput
-          style={[styles.input, styles.textAreaSmall]}
+          style={[styles.input, styles.textAreaSmall, loadingProfile && styles.inputDisabled]}
           value={identityFactsText}
           onChangeText={setIdentityFactsText}
           placeholder={"User's name is …"}
           placeholderTextColor={colors.muted}
           multiline
+          editable={!loadingProfile}
         />
         <Pressable
-          style={[styles.primaryButton, savingProfile && styles.buttonDisabled]}
+          style={[
+            styles.primaryButton,
+            (savingProfile || loadingProfile) && styles.buttonDisabled,
+          ]}
           onPress={() => void handleSaveProfile()}
-          disabled={savingProfile}
+          disabled={savingProfile || loadingProfile}
         >
           <Text style={styles.primaryButtonText}>
             {savingProfile ? 'Saving…' : 'Save profile'}
@@ -363,6 +402,11 @@ export function MemoryScreen({ onAddSourcePress }: Props) {
         </View>
 
         <Text style={styles.sectionTitle}>Facts</Text>
+        {searching && facts.length === 0 ? (
+          <View style={styles.factsLoading}>
+            <ActivityIndicator size="small" color={colors.primary} />
+          </View>
+        ) : null}
         {facts.length === 0 && !searching ? (
           <Text style={styles.hint}>
             Donna learns from conversations, or add facts with +.
@@ -496,6 +540,24 @@ function createStyles(colors: ThemeColors) {
       fontSize: 15,
       fontWeight: '600',
       color: colors.text,
+    },
+    profileHeader: {
+      marginTop: 16,
+      marginBottom: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    profileTitle: {
+      marginTop: 0,
+      marginBottom: 0,
+    },
+    inputDisabled: {
+      opacity: 0.6,
+    },
+    factsLoading: {
+      alignItems: 'center',
+      paddingVertical: 24,
     },
     fieldLabel: {
       marginTop: 8,
