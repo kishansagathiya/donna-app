@@ -19,9 +19,11 @@ export type MicState =
   | 'processing'
   | 'error';
 
-const WRAPPER_SIZE = 112;
-const CORE_SIZE = 80;
-const ICON_SIZE = 32;
+const HERO_WRAPPER_SIZE = 112;
+const HERO_CORE_SIZE = 80;
+const HERO_ICON_SIZE = 32;
+const INLINE_SIZE = 36;
+const INLINE_ICON_SIZE = 18;
 const RING_INSET = 8;
 const IDLE_PULSE_DURATION_MS = 2500;
 const LISTENING_PULSE_DURATION_MS = 1200;
@@ -33,6 +35,7 @@ type MicButtonProps = {
   state: MicState;
   onPress: () => void;
   disabled?: boolean;
+  variant?: 'hero' | 'inline';
 };
 
 function usePulseRing(
@@ -139,11 +142,20 @@ function ringColor(state: MicState, colors: ThemeColors): string {
   return colors.primary;
 }
 
-export function MicButton({ state, onPress, disabled }: MicButtonProps) {
+export function MicButton({
+  state,
+  onPress,
+  disabled,
+  variant = 'hero',
+}: MicButtonProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const isInline = variant === 'inline';
+  const wrapperSize = isInline ? INLINE_SIZE : HERO_WRAPPER_SIZE;
+  const coreSize = isInline ? INLINE_SIZE : HERO_CORE_SIZE;
+  const iconSize = isInline ? INLINE_ICON_SIZE : HERO_ICON_SIZE;
   const pulseEnabled =
-    state === 'listening' || state === 'processing';
+    !isInline && (state === 'listening' || state === 'processing');
   const pulseDurationMs =
     state === 'listening'
       ? LISTENING_PULSE_DURATION_MS
@@ -188,17 +200,20 @@ export function MicButton({ state, onPress, disabled }: MicButtonProps) {
   const coreBg = coreBackgroundColor(state, colors);
 
   return (
-    <View style={styles.wrapper} testID="mic-toggle">
+    <View
+      style={[styles.wrapper, { width: wrapperSize, height: wrapperSize }]}
+      testID="mic-toggle"
+    >
       {pulseEnabled ? (
         <>
           <PulseRing
-            size={WRAPPER_SIZE}
+            size={HERO_WRAPPER_SIZE}
             fillOpacity={0.15}
             color={ring}
             {...outerRing}
           />
           <PulseRing
-            size={WRAPPER_SIZE - RING_INSET * 2}
+            size={HERO_WRAPPER_SIZE - RING_INSET * 2}
             fillOpacity={0.1}
             color={ring}
             {...innerRing}
@@ -216,16 +231,27 @@ export function MicButton({ state, onPress, disabled }: MicButtonProps) {
         <Animated.View
           style={[
             styles.core,
-            { backgroundColor: coreBg, opacity: coreOpacity },
+            {
+              width: coreSize,
+              height: coreSize,
+              borderRadius: coreSize / 2,
+              backgroundColor: coreBg,
+            },
+            !isInline && styles.coreHero,
+            isInline && state === 'listening' && styles.coreInlineActive,
             state === 'error' && styles.coreError,
+            { opacity: coreOpacity },
           ]}
         >
           {isProcessing ? (
-            <ActivityIndicator size="large" color={colors.white} />
+            <ActivityIndicator
+              size={isInline ? 'small' : 'large'}
+              color={colors.white}
+            />
           ) : isListening ? (
-            <StopIcon size={ICON_SIZE} color={colors.white} />
+            <StopIcon size={iconSize} color={colors.white} />
           ) : (
-            <MicIcon size={ICON_SIZE} color={colors.white} />
+            <MicIcon size={iconSize} color={colors.white} />
           )}
         </Animated.View>
       </Pressable>
@@ -236,22 +262,23 @@ export function MicButton({ state, onPress, disabled }: MicButtonProps) {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     wrapper: {
-      width: WRAPPER_SIZE,
-      height: WRAPPER_SIZE,
       alignItems: 'center',
       justifyContent: 'center',
     },
     core: {
-      width: CORE_SIZE,
-      height: CORE_SIZE,
-      borderRadius: CORE_SIZE / 2,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    coreHero: {
       shadowColor: colors.primary,
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.25,
       shadowRadius: 15,
       elevation: 8,
+    },
+    coreInlineActive: {
+      borderWidth: 2,
+      borderColor: colors.primaryRing,
     },
     coreError: {
       borderWidth: 3,

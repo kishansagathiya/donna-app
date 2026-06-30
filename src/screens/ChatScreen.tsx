@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { ChatHero } from '../components/ChatHero';
+import { ChatHistorySheet } from '../components/ChatHistorySheet';
 import { ChatInput } from '../components/ChatInput';
 import { ChatMessages, type ChatTurn } from '../components/ChatMessages';
 import type { MicState } from '../components/MicButton';
@@ -60,6 +61,7 @@ export function ChatScreen({
   const [isSending, setIsSending] = useState(false);
   const [textError, setTextError] = useState<string | null>(null);
   const [streamHasText, setStreamHasText] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const messages: ChatTurn[] = [...textMessages, ...turns];
 
@@ -143,6 +145,17 @@ export function ChatScreen({
     }
   }
 
+  function handleResumeConversation(
+    sessionId: string | undefined,
+    messages: ChatTurn[],
+  ) {
+    setTextMessages(messages);
+    setTextSessionId(sessionId ?? null);
+    setTextError(null);
+    setIsSending(false);
+    setStreamHasText(false);
+  }
+
   return (
     <View style={styles.container}>
       <AppHeader
@@ -150,6 +163,7 @@ export function ChatScreen({
         onModeChange={onModeChange}
         modeDisabled={modeDisabled}
         onAvatarPress={onOpenProfile}
+        onHistoryPress={() => setHistoryOpen(true)}
         onSettingsPress={onOpenSettings}
       />
 
@@ -172,7 +186,8 @@ export function ChatScreen({
           onMicPress={onMicPress}
           micDisabled={micDisabled}
           compact={hasMessages}
-          sessionLabel={sessionLabel}
+          showMic={!hasMessages}
+          sessionLabel={hasMessages ? null : sessionLabel}
         />
 
         {(textError || errorMsg) ? (
@@ -186,6 +201,17 @@ export function ChatScreen({
         onSend={handleSend}
         onAttachPress={onAttachPress}
         disabled={micDisabled || isSending}
+        showMic={hasMessages}
+        micState={micState}
+        onMicPress={onMicPress}
+        micDisabled={micDisabled}
+        sessionLabel={hasMessages ? sessionLabel : null}
+      />
+
+      <ChatHistorySheet
+        visible={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onResume={handleResumeConversation}
       />
     </View>
   );

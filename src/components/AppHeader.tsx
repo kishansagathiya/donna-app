@@ -4,7 +4,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
 import type { ThemeColors } from '../theme/colors';
-import { SettingsIcon } from './icons';
+import { HistoryIcon, SettingsIcon } from './icons';
 import { ModeToggle } from './ModeToggle';
 import type { DonnaMode } from '../types/mode';
 
@@ -13,6 +13,7 @@ type Props = {
   onModeChange: (mode: DonnaMode) => void;
   modeDisabled?: boolean;
   onAvatarPress?: () => void;
+  onHistoryPress?: () => void;
   onSettingsPress: () => void;
 };
 
@@ -39,7 +40,7 @@ export function UserAvatar({
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : 'image'}
-      accessibilityLabel="Profile"
+      accessibilityLabel="Open profile"
       style={[
         styles.avatar,
         { width: size, height: size, borderRadius: size / 2 },
@@ -51,7 +52,7 @@ export function UserAvatar({
           style={{ width: size, height: size, borderRadius: size / 2 }}
         />
       ) : (
-        <Text style={[styles.avatarText, { fontSize: size * 0.4 }]}>
+        <Text style={[styles.avatarText, { fontSize: size * 0.39 }]}>
           {initial}
         </Text>
       )}
@@ -64,6 +65,7 @@ export function AppHeader({
   onModeChange,
   modeDisabled,
   onAvatarPress,
+  onHistoryPress,
   onSettingsPress,
 }: Props) {
   const { colors } = useTheme();
@@ -71,25 +73,38 @@ export function AppHeader({
 
   return (
     <View style={styles.container}>
-      <View style={styles.side}>
-        <UserAvatar onPress={onAvatarPress} />
-      </View>
-
       <ModeToggle
         mode={mode}
         onChange={onModeChange}
         disabled={modeDisabled}
       />
 
-      <View style={styles.side}>
+      <View style={styles.actions}>
+        {onHistoryPress ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.iconButton,
+              pressed && styles.iconButtonPressed,
+            ]}
+            onPress={onHistoryPress}
+            accessibilityRole="button"
+            accessibilityLabel="Chat history"
+          >
+            <HistoryIcon size={20} color={colors.muted} />
+          </Pressable>
+        ) : null}
         <Pressable
-          style={styles.settingsButton}
+          style={({ pressed }) => [
+            styles.iconButton,
+            pressed && styles.iconButtonPressed,
+          ]}
           onPress={onSettingsPress}
           accessibilityRole="button"
           accessibilityLabel="Profile and settings"
         >
-          <SettingsIcon size={22} color={colors.muted} />
+          <SettingsIcon size={20} color={colors.muted} />
         </Pressable>
+        <UserAvatar onPress={onAvatarPress} />
       </View>
     </View>
   );
@@ -104,7 +119,7 @@ function createAvatarStyles(colors: ThemeColors) {
       overflow: 'hidden',
     },
     avatarText: {
-      fontWeight: '700',
+      fontWeight: '600',
       color: colors.primary,
     },
   });
@@ -115,22 +130,25 @@ function createStyles(colors: ThemeColors) {
     container: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 4,
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 12,
       gap: 8,
     },
-    side: {
-      flex: 1,
+    actions: {
       flexDirection: 'row',
       alignItems: 'center',
+      gap: 8,
     },
-    settingsButton: {
+    iconButton: {
       width: 36,
       height: 36,
+      borderRadius: 18,
       alignItems: 'center',
       justifyContent: 'center',
-      marginLeft: 'auto',
+    },
+    iconButtonPressed: {
+      backgroundColor: colors.surface,
     },
   });
 }

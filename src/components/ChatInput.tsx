@@ -13,6 +13,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import type { ThemeColors } from '../theme/colors';
 import { ArrowUpIcon, PaperclipIcon } from './icons';
+import { MicButton, type MicState } from './MicButton';
 
 const INPUT_ACCESSORY_ID = 'chat-input-accessory';
 
@@ -21,6 +22,11 @@ type Props = {
   onAttachPress?: () => void;
   disabled?: boolean;
   placeholder?: string;
+  showMic?: boolean;
+  micState?: MicState;
+  onMicPress?: () => void;
+  micDisabled?: boolean;
+  sessionLabel?: string | null;
 };
 
 export function ChatInput({
@@ -28,10 +34,17 @@ export function ChatInput({
   onAttachPress,
   disabled,
   placeholder = 'Message Donna...',
+  showMic = false,
+  micState = 'idle',
+  onMicPress,
+  micDisabled,
+  sessionLabel,
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [text, setText] = useState('');
+  const hasText = text.trim().length > 0;
+  const showInlineMic = showMic && !hasText && onMicPress;
 
   function submit() {
     const trimmed = text.trim();
@@ -57,6 +70,11 @@ export function ChatInput({
             </Pressable>
           </View>
         </InputAccessoryView>
+      ) : null}
+      {sessionLabel ? (
+        <Text style={styles.sessionLabel} accessibilityRole="text">
+          {sessionLabel}
+        </Text>
       ) : null}
       <View style={styles.row}>
         <View style={styles.bar}>
@@ -88,18 +106,27 @@ export function ChatInput({
             }
           />
         </View>
-        <Pressable
-          style={[
-            styles.sendButton,
-            (!text.trim() || disabled) && styles.sendButtonDisabled,
-          ]}
-          onPress={submit}
-          disabled={!text.trim() || disabled}
-          accessibilityRole="button"
-          accessibilityLabel="Send message"
-        >
-          <ArrowUpIcon size={18} color={colors.white} />
-        </Pressable>
+        {showInlineMic ? (
+          <MicButton
+            variant="inline"
+            state={micState}
+            onPress={onMicPress}
+            disabled={micDisabled}
+          />
+        ) : (
+          <Pressable
+            style={[
+              styles.sendButton,
+              (!hasText || disabled) && styles.sendButtonDisabled,
+            ]}
+            onPress={submit}
+            disabled={!hasText || disabled}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
+          >
+            <ArrowUpIcon size={18} color={colors.white} />
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -127,6 +154,14 @@ function createStyles(colors: ThemeColors) {
       fontSize: 16,
       fontWeight: '600',
       color: colors.primary,
+    },
+    sessionLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.muted,
+      textAlign: 'center',
+      marginBottom: 8,
+      lineHeight: 18,
     },
     row: {
       flexDirection: 'row',

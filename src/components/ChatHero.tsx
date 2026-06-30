@@ -9,6 +9,7 @@ type Props = {
   onMicPress: () => void;
   micDisabled?: boolean;
   compact?: boolean;
+  showMic?: boolean;
   sessionLabel?: string | null;
 };
 
@@ -17,19 +18,26 @@ export function ChatHero({
   onMicPress,
   micDisabled,
   compact = false,
+  showMic = true,
   sessionLabel,
 }: Props) {
   const styles = useThemedStyles(createStyles);
 
+  if (compact && !showMic && !sessionLabel) {
+    return null;
+  }
+
   return (
     <View style={[styles.container, compact && styles.containerCompact]}>
-      <MicButton state={micState} onPress={onMicPress} disabled={micDisabled} />
-      {sessionLabel ? (
+      {showMic ? (
+        <MicButton state={micState} onPress={onMicPress} disabled={micDisabled} />
+      ) : null}
+      {showMic && sessionLabel ? (
         <Text style={styles.status} accessibilityRole="text">
           {sessionLabel}
         </Text>
       ) : null}
-      {compact || sessionLabel ? null : (
+      {compact || sessionLabel || !showMic ? null : (
         <>
           <Text style={styles.title}>Ask Donna anything</Text>
           <Text style={styles.subtitle}>
