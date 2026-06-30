@@ -13,6 +13,7 @@ import { ChatInput } from '../components/ChatInput';
 import { ChatMessages, type ChatTurn } from '../components/ChatMessages';
 import type { MicState } from '../components/MicButton';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import { DONNA_THINKING_PHASE } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
 import type { DonnaMode } from '../types/mode';
 import {
@@ -176,7 +177,7 @@ export function ChatScreen({
           <ChatMessages
             turns={messages}
             phaseLabel={
-              isSending && !streamHasText ? 'Donna is thinking…' : phaseLabel
+              isSending && !streamHasText ? DONNA_THINKING_PHASE : phaseLabel
             }
           />
         ) : null}

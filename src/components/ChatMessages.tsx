@@ -6,7 +6,9 @@ import {
   View,
 } from 'react-native';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
+import { ThinkingIndicator } from './ThinkingIndicator';
 
 export type ChatTurn = {
   id: string;
@@ -49,7 +51,9 @@ export function ChatMessages({ turns, phaseLabel }: Props) {
         </View>
       ))}
 
-      {phaseLabel ? (
+      {isDonnaThinkingPhase(phaseLabel) ? (
+        <ThinkingIndicator style={styles.phase} />
+      ) : phaseLabel ? (
         <Text style={styles.phase} accessibilityRole="text">
           {phaseLabel}
         </Text>
@@ -102,9 +106,6 @@ function createStyles(colors: ThemeColors) {
     },
     phase: {
       alignSelf: 'center',
-      color: colors.muted,
-      fontSize: 14,
-      lineHeight: 20,
       marginTop: 4,
     },
   });

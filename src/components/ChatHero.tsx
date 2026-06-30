@@ -1,8 +1,10 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
 import { MicButton, type MicState } from './MicButton';
+import { ThinkingIndicator } from './ThinkingIndicator';
 
 type Props = {
   micState: MicState;
@@ -32,7 +34,9 @@ export function ChatHero({
       {showMic ? (
         <MicButton state={micState} onPress={onMicPress} disabled={micDisabled} />
       ) : null}
-      {showMic && sessionLabel ? (
+      {showMic && isDonnaThinkingPhase(sessionLabel) ? (
+        <ThinkingIndicator style={styles.status} />
+      ) : showMic && sessionLabel ? (
         <Text style={styles.status} accessibilityRole="text">
           {sessionLabel}
         </Text>

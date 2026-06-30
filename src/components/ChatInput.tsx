@@ -11,9 +11,11 @@ import {
 } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
 import { ArrowUpIcon, PaperclipIcon } from './icons';
 import { MicButton, type MicState } from './MicButton';
+import { ThinkingIndicator } from './ThinkingIndicator';
 
 const INPUT_ACCESSORY_ID = 'chat-input-accessory';
 
@@ -71,7 +73,9 @@ export function ChatInput({
           </View>
         </InputAccessoryView>
       ) : null}
-      {sessionLabel ? (
+      {isDonnaThinkingPhase(sessionLabel) ? (
+        <ThinkingIndicator style={styles.sessionLabel} />
+      ) : sessionLabel ? (
         <Text style={styles.sessionLabel} accessibilityRole="text">
           {sessionLabel}
         </Text>

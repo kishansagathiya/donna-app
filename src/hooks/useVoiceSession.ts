@@ -21,6 +21,7 @@ import {
 import type { ServerMessage, TurnPhase } from '../voice/protocol';
 import { EnergyVad } from '../voice/vad';
 import { getAccessToken } from '../services/auth';
+import { DONNA_THINKING_PHASE } from '../lib/thinkingPhrases';
 import { voiceErrorMessage } from '../voice/voiceErrors';
 import { VoiceClient } from '../voice/voiceClient';
 import type { DonnaMode } from '../types/mode';
@@ -446,7 +447,7 @@ export function useVoiceSession(mode: DonnaMode) {
     state === 'processing'
       ? sessionModeRef.current === 'notes'
         ? 'Saving…'
-        : 'Donna is thinking…'
+        : DONNA_THINKING_PHASE
       : null;
 
   const sessionLabel =
@@ -461,7 +462,7 @@ export function useVoiceSession(mode: DonnaMode) {
           : state === 'processing'
             ? sessionModeRef.current === 'notes'
               ? 'Saving…'
-              : 'Donna is thinking…'
+              : DONNA_THINKING_PHASE
             : null;
 
   return {
