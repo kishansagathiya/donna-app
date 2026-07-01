@@ -224,6 +224,59 @@ export function HistoryIcon({
   );
 }
 
+export function CalendarCheckIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Rect
+        x="3"
+        y="4"
+        width="18"
+        height="18"
+        rx="2"
+        stroke={color}
+        strokeWidth={strokeWidth}
+      />
+      <Line
+        x1="16"
+        y1="2"
+        x2="16"
+        y2="6"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+      />
+      <Line
+        x1="8"
+        y1="2"
+        x2="8"
+        y2="6"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+      />
+      <Line
+        x1="3"
+        y1="10"
+        x2="21"
+        y2="10"
+        stroke={color}
+        strokeWidth={strokeWidth}
+      />
+      <Path
+        d="m9 16 2 2 4-4"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </IconFrame>
+  );
+}
+
 export function ArrowUpIcon({
   size = 24,
   color = 'currentColor',

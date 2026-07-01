@@ -34,6 +34,7 @@ import type { DonnaMode } from './src/types/mode';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { AIDataConsentScreen } from './src/screens/AIDataConsentScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
+import { TodayScreen } from './src/screens/TodayScreen';
 import { MemoryScreen } from './src/screens/MemoryScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SCREENSHOT_MODE } from './src/config';
@@ -210,6 +211,8 @@ function AppContent() {
             onAttachPress={() => setSheetOpen(true)}
           />
         ) : null}
+
+        {tab === 'today' ? <TodayScreen /> : null}
 
         {tab === 'memory' ? (
           <MemoryScreen onAddSourcePress={() => setSheetOpen(true)} />

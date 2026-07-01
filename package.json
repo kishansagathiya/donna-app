@@ -1,6 +1,6 @@
 {
   "name": "donna-app",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "scripts": {
     "sync-env": "node scripts/sync-env.mjs",
@@ -12,6 +12,8 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
+    "release:ios": "eas build --platform ios --profile production --non-interactive",
+    "submit:ios": "eas submit --platform ios --profile production --latest --non-interactive",
     "postinstall": "patch-package"
   },
   "dependencies": {

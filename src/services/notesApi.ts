@@ -11,6 +11,30 @@ export type NoteSearchResult = {
   source_type: string;
 };
 
+export type DailyTask = {
+  note_id: string;
+  title: string;
+  preview: string;
+  priority: string;
+  reason: string;
+  is_urgent: boolean;
+  is_important: boolean;
+};
+
+export type OutdatedNote = {
+  note_id: string;
+  title: string;
+  preview: string;
+  reason: string;
+};
+
+export type DailyBriefing = {
+  date: string;
+  summary: string;
+  tasks: DailyTask[];
+  outdated: OutdatedNote[];
+};
+
 async function authorizedFetch(
   path: string,
   init: RequestInit = {},
@@ -29,6 +53,18 @@ async function authorizedFetch(
     ...init,
     headers,
   });
+}
+
+export async function checkDailyNotes(): Promise<DailyBriefing> {
+  const res = await authorizedFetch('/notes/daily-check', { method: 'POST' });
+  const body = (await res.json()) as DailyBriefing & {
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok) {
+    throw new Error(body.message ?? body.error ?? `Daily check failed (${res.status})`);
+  }
+  return body;
 }
 
 export async function searchNotes(query: string): Promise<NoteSearchResult[]> {

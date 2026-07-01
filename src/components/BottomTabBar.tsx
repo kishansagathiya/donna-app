@@ -4,12 +4,13 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeColors } from '../theme/colors';
 import {
+  CalendarCheckIcon,
   DatabaseIcon,
   MessageSquareIcon,
   UserIcon,
 } from './icons';
 
-export type AppTab = 'chat' | 'memory' | 'profile';
+export type AppTab = 'chat' | 'today' | 'memory' | 'profile';
 
 type Props = {
   active: AppTab;
@@ -22,6 +23,7 @@ const tabs: {
   Icon: typeof MessageSquareIcon;
 }[] = [
   { id: 'chat', label: 'Chat', Icon: MessageSquareIcon },
+  { id: 'today', label: 'Today', Icon: CalendarCheckIcon },
   { id: 'memory', label: 'Memory', Icon: DatabaseIcon },
   { id: 'profile', label: 'Profile', Icon: UserIcon },
 ];

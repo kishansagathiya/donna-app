@@ -36,6 +36,44 @@ Requires Xcode and the [React Native environment](https://reactnative.dev/docs/s
 
 Bundle ID: `com.kishansagathiya.donna`
 
+## App Store release
+
+iOS builds and uploads use [EAS Build](https://docs.expo.dev/build/introduction/) and [EAS Submit](https://docs.expo.dev/submit/introduction/). Apple credentials should be configured in the [Expo project dashboard](https://expo.dev) (project ID in `app.json`).
+
+### One-time setup
+
+1. Install EAS CLI: `npm install -g eas-cli`
+2. Log in: `eas login`
+3. Confirm iOS credentials in Expo: `eas credentials --platform ios`
+4. Add GitHub repo secret **`EXPO_TOKEN`** ([Expo access token](https://expo.dev/settings/access-tokens)) for CI releases
+
+### Release from your Mac
+
+```bash
+cd donna-app
+npm ci
+DONNA_VOICE_TARGET=production node scripts/sync-env.mjs
+eas build --platform ios --profile production
+eas submit --platform ios --profile production --latest
+```
+
+Or use npm scripts after logging in:
+
+```bash
+npm run release:ios
+npm run submit:ios
+```
+
+Bump `app.json` → `expo.version` / `expo.ios.buildNumber` and matching `ios/Donna.xcodeproj` values before each store upload.
+
+### Release from GitHub Actions
+
+1. Ensure `EXPO_TOKEN` is set in repo secrets
+2. Actions → **iOS App Store Release** → **Run workflow**
+3. Leave **Submit to App Store Connect** checked to upload after the build finishes
+
+After upload, open [App Store Connect](https://appstoreconnect.apple.com) to add release notes and submit for review.
+
 ## Voice backend URL
 
 Configured via the **repo-root** [`.env`](../.env) (synced automatically on `npm start` / `npm run ios`). No code edits needed.

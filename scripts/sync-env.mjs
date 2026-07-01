@@ -85,7 +85,19 @@ function detectDevHost() {
   return null;
 }
 
-const env = parseEnvFile(envPath);
+const fileEnv = parseEnvFile(envPath);
+const env = {
+  ...fileEnv,
+  ...(process.env.DONNA_VOICE_TARGET
+    ? { DONNA_VOICE_TARGET: process.env.DONNA_VOICE_TARGET }
+    : {}),
+  ...(process.env.DONNA_VOICE_WS_URL
+    ? { DONNA_VOICE_WS_URL: process.env.DONNA_VOICE_WS_URL }
+    : {}),
+  ...(process.env.DONNA_PRIVACY_POLICY_URL
+    ? { DONNA_PRIVACY_POLICY_URL: process.env.DONNA_PRIVACY_POLICY_URL }
+    : {}),
+};
 const target = env.DONNA_VOICE_TARGET === 'production' ? 'production' : 'local';
 const wsOverride = env.DONNA_VOICE_WS_URL?.trim() || null;
 const devHost = target === 'local' ? detectDevHost() : null;
