@@ -14,6 +14,7 @@
     "test": "jest",
     "release:ios": "eas build --platform ios --profile production --non-interactive",
     "submit:ios": "eas submit --platform ios --profile production --latest --non-interactive",
+    "eas-build-pre-install": "if [ \"$EAS_BUILD_PLATFORM\" = \"ios\" ]; then HOMEBREW_NO_AUTO_UPDATE=1 brew install cmake ninja; fi",
     "postinstall": "patch-package"
   },
   "dependencies": {
