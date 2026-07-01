@@ -39,6 +39,9 @@ export async function deleteAccount(): Promise<void> {
 export type AccountPreferences = {
   llm_model: string;
   available_models: string[];
+  persona: string;
+  persona_custom: string;
+  available_personas: string[] | null;
 };
 
 export async function getAccountPreferences(): Promise<AccountPreferences> {
@@ -58,6 +61,25 @@ export async function updateLLMModel(llmModel: string): Promise<void> {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ llm_model: llmModel }),
+  });
+  const body = (await res.json()) as { error?: string; message?: string };
+  if (!res.ok) {
+    throw new Error(body.message ?? body.error ?? `Save failed (${res.status})`);
+  }
+}
+
+export async function updatePersona(
+  persona: string,
+  personaCustom?: string,
+): Promise<void> {
+  const payload: Record<string, string> = { persona };
+  if (personaCustom !== undefined) {
+    payload.persona_custom = personaCustom;
+  }
+  const res = await authorizedFetch('/account', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
   });
   const body = (await res.json()) as { error?: string; message?: string };
   if (!res.ok) {

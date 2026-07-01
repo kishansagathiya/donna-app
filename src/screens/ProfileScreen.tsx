@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { ThemeToggle } from '../components/ThemeToggle';
@@ -17,9 +18,12 @@ import {
   downloadAccountExport,
   getAccountPreferences,
   updateLLMModel,
+  updatePersona,
 } from '../services/accountApi';
 import { signOut } from '../services/auth';
 import type { ThemeColors } from '../theme/colors';
+
+const DEFAULT_PERSONAS = ['companion', 'boss', 'coach', 'therapist', 'custom'];
 
 export function ProfileScreen() {
   const { colors } = useTheme();
@@ -32,7 +36,11 @@ export function ProfileScreen() {
   const [loadingModels, setLoadingModels] = useState(true);
   const [savingModel, setSavingModel] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const busy = signingOut || deleting || savingModel || exporting;
+  const [personas, setPersonas] = useState<string[]>([]);
+  const [persona, setPersona] = useState('companion');
+  const [personaCustom, setPersonaCustom] = useState('');
+  const [savingPersona, setSavingPersona] = useState(false);
+  const busy = signingOut || deleting || savingModel || savingPersona || exporting;
 
   const email = session?.user.email ?? '';
   const name =
@@ -45,6 +53,9 @@ export function ProfileScreen() {
       .then(preferences => {
         setModels(preferences.available_models);
         setSelectedModel(preferences.llm_model);
+        setPersonas(preferences.available_personas ?? []);
+        setPersona(preferences.persona ?? 'companion');
+        setPersonaCustom(preferences.persona_custom ?? '');
       })
       .catch(error => {
         Alert.alert(
@@ -72,6 +83,43 @@ export function ProfileScreen() {
       );
     } finally {
       setSavingModel(false);
+    }
+  }
+
+  async function handlePersonaChange(next: string) {
+    if (next === persona || savingPersona) {
+      return;
+    }
+    const previous = persona;
+    setPersona(next);
+    setSavingPersona(true);
+    try {
+      await updatePersona(next, next === 'custom' ? personaCustom : '');
+    } catch (error) {
+      setPersona(previous);
+      Alert.alert(
+        'Could Not Save Persona',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setSavingPersona(false);
+    }
+  }
+
+  async function handlePersonaCustomSave() {
+    if (savingPersona) {
+      return;
+    }
+    setSavingPersona(true);
+    try {
+      await updatePersona('custom', personaCustom);
+    } catch (error) {
+      Alert.alert(
+        'Could Not Save Persona',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setSavingPersona(false);
     }
   }
 
@@ -176,6 +224,63 @@ export function ProfileScreen() {
           })}
         </View>
       )}
+
+      <Text style={styles.sectionTitle}>Persona</Text>
+      <Text style={styles.sectionDescription}>
+        How Donna talks to you in chat and voice.
+      </Text>
+      <View style={styles.modelList}>
+        {(personas.length > 0 ? personas : DEFAULT_PERSONAS).map(p => {
+          const selected = p === persona;
+          return (
+            <Pressable
+              key={p}
+              style={[styles.modelOption, selected && styles.modelOptionSelected]}
+              onPress={() => void handlePersonaChange(p)}
+              disabled={busy}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selected }}
+            >
+              <Text style={styles.modelName}>
+                {p.charAt(0).toUpperCase() + p.slice(1)}
+              </Text>
+              <Text style={styles.modelCheck}>{selected ? '✓' : ''}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {persona === 'custom' ? (
+        <View style={styles.personaCustomWrap}>
+          <Text style={styles.fieldLabel}>Custom persona instructions</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={personaCustom}
+            onChangeText={setPersonaCustom}
+            placeholder={
+              'e.g. You are Donna, a witty senior engineer who pairs with me…'
+            }
+            placeholderTextColor={colors.muted}
+            multiline
+            maxLength={4000}
+            editable={!busy}
+          />
+          <Pressable
+            style={[
+              styles.primaryButton,
+              busy && styles.buttonDisabled,
+            ]}
+            onPress={() => void handlePersonaCustomSave()}
+            disabled={busy || savingPersona}
+            accessibilityRole="button"
+          >
+            {savingPersona ? (
+              <ActivityIndicator color={colors.white} size="small" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Save persona</Text>
+            )}
+          </Pressable>
+        </View>
+      ) : null}
 
       <ThemeToggle />
 
@@ -344,6 +449,41 @@ function createStyles(colors: ThemeColors) {
       fontSize: 16,
       fontWeight: '600',
       color: colors.white,
+    },
+    personaCustomWrap: {
+      marginBottom: 16,
+    },
+    fieldLabel: {
+      marginTop: 4,
+      marginBottom: 8,
+      fontSize: 13,
+      color: colors.muted,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 16,
+      color: colors.text,
+      backgroundColor: colors.surface,
+    },
+    textArea: {
+      minHeight: 96,
+      textAlignVertical: 'top',
+    },
+    primaryButton: {
+      marginTop: 12,
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    primaryButtonText: {
+      color: colors.white,
+      fontWeight: '600',
+      fontSize: 15,
     },
   });
 }
