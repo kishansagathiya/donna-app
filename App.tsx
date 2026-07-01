@@ -206,7 +206,6 @@ function AppContent() {
             phaseLabel={phaseLabel}
             sessionLabel={sessionLabel}
             errorMsg={errorMsg}
-            onOpenSettings={() => setTab('profile')}
             onOpenProfile={() => setTab('profile')}
             onAttachPress={() => setSheetOpen(true)}
           />

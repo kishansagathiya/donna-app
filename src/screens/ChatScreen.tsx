@@ -34,7 +34,6 @@ type Props = {
   phaseLabel?: string | null;
   sessionLabel?: string | null;
   errorMsg?: string | null;
-  onOpenSettings: () => void;
   onOpenProfile: () => void;
   onAttachPress: () => void;
 };
@@ -52,7 +51,6 @@ export function ChatScreen({
   phaseLabel,
   sessionLabel,
   errorMsg,
-  onOpenSettings,
   onOpenProfile,
   onAttachPress,
 }: Props) {
@@ -165,7 +163,6 @@ export function ChatScreen({
         modeDisabled={modeDisabled}
         onAvatarPress={onOpenProfile}
         onHistoryPress={() => setHistoryOpen(true)}
-        onSettingsPress={onOpenSettings}
       />
 
       <Pressable

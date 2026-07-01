@@ -4,7 +4,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
 import type { ThemeColors } from '../theme/colors';
-import { HistoryIcon, SettingsIcon } from './icons';
+import { HistoryIcon } from './icons';
 import { ModeToggle } from './ModeToggle';
 import type { DonnaMode } from '../types/mode';
 
@@ -14,7 +14,6 @@ type Props = {
   modeDisabled?: boolean;
   onAvatarPress?: () => void;
   onHistoryPress?: () => void;
-  onSettingsPress: () => void;
 };
 
 export function UserAvatar({
@@ -40,7 +39,7 @@ export function UserAvatar({
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : 'image'}
-      accessibilityLabel="Open profile"
+      accessibilityLabel="Profile and settings"
       style={[
         styles.avatar,
         { width: size, height: size, borderRadius: size / 2 },
@@ -66,7 +65,6 @@ export function AppHeader({
   modeDisabled,
   onAvatarPress,
   onHistoryPress,
-  onSettingsPress,
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -93,17 +91,6 @@ export function AppHeader({
             <HistoryIcon size={20} color={colors.muted} />
           </Pressable>
         ) : null}
-        <Pressable
-          style={({ pressed }) => [
-            styles.iconButton,
-            pressed && styles.iconButtonPressed,
-          ]}
-          onPress={onSettingsPress}
-          accessibilityRole="button"
-          accessibilityLabel="Profile and settings"
-        >
-          <SettingsIcon size={20} color={colors.muted} />
-        </Pressable>
         <UserAvatar onPress={onAvatarPress} />
       </View>
     </View>
