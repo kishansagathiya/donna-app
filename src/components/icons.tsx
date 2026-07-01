@@ -224,6 +224,31 @@ export function HistoryIcon({
   );
 }
 
+export function StickyNoteIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Path
+        d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M15 3v4a2 2 0 0 0 2 2h4"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </IconFrame>
+  );
+}
+
 export function CalendarCheckIcon({
   size = 24,
   color = 'currentColor',

@@ -27,7 +27,9 @@ const PRIORITY_LABELS: Record<string, string> = {
   delegate: 'Quick win',
 };
 
-type Props = Record<string, never>;
+type Props = {
+  embedded?: boolean;
+};
 
 function TaskRow({
   task,
@@ -98,7 +100,7 @@ function OutdatedRow({
   );
 }
 
-export function TodayScreen(_props: Props) {
+export function TodayScreen({ embedded = false }: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -187,24 +189,41 @@ export function TodayScreen(_props: Props) {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>Today</Text>
-          <Text style={styles.subtitle}>{todayLabel}</Text>
+    <View style={[styles.container, !embedded && { paddingTop: insets.top }]}>
+      {!embedded ? (
+        <View style={styles.header}>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>Today</Text>
+            <Text style={styles.subtitle}>{todayLabel}</Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.checkButton, pressed && styles.checkButtonPressed]}
+            onPress={() => void runCheck(true)}
+            disabled={loading || refreshing}
+          >
+            {loading || refreshing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.checkButtonText}>Check notes</Text>
+            )}
+          </Pressable>
         </View>
-        <Pressable
-          style={({ pressed }) => [styles.checkButton, pressed && styles.checkButtonPressed]}
-          onPress={() => void runCheck(true)}
-          disabled={loading || refreshing}
-        >
-          {loading || refreshing ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.checkButtonText}>Check notes</Text>
-          )}
-        </Pressable>
-      </View>
+      ) : (
+        <View style={styles.embeddedHeader}>
+          <Text style={styles.subtitle}>{todayLabel}</Text>
+          <Pressable
+            style={({ pressed }) => [styles.checkButton, pressed && styles.checkButtonPressed]}
+            onPress={() => void runCheck(true)}
+            disabled={loading || refreshing}
+          >
+            {loading || refreshing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.checkButtonText}>Check notes</Text>
+            )}
+          </Pressable>
+        </View>
+      )}
 
       {error ? (
         <View style={styles.errorBanner}>
@@ -294,6 +313,15 @@ function createStyles(colors: ThemeColors) {
     headerText: {
       flex: 1,
       marginRight: 12,
+    },
+    embeddedHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
     },
     title: {
       fontSize: 22,
