@@ -30,7 +30,6 @@ import { useAssetIngest } from './src/hooks/useAssetIngest';
 import { useIncomingShare } from './src/hooks/useIncomingShare';
 import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import { useVoiceSession } from './src/hooks/useVoiceSession';
-import type { DonnaMode } from './src/types/mode';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { AIDataConsentScreen } from './src/screens/AIDataConsentScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
@@ -129,7 +128,6 @@ function AppContent() {
   const safeAreaInsets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [tab, setTab] = useState<AppTab>('chat');
-  const [mode, setMode] = useState<DonnaMode>('talk');
   const {
     state,
     toggleTalk,
@@ -140,8 +138,7 @@ function AppContent() {
     sessionLabel,
     errorMsg,
     disabled,
-  } = useVoiceSession(mode);
-  const sessionActive = state === 'listening' || state === 'processing';
+  } = useVoiceSession();
   const [sheetOpen, setSheetOpen] = useState(false);
   const {
     toast,
@@ -194,9 +191,6 @@ function AppContent() {
       >
         {tab === 'chat' ? (
           <ChatScreen
-            mode={mode}
-            onModeChange={setMode}
-            modeDisabled={sessionActive || disabled}
             micState={state}
             onMicPress={toggleTalk}
             micDisabled={disabled}

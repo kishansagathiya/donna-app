@@ -24,7 +24,6 @@ import { getAccessToken } from '../services/auth';
 import { DONNA_THINKING_PHASE } from '../lib/thinkingPhrases';
 import { voiceErrorMessage } from '../voice/voiceErrors';
 import { VoiceClient } from '../voice/voiceClient';
-import type { DonnaMode } from '../types/mode';
 
 type VoiceStatus = {
   transcript: string | null;
@@ -65,7 +64,7 @@ function formatStartSessionError(message: string): string {
   return message || "Couldn't start listening. Please try again.";
 }
 
-export function useVoiceSession(mode: DonnaMode) {
+export function useVoiceSession() {
   const [state, setState] = useState<MicState>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [status, setStatus] = useState<VoiceStatus>({
@@ -79,10 +78,6 @@ export function useVoiceSession(mode: DonnaMode) {
   const replyRef = useRef<string | null>(null);
   const statusRef = useRef(status);
   statusRef.current = status;
-
-  const modeRef = useRef(mode);
-  modeRef.current = mode;
-  const sessionModeRef = useRef<DonnaMode>(mode);
 
   const clientRef = useRef<VoiceClient | null>(null);
   const recorderRef = useRef<AudioRecorder | null>(null);
@@ -164,13 +159,11 @@ export function useVoiceSession(mode: DonnaMode) {
         setStatus((prev) => ({ ...prev, transcript: message.text }));
         break;
       case 'turn.reply':
-        if (sessionModeRef.current === 'notes') break;
         replyRef.current = message.text;
         pendingReplyRef.current = message.text;
         setStatus((prev) => ({ ...prev, reply: message.text }));
         break;
       case 'audio.out': {
-        if (sessionModeRef.current === 'notes') break;
         if (!playbackRef.current) {
           const session = createStreamingPlayback();
           session.setOnPlaybackStart(() => {
@@ -349,7 +342,6 @@ export function useVoiceSession(mode: DonnaMode) {
     setErrorMsg(null);
     setStatus({ transcript: null, reply: null, phase: null });
     sessionReadyRef.current = false;
-    sessionModeRef.current = modeRef.current;
 
     AudioManager.setAudioSessionOptions({
       iosCategory: 'playAndRecord',
@@ -399,7 +391,7 @@ export function useVoiceSession(mode: DonnaMode) {
         };
       });
 
-      client.send({ type: 'session.start', mode: sessionModeRef.current });
+      client.send({ type: 'session.start', mode: 'talk' });
       await readyPromise;
 
       activeRef.current = true;
@@ -444,11 +436,7 @@ export function useVoiceSession(mode: DonnaMode) {
   }, [stopSession]);
 
   const phaseLabel =
-    state === 'processing'
-      ? sessionModeRef.current === 'notes'
-        ? 'Saving…'
-        : DONNA_THINKING_PHASE
-      : null;
+    state === 'processing' ? DONNA_THINKING_PHASE : null;
 
   const sessionLabel =
     state === 'error'
@@ -456,13 +444,9 @@ export function useVoiceSession(mode: DonnaMode) {
       : state === 'requesting'
         ? 'Starting…'
         : state === 'listening'
-          ? sessionModeRef.current === 'notes'
-            ? 'Taking notes — tap to stop'
-            : 'Listening — tap to stop'
+          ? 'Listening — tap to stop'
           : state === 'processing'
-            ? sessionModeRef.current === 'notes'
-              ? 'Saving…'
-              : DONNA_THINKING_PHASE
+            ? DONNA_THINKING_PHASE
             : null;
 
   return {

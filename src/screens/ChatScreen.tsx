@@ -15,16 +15,12 @@ import type { MicState } from '../components/MicButton';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { DONNA_THINKING_PHASE } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
-import type { DonnaMode } from '../types/mode';
 import {
   streamChatMessage,
   type ChatTurnMessage,
 } from '../services/chatApi';
 
 type Props = {
-  mode: DonnaMode;
-  onModeChange: (mode: DonnaMode) => void;
-  modeDisabled?: boolean;
   micState: MicState;
   onMicPress: () => void;
   micDisabled?: boolean;
@@ -39,9 +35,6 @@ type Props = {
 };
 
 export function ChatScreen({
-  mode,
-  onModeChange,
-  modeDisabled,
   micState,
   onMicPress,
   micDisabled,
@@ -106,7 +99,6 @@ export function ChatScreen({
           message: trimmed,
           history,
           sessionId: textSessionId ?? undefined,
-          mode,
         },
         {
           onSession: sessionId => {
@@ -158,9 +150,6 @@ export function ChatScreen({
   return (
     <View style={styles.container}>
       <AppHeader
-        mode={mode}
-        onModeChange={onModeChange}
-        modeDisabled={modeDisabled}
         onAvatarPress={onOpenProfile}
         onHistoryPress={() => setHistoryOpen(true)}
       />

@@ -1,5 +1,6 @@
 import { getAccessToken } from './auth';
 import { API_BASE_URL } from '../config';
+import { sendChatMessage } from './chatApi';
 
 export type NoteSummary = {
   id: string;
@@ -136,4 +137,34 @@ export function formatNoteDate(iso: string): string {
     month: 'short',
     day: 'numeric',
   });
+}
+
+function noteSummaryFromContent(content: string): NoteSummary {
+  const trimmed = content.trim();
+  const firstLine = trimmed.split('\n').find(line => line.trim())?.trim() ?? '';
+  const title = firstLine.slice(0, 80) || 'Untitled';
+  const previewStart = trimmed.indexOf(firstLine) + firstLine.length;
+  const preview = trimmed.slice(previewStart).trim().slice(0, 200);
+
+  return {
+    id: `pending-${Date.now()}`,
+    title,
+    preview,
+    note_date: new Date().toISOString(),
+    is_important: false,
+    is_urgent: false,
+    source_type: 'manual',
+    keywords: null,
+    category: null,
+  };
+}
+
+export async function createNote(content: string): Promise<NoteSummary> {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    throw new Error('Note cannot be empty');
+  }
+
+  await sendChatMessage({ message: trimmed, mode: 'notes' });
+  return noteSummaryFromContent(trimmed);
 }

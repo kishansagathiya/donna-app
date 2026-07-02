@@ -7,12 +7,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
 import {
+  createNote,
   formatNoteDate,
   listNotesForTag,
   listRecentNotes,
@@ -22,6 +24,7 @@ import {
   type TagCount,
 } from '../services/notesApi';
 import type { ThemeColors } from '../theme/colors';
+import { ArrowUpIcon } from '../components/icons';
 import { TodayScreen } from './TodayScreen';
 
 type NotesView = 'all' | 'today';
@@ -119,6 +122,8 @@ export function NotesScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const loadNotes = useCallback(async (offset = 0, append = false) => {
     if (offset === 0) {
@@ -175,10 +180,6 @@ export function NotesScreen() {
     }
   };
 
-  const openNote = (note: NoteSummary) => {
-    Alert.alert(note.title, note.preview || 'No additional details.');
-  };
-
   const toggleFlag = async (
     note: NoteSummary,
     field: 'is_urgent' | 'is_important',
@@ -196,6 +197,37 @@ export function NotesScreen() {
         ),
       );
       setError(err instanceof Error ? err.message : 'Failed to update note');
+    }
+  };
+
+  const openNote = (note: NoteSummary) => {
+    Alert.alert(note.title, note.preview || 'No additional details.');
+  };
+
+  const handleCreateNote = async () => {
+    const trimmed = draft.trim();
+    if (!trimmed || saving) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const created = await createNote(trimmed);
+      if (activeTag) {
+        setActiveTag(null);
+        setHasMore(true);
+      }
+      setDraft('');
+      setNotes(prev => [created, ...prev.filter(note => note.id !== created.id)]);
+      void listTags(30)
+        .then(setTags)
+        .catch(() => setTags([]));
+      void loadNotes();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save note');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -233,6 +265,37 @@ export function NotesScreen() {
         <TodayScreen embedded />
       ) : (
         <>
+          <View style={styles.composeRow}>
+            <TextInput
+              style={styles.composeInput}
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="Jot down a note…"
+              placeholderTextColor={colors.muted}
+              multiline
+              editable={!saving}
+              returnKeyType="default"
+              blurOnSubmit={false}
+            />
+            <Pressable
+              style={({ pressed }) => [
+                styles.composeSend,
+                draft.trim().length > 0 && !saving && styles.composeSendActive,
+                pressed && styles.composeSendPressed,
+              ]}
+              onPress={() => void handleCreateNote()}
+              disabled={!draft.trim() || saving}
+              accessibilityRole="button"
+              accessibilityLabel="Save note"
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <ArrowUpIcon size={18} color={draft.trim() ? colors.white : colors.muted} />
+              )}
+            </Pressable>
+          </View>
+
           {tags.length > 0 ? (
             <ScrollView
               horizontal
@@ -291,8 +354,8 @@ export function NotesScreen() {
                   <View style={styles.empty}>
                     <Text style={styles.emptyTitle}>No notes yet</Text>
                     <Text style={styles.emptyBody}>
-                      Switch to Notes mode in chat and jot something down, or save links and
-                      documents for Donna to turn into notes.
+                      Jot a note above, or save links and documents for Donna to
+                      turn into notes.
                     </Text>
                   </View>
                 ) : null
@@ -376,6 +439,43 @@ function createStyles(colors: ThemeColors) {
     },
     segmentLabelActive: {
       color: colors.white,
+    },
+    composeRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    composeInput: {
+      flex: 1,
+      minHeight: 44,
+      maxHeight: 128,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 16,
+      lineHeight: 22,
+      color: colors.text,
+      backgroundColor: colors.background,
+    },
+    composeSend: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+    },
+    composeSendActive: {
+      backgroundColor: colors.primary,
+    },
+    composeSendPressed: {
+      opacity: 0.85,
     },
     tagFilterRow: {
       paddingHorizontal: 16,

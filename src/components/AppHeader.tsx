@@ -5,13 +5,8 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
 import type { ThemeColors } from '../theme/colors';
 import { HistoryIcon } from './icons';
-import { ModeToggle } from './ModeToggle';
-import type { DonnaMode } from '../types/mode';
 
 type Props = {
-  mode: DonnaMode;
-  onModeChange: (mode: DonnaMode) => void;
-  modeDisabled?: boolean;
   onAvatarPress?: () => void;
   onHistoryPress?: () => void;
 };
@@ -59,23 +54,13 @@ export function UserAvatar({
   );
 }
 
-export function AppHeader({
-  mode,
-  onModeChange,
-  modeDisabled,
-  onAvatarPress,
-  onHistoryPress,
-}: Props) {
+export function AppHeader({ onAvatarPress, onHistoryPress }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
 
   return (
     <View style={styles.container}>
-      <ModeToggle
-        mode={mode}
-        onChange={onModeChange}
-        disabled={modeDisabled}
-      />
+      <Text style={styles.title}>Chat</Text>
 
       <View style={styles.actions}>
         {onHistoryPress ? (
@@ -121,6 +106,11 @@ function createStyles(colors: ThemeColors) {
       paddingHorizontal: 20,
       paddingVertical: 12,
       gap: 8,
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text,
     },
     actions: {
       flexDirection: 'row',
