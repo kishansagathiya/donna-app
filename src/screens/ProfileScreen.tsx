@@ -13,6 +13,7 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
+import type { DeviceSyncStatus } from '../hooks/useDeviceSync';
 import {
   deleteAccount,
   downloadAccountExport,
@@ -25,10 +26,25 @@ import type { ThemeColors } from '../theme/colors';
 
 const DEFAULT_PERSONAS = ['companion', 'boss', 'coach', 'therapist', 'custom'];
 
-export function ProfileScreen() {
+function shortenId(id: string): string {
+  if (id.length <= 12) return id;
+  return `${id.slice(0, 6)}…${id.slice(-4)}`;
+}
+
+function truncate(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+type ProfileScreenProps = {
+  deviceSync: DeviceSyncStatus & { forgetDevice: () => Promise<void> };
+  onPairDevicePress: () => void;
+};
+
+export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { session } = useAuth();
+  const [forgetting, setForgetting] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [models, setModels] = useState<string[]>([]);
@@ -284,6 +300,82 @@ export function ProfileScreen() {
 
       <ThemeToggle />
 
+      <Text style={styles.sectionTitle}>Donna device</Text>
+      <Text style={styles.sectionDescription}>
+        Pair your Donna hardware capture device. Press its REC button to record,
+        and captures are uploaded to your notes (and memory) over Wi-Fi — or
+        relayed through this phone when the device is offline.
+      </Text>
+      <View style={styles.deviceCard}>
+        <Text style={styles.deviceHeading}>
+          {deviceSync.pairedDeviceId ? 'Paired device' : 'No device paired'}
+        </Text>
+        <Text style={styles.deviceRow}>
+          State: {deviceSync.connectionState}
+          {deviceSync.pairedDeviceId ? ` · ${shortenId(deviceSync.pairedDeviceId)}` : ''}
+        </Text>
+        <Text style={styles.deviceRow}>
+          Pending captures: {deviceSync.pendingCount}
+        </Text>
+        {deviceSync.uploadState !== 'idle' ? (
+          <Text style={styles.deviceRow}>
+            Upload: {deviceSync.uploadState}
+            {deviceSync.lastMessage ? ` · ${truncate(deviceSync.lastMessage, 60)}` : ''}
+          </Text>
+        ) : null}
+        <View style={styles.deviceButtonRow}>
+          <Pressable
+            style={[styles.button, styles.secondaryButton, (forgetting) && styles.buttonDisabled]}
+            onPress={onPairDevicePress}
+            disabled={forgetting}
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryButtonText}>
+              {deviceSync.pairedDeviceId ? 'Pair different device' : 'Pair device'}
+            </Text>
+          </Pressable>
+          {deviceSync.pairedDeviceId ? (
+            <Pressable
+              style={[styles.button, styles.destructiveButton, (forgetting) && styles.buttonDisabled]}
+              onPress={async () => {
+                Alert.alert(
+                  'Forget this device?',
+                  'The device will be unpaired. You can pair it again later.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Forget',
+                      style: 'destructive',
+                      onPress: async () => {
+                        setForgetting(true);
+                        try {
+                          await deviceSync.forgetDevice();
+                        } catch (err) {
+                          Alert.alert(
+                            'Could not forget',
+                            err instanceof Error ? err.message : 'Please try again.',
+                          );
+                        } finally {
+                          setForgetting(false);
+                        }
+                      },
+                    },
+                  ],
+                );
+              }}
+              disabled={forgetting}
+              accessibilityRole="button"
+            >
+              {forgetting ? (
+                <ActivityIndicator color={colors.white} size="small" />
+              ) : (
+                <Text style={styles.destructiveButtonText}>Forget</Text>
+              )}
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
       <Text style={styles.sectionTitle}>Download my data</Text>
       <Text style={styles.sectionDescription}>
         Download a ZIP of your conversations, notes, and uploaded files.
@@ -484,6 +576,31 @@ function createStyles(colors: ThemeColors) {
       color: colors.white,
       fontWeight: '600',
       fontSize: 15,
+    },
+    deviceCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 16,
+      backgroundColor: colors.surface,
+    },
+    deviceHeading: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: 6,
+    },
+    deviceRow: {
+      fontSize: 13,
+      color: colors.muted,
+      lineHeight: 18,
+      marginBottom: 2,
+    },
+    deviceButtonRow: {
+      flexDirection: 'row',
+      marginTop: 10,
+      gap: 8,
     },
   });
 }

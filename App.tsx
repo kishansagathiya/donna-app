@@ -29,12 +29,14 @@ import { MicButton, type MicState } from './src/components/MicButton';
 import { useAssetIngest } from './src/hooks/useAssetIngest';
 import { useIncomingShare } from './src/hooks/useIncomingShare';
 import { AuthProvider, useAuth } from './src/hooks/useAuth';
+import { useDeviceSync } from './src/hooks/useDeviceSync';
 import { useVoiceSession } from './src/hooks/useVoiceSession';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { AIDataConsentScreen } from './src/screens/AIDataConsentScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { NotesScreen } from './src/screens/NotesScreen';
 import { MemoryScreen } from './src/screens/MemoryScreen';
+import { PairDeviceScreen } from './src/screens/PairDeviceScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SCREENSHOT_MODE } from './src/config';
 import { useAiDataConsent } from './src/hooks/useAiDataConsent';
@@ -139,6 +141,8 @@ function AppContent() {
     errorMsg,
     disabled,
   } = useVoiceSession();
+  const deviceSync = useDeviceSync();
+  const [pairSheetOpen, setPairSheetOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const {
     toast,
@@ -211,12 +215,21 @@ function AppContent() {
           <MemoryScreen onAddSourcePress={() => setSheetOpen(true)} />
         ) : null}
 
-        {tab === 'profile' ? <ProfileScreen /> : null}
+        {tab === 'profile' ? (
+          <ProfileScreen
+            deviceSync={deviceSync}
+            onPairDevicePress={() => setPairSheetOpen(true)}
+          />
+        ) : null}
 
         {keyboardVisible ? null : (
           <BottomTabBar active={tab} onChange={setTab} />
         )}
       </KeyboardAvoidingView>
+
+      {pairSheetOpen ? (
+        <PairDeviceScreen onClose={() => setPairSheetOpen(false)} />
+      ) : null}
 
       <AddMemorySheet
         visible={sheetOpen}

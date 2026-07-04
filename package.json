@@ -15,6 +15,7 @@
     "release:ios": "eas build --platform ios --profile production --non-interactive",
     "submit:ios": "eas submit --platform ios --profile production --latest --non-interactive",
     "eas-build-pre-install": "if [ \"$EAS_BUILD_PLATFORM\" = \"ios\" ]; then HOMEBREW_NO_AUTO_UPDATE=1 brew install cmake ninja; fi",
+    "eas-build-post-install": "node scripts/sync-env.mjs",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -25,6 +26,7 @@
     "react": "19.2.3",
     "react-native": "0.85.3",
     "react-native-audio-api": "^0.12.2",
+    "react-native-ble-plx": "^3.5.1",
     "react-native-blob-util": "^0.21.2",
     "react-native-document-picker": "^9.3.1",
     "react-native-image-picker": "^8.2.1",

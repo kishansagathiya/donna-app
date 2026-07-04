@@ -39,6 +39,14 @@
 	<string>Donna uses your microphone to record your voice when you tap the mic button. For example, when you ask "What's on my mind about that project?", your speech is sent to our servers and third-party AI services to transcribe your question and generate a spoken reply.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Donna accesses photos you select so they can be saved to your personal memory and recalled in future conversations. For example, a screenshot of a recipe you choose will be processed and stored for Donna to reference later.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Donna uses Bluetooth to pair with and receive voice captures from your Donna Device. Captures recorded offline on the device are uploaded through your phone when the device is in range.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Donna uses Bluetooth to pair with and receive voice captures from your Donna Device.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
