@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   ScrollView,
@@ -25,6 +24,7 @@ import {
 } from '../services/notesApi';
 import type { ThemeColors } from '../theme/colors';
 import { ArrowUpIcon } from '../components/icons';
+import { NoteDetailScreen } from './NoteDetailScreen';
 import { TodayScreen } from './TodayScreen';
 
 type NotesView = 'all' | 'today';
@@ -124,6 +124,7 @@ export function NotesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
 
   const loadNotes = useCallback(async (offset = 0, append = false) => {
     if (offset === 0) {
@@ -201,8 +202,27 @@ export function NotesScreen() {
   };
 
   const openNote = (note: NoteSummary) => {
-    Alert.alert(note.title, note.preview || 'No additional details.');
+    setSelectedNoteId(note.id);
   };
+
+  const handleNoteUpdated = (note: NoteSummary) => {
+    setNotes(prev => prev.map(item => (item.id === note.id ? note : item)));
+  };
+
+  const handleNoteDeleted = (noteId: string) => {
+    setNotes(prev => prev.filter(item => item.id !== noteId));
+  };
+
+  if (selectedNoteId) {
+    return (
+      <NoteDetailScreen
+        noteId={selectedNoteId}
+        onClose={() => setSelectedNoteId(null)}
+        onUpdated={handleNoteUpdated}
+        onDeleted={handleNoteDeleted}
+      />
+    );
+  }
 
   const handleCreateNote = async () => {
     const trimmed = draft.trim();
@@ -262,7 +282,7 @@ export function NotesScreen() {
       </View>
 
       {view === 'today' ? (
-        <TodayScreen embedded />
+        <TodayScreen embedded onOpenNote={setSelectedNoteId} />
       ) : (
         <>
           <View style={styles.composeRow}>

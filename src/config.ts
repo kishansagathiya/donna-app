@@ -31,6 +31,10 @@ export const SCREENSHOT_MODE: ScreenshotMode = null;
 const PRODUCTION_VOICE_WS_URL =
   'wss://donna-server-go-production.up.railway.app/voice';
 
+/** Production REST API (release builds always use this). */
+const PRODUCTION_API_BASE_URL =
+  'https://donna-server-go-production.up.railway.app';
+
 /**
  * Voice backend is configured via repo-root `.env` (synced on npm start).
  *
@@ -103,7 +107,9 @@ function httpBaseFromVoiceUrl(wsUrl: string): string {
   return `${url.protocol}//${url.host}`;
 }
 
-export const API_BASE_URL = httpBaseFromVoiceUrl(VOICE_WS_URL);
+export const API_BASE_URL = __DEV__
+  ? httpBaseFromVoiceUrl(VOICE_WS_URL)
+  : PRODUCTION_API_BASE_URL;
 
 export const AUDIO_SAMPLE_RATE = 16_000;
 export const AUDIO_CHANNELS = 1;

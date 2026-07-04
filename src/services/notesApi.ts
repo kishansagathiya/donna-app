@@ -1,6 +1,5 @@
-import { getAccessToken } from './auth';
-import { API_BASE_URL } from '../config';
 import { sendChatMessage } from './chatApi';
+import { authorizedFetch, parseJSON } from './http';
 
 export type NoteSummary = {
   id: string;
@@ -12,6 +11,20 @@ export type NoteSummary = {
   source_type: string;
   keywords: string[] | null;
   category: string | null;
+};
+
+export type Note = NoteSummary & {
+  user_id: string;
+  source_id: string | null;
+  content: string;
+  user_last_modified: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type NoteTags = {
+  note_id: string;
+  tags: string[];
 };
 
 export type NoteSearchResult = NoteSummary;
@@ -45,34 +58,6 @@ export type TagCount = {
   count: number;
 };
 
-async function authorizedFetch(
-  path: string,
-  init: RequestInit = {},
-): Promise<Response> {
-  const token = await getAccessToken();
-  if (!token) {
-    throw new Error('Not signed in');
-  }
-
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    ...((init.headers as Record<string, string> | undefined) ?? {}),
-  };
-
-  return fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers,
-  });
-}
-
-async function parseJSON<T>(res: Response): Promise<T> {
-  const body = (await res.json()) as T & { error?: string; message?: string };
-  if (!res.ok) {
-    throw new Error(body.message ?? body.error ?? `Request failed (${res.status})`);
-  }
-  return body;
-}
-
 export async function checkDailyNotes(): Promise<DailyBriefing> {
   const res = await authorizedFetch('/notes/daily-check', { method: 'POST' });
   return parseJSON(res);
@@ -103,6 +88,11 @@ export async function listNotesForTag(
   return parseJSON(res);
 }
 
+export async function getNote(id: string): Promise<Note> {
+  const res = await authorizedFetch(`/notes/${id}`, {}, { webClient: true });
+  return parseJSON(res);
+}
+
 export async function updateNote(
   id: string,
   patch: {
@@ -111,13 +101,55 @@ export async function updateNote(
     is_important?: boolean;
     is_urgent?: boolean;
   },
-): Promise<NoteSummary> {
+): Promise<Note> {
   const res = await authorizedFetch(`/notes/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   });
   return parseJSON(res);
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  const res = await authorizedFetch(
+    `/notes/${id}`,
+    { method: 'DELETE' },
+    { webClient: true },
+  );
+  await parseJSON(res);
+}
+
+export async function getNoteTags(id: string): Promise<NoteTags> {
+  const res = await authorizedFetch(`/notes/${id}/tags`, {}, { webClient: true });
+  return parseJSON(res);
+}
+
+export async function setNoteTags(id: string, tags: string[]): Promise<NoteTags> {
+  const res = await authorizedFetch(
+    `/notes/${id}/tags`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags }),
+    },
+    { webClient: true },
+  );
+  return parseJSON(res);
+}
+
+export function extractHashtags(text: string): string[] {
+  const matches =
+    text.match(/(?:^|\s)#([A-Za-z0-9][A-Za-z0-9_-]{0,40})/g) ?? [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const m of matches) {
+    const tag = m.replace(/(?:^|\s)#/, '').trim().toLowerCase();
+    if (tag && !seen.has(tag)) {
+      seen.add(tag);
+      out.push(tag);
+    }
+  }
+  return out;
 }
 
 export async function searchNotes(query: string): Promise<NoteSearchResult[]> {

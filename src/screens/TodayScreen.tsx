@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -29,6 +28,7 @@ const PRIORITY_LABELS: Record<string, string> = {
 
 type Props = {
   embedded?: boolean;
+  onOpenNote?: (noteId: string) => void;
 };
 
 function TaskRow({
@@ -100,7 +100,7 @@ function OutdatedRow({
   );
 }
 
-export function TodayScreen({ embedded = false }: Props) {
+export function TodayScreen({ embedded = false, onOpenNote }: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -109,9 +109,12 @@ export function TodayScreen({ embedded = false }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const showNote = (title: string, preview: string, reason?: string) => {
-    const message = [preview, reason].filter(Boolean).join('\n\n');
-    Alert.alert(title, message || 'No additional details.');
+  const openTask = (task: DailyTask) => {
+    onOpenNote?.(task.note_id);
+  };
+
+  const openOutdated = (note: OutdatedNote) => {
+    onOpenNote?.(note.note_id);
   };
 
   const runCheck = useCallback(async (isRefresh = false) => {
@@ -140,14 +143,6 @@ export function TodayScreen({ embedded = false }: Props) {
     month: 'long',
     day: 'numeric',
   });
-
-  const openTask = (task: DailyTask) => {
-    showNote(task.title, task.preview, task.reason);
-  };
-
-  const openOutdated = (note: OutdatedNote) => {
-    showNote(note.title, note.preview, note.reason);
-  };
 
   const listData: Array<
     | { type: 'summary'; id: string; text: string }
