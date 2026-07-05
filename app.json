@@ -4,10 +4,10 @@
   "expo": {
     "name": "Donna",
     "slug": "donna",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "ios": {
       "bundleIdentifier": "com.kishansagathiya.donna",
-      "buildNumber": "37"
+      "buildNumber": "38"
     },
     "extra": {
       "eas": {
