@@ -18,6 +18,7 @@ import {
   Alert,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -62,10 +63,12 @@ export function PairDeviceScreen({
   const [devices, setDevices] = useState<DeviceScan[]>([]);
   const [selected, setSelected] = useState<DeviceScan | null>(null);
   const [savedDeviceId, setSavedDeviceId] = useState<string | null>(
-    isAddWifi ? pairedDeviceId ?? null : null,
+    isAddWifi ? (pairedDeviceId ?? null) : null,
   );
   const [wifiOnly, setWifiOnly] = useState(isAddWifi);
-  const [savedNetworkCount, setSavedNetworkCount] = useState<number | null>(null);
+  const [savedNetworkCount, setSavedNetworkCount] = useState<number | null>(
+    null,
+  );
   const [ssid, setSsid] = useState('');
   const [psk, setPsk] = useState('');
   const [status, setStatus] = useState<string>('');
@@ -74,8 +77,8 @@ export function PairDeviceScreen({
   useEffect(() => {
     if (phase !== 'scanning' || isAddWifi) return;
     const stop = scanForDonnaDevices(
-      (list) => setDevices(list),
-      (msg) => setStatus(`Scan: ${msg}`),
+      list => setDevices(list),
+      msg => setStatus(`Scan: ${msg}`),
     );
     stopScanRef.current = stop;
     return () => stop();
@@ -90,7 +93,10 @@ export function PairDeviceScreen({
     if (wifiOnly) {
       const deviceId = isAddWifi ? pairedDeviceId : savedDeviceId;
       if (!deviceId) {
-        Alert.alert('No device', 'Pair a device first before adding Wi-Fi networks.');
+        Alert.alert(
+          'No device',
+          'Pair a device first before adding Wi-Fi networks.',
+        );
         return;
       }
       setPhase('pairing');
@@ -100,10 +106,12 @@ export function PairDeviceScreen({
           deviceId,
           ssid.trim(),
           psk,
-          (s) => setStatus(s || ''),
+          s => setStatus(s || ''),
         );
         setSavedNetworkCount(result.networkCount);
-        setStatus(`Saved (${result.networkCount} network${result.networkCount === 1 ? '' : 's'} stored).`);
+        setStatus(
+          `Saved (${result.networkCount} network${result.networkCount === 1 ? '' : 's'} stored).`,
+        );
         setPhase('done');
       } catch (err) {
         Alert.alert(
@@ -116,7 +124,10 @@ export function PairDeviceScreen({
     }
 
     if (!selected) {
-      Alert.alert('Missing info', 'Pick a device and enter your Wi-Fi name and password.');
+      Alert.alert(
+        'Missing info',
+        'Pick a device and enter your Wi-Fi name and password.',
+      );
       return;
     }
     if (!session) {
@@ -134,7 +145,7 @@ export function PairDeviceScreen({
           jwt: session.access_token,
           refreshToken: session.refresh_token,
         },
-        (s) => setStatus(s || ''),
+        s => setStatus(s || ''),
       );
       setSavedNetworkCount(result.networkCount);
       setSavedDeviceId(selected.id);
@@ -157,171 +168,193 @@ export function PairDeviceScreen({
     setPhase('ready');
   }
 
-  const title = wifiOnly && !isAddWifi ? 'Add Wi-Fi network' : isAddWifi ? 'Add Wi-Fi network' : 'Pair Donna device';
+  const title =
+    wifiOnly && !isAddWifi
+      ? 'Add Wi-Fi network'
+      : isAddWifi
+        ? 'Add Wi-Fi network'
+        : 'Pair Donna device';
   const canAddMore =
     savedNetworkCount !== null && savedNetworkCount < DONNA_WIFI_MAX_NETS;
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.backdrop}
-    >
-      <Pressable style={styles.scrim} onPress={onClose} />
-      <View style={styles.sheet}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{title}</Text>
-          <Pressable onPress={onClose} accessibilityLabel="Close">
-            <Text style={styles.closeButton}>Close</Text>
-          </Pressable>
-        </View>
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.backdrop}
+      >
+        <Pressable style={styles.scrim} onPress={onClose} />
+        <View style={styles.sheet}>
+          <View style={styles.header}>
+            <Text style={styles.title}>{title}</Text>
+            <Pressable onPress={onClose} accessibilityLabel="Close">
+              <Text style={styles.closeButton}>Close</Text>
+            </Pressable>
+          </View>
 
-        {phase === 'scanning' ? (
-          <>
-            <Text style={styles.description}>
-              Hold the Donna device's REC button to wake it. We'll scan for nearby devices that
-              are advertising as "Donna Device".
-            </Text>
-            {devices.length === 0 ? (
-              <ActivityIndicator
-                color={colors.primary}
-                style={styles.scanningSpinner}
-              />
-            ) : (
-              <ScrollView style={styles.list}>
-                {devices.map((d) => {
-                  const isSelected = selected?.id === d.id;
-                  return (
+          {phase === 'scanning' ? (
+            <>
+              <Text style={styles.description}>
+                Hold the Donna device's REC button to wake it. We'll scan for
+                nearby devices that are advertising as "Donna Device".
+              </Text>
+              {devices.length === 0 ? (
+                <ActivityIndicator
+                  color={colors.primary}
+                  style={styles.scanningSpinner}
+                />
+              ) : (
+                <ScrollView style={styles.list}>
+                  {devices.map(d => {
+                    const isSelected = selected?.id === d.id;
+                    return (
+                      <Pressable
+                        key={d.id}
+                        style={[styles.row, isSelected && styles.rowSelected]}
+                        onPress={() => {
+                          setSelected(d);
+                          setPhase('ready');
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.rowTitle}>{d.name}</Text>
+                          <Text style={styles.rowSubtitle}>
+                            RSSI {d.rssi} dBm
+                          </Text>
+                        </View>
+                        {isSelected ? (
+                          <Text style={styles.check}>✓</Text>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              )}
+              {status ? <Text style={styles.hint}>{status}</Text> : null}
+            </>
+          ) : null}
+
+          {phase === 'ready' || phase === 'pairing' ? (
+            <View style={styles.formContainer}>
+              <ScrollView
+                contentContainerStyle={styles.formContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                {selected && !isAddWifi ? (
+                  <View style={styles.selectedBox}>
+                    <Text style={styles.rowTitle}>{selected.name}</Text>
+                    <Text style={styles.rowSubtitle}>
+                      {selected.id} · RSSI {selected.rssi} dBm
+                    </Text>
                     <Pressable
-                      key={d.id}
-                      style={[styles.row, isSelected && styles.rowSelected]}
+                      style={styles.changeButton}
                       onPress={() => {
-                        setSelected(d);
-                        setPhase('ready');
+                        setSelected(null);
+                        setPhase('scanning');
                       }}
+                      disabled={phase === 'pairing'}
                     >
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.rowTitle}>{d.name}</Text>
-                        <Text style={styles.rowSubtitle}>RSSI {d.rssi} dBm</Text>
-                      </View>
-                      {isSelected ? <Text style={styles.check}>✓</Text> : null}
+                      <Text style={styles.changeText}>Change</Text>
                     </Pressable>
-                  );
-                })}
-              </ScrollView>
-            )}
-            {status ? <Text style={styles.hint}>{status}</Text> : null}
-          </>
-        ) : null}
+                  </View>
+                ) : null}
 
-        {phase === 'ready' || phase === 'pairing' ? (
-          <View style={styles.formContainer}>
-            <ScrollView
-              contentContainerStyle={styles.formContent}
-              keyboardShouldPersistTaps="handled"
-            >
-            {selected && !isAddWifi ? (
-              <View style={styles.selectedBox}>
-                <Text style={styles.rowTitle}>{selected.name}</Text>
-                <Text style={styles.rowSubtitle}>
-                  {selected.id} · RSSI {selected.rssi} dBm
+                {wifiOnly ? (
+                  <Text style={styles.description}>
+                    Add another Wi-Fi network to your paired Donna device. The
+                    device remembers up to {DONNA_WIFI_MAX_NETS} networks and
+                    connects to whichever is in range — home, office, or a phone
+                    hotspot.
+                  </Text>
+                ) : null}
+
+                <Text style={styles.fieldLabel}>Wi-Fi network name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={ssid}
+                  onChangeText={setSsid}
+                  placeholder="Home Wi-Fi"
+                  placeholderTextColor={colors.muted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={phase !== 'pairing'}
+                />
+
+                <Text style={styles.fieldLabel}>Wi-Fi password</Text>
+                <TextInput
+                  style={styles.input}
+                  value={psk}
+                  onChangeText={setPsk}
+                  placeholder="••••••••"
+                  placeholderTextColor={colors.muted}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={phase !== 'pairing'}
+                />
+
+                <Text style={styles.hint}>
+                  {wifiOnly
+                    ? "This network is added to the device's saved list. Re-entering the same network name updates its password."
+                    : 'The device stores this network and can hold up to ' +
+                      `${DONNA_WIFI_MAX_NETS} Wi-Fi networks. You can add more from Profile after pairing.`}
                 </Text>
+
                 <Pressable
-                  style={styles.changeButton}
+                  style={[
+                    styles.primaryButton,
+                    phase === 'pairing' && styles.buttonDisabled,
+                  ]}
                   onPress={() => {
-                    setSelected(null);
-                    setPhase('scanning');
+                    Keyboard.dismiss();
+                    void handleSubmit();
                   }}
                   disabled={phase === 'pairing'}
                 >
-                  <Text style={styles.changeText}>Change</Text>
+                  {phase === 'pairing' ? (
+                    <ActivityIndicator color={colors.white} size="small" />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>
+                      {wifiOnly ? 'Save network' : 'Pair device'}
+                    </Text>
+                  )}
                 </Pressable>
-              </View>
-            ) : null}
 
-            {wifiOnly ? (
-              <Text style={styles.description}>
-                Add another Wi-Fi network to your paired Donna device. The device remembers up to{' '}
-                {DONNA_WIFI_MAX_NETS} networks and connects to whichever is in range — home,
-                office, or a phone hotspot.
+                {status ? <Text style={styles.hint}>{status}</Text> : null}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {phase === 'done' ? (
+            <View style={styles.doneBox}>
+              <Text style={styles.doneTitle}>
+                {wifiOnly ? 'Network saved' : 'All set'}
               </Text>
-            ) : null}
-
-            <Text style={styles.fieldLabel}>Wi-Fi network name</Text>
-            <TextInput
-              style={styles.input}
-              value={ssid}
-              onChangeText={setSsid}
-              placeholder="Home Wi-Fi"
-              placeholderTextColor={colors.muted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={phase !== 'pairing'}
-            />
-
-            <Text style={styles.fieldLabel}>Wi-Fi password</Text>
-            <TextInput
-              style={styles.input}
-              value={psk}
-              onChangeText={setPsk}
-              placeholder="••••••••"
-              placeholderTextColor={colors.muted}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={phase !== 'pairing'}
-            />
-
-            <Text style={styles.hint}>
-              {wifiOnly
-                ? 'This network is added to the device\'s saved list. Re-entering the same network name updates its password.'
-                : 'The device stores this network and can hold up to ' +
-                  `${DONNA_WIFI_MAX_NETS} Wi-Fi networks. You can add more from Profile after pairing.`}
-            </Text>
-
-            <Pressable
-              style={[styles.primaryButton, phase === 'pairing' && styles.buttonDisabled]}
-              onPress={() => {
-                Keyboard.dismiss();
-                void handleSubmit();
-              }}
-              disabled={phase === 'pairing'}
-            >
-              {phase === 'pairing' ? (
-                <ActivityIndicator color={colors.white} size="small" />
-              ) : (
-                <Text style={styles.primaryButtonText}>
-                  {wifiOnly ? 'Save network' : 'Pair device'}
-                </Text>
-              )}
-            </Pressable>
-
-            {status ? <Text style={styles.hint}>{status}</Text> : null}
-            </ScrollView>
-          </View>
-        ) : null}
-
-        {phase === 'done' ? (
-          <View style={styles.doneBox}>
-            <Text style={styles.doneTitle}>{wifiOnly ? 'Network saved' : 'All set'}</Text>
-            <Text style={styles.hint}>
-              {wifiOnly
-                ? savedNetworkCount !== null
-                  ? `Your device now has ${savedNetworkCount} saved Wi-Fi network${savedNetworkCount === 1 ? '' : 's'}. It will try them automatically when connecting.`
-                  : 'Your Wi-Fi network was saved to the device.'
-                : 'Your Donna device is paired. Push the REC button to make a capture — if it\'s on Wi-Fi, it\'ll upload on its own. If it\'s offline, your phone will relay the capture next time you open the Donna app.'}
-            </Text>
-            {canAddMore ? (
-              <Pressable style={styles.secondaryButton} onPress={handleAddAnotherNetwork}>
-                <Text style={styles.secondaryButtonText}>Add another network</Text>
+              <Text style={styles.hint}>
+                {wifiOnly
+                  ? savedNetworkCount !== null
+                    ? `Your device now has ${savedNetworkCount} saved Wi-Fi network${savedNetworkCount === 1 ? '' : 's'}. It will try them automatically when connecting.`
+                    : 'Your Wi-Fi network was saved to the device.'
+                  : "Your Donna device is paired. Push the REC button to make a capture — if it's on Wi-Fi, it'll upload on its own. If it's offline, your phone will relay the capture next time you open the Donna app."}
+              </Text>
+              {canAddMore ? (
+                <Pressable
+                  style={styles.secondaryButton}
+                  onPress={handleAddAnotherNetwork}
+                >
+                  <Text style={styles.secondaryButtonText}>
+                    Add another network
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Pressable style={styles.primaryButton} onPress={onClose}>
+                <Text style={styles.primaryButtonText}>Done</Text>
               </Pressable>
-            ) : null}
-            <Pressable style={styles.primaryButton} onPress={onClose}>
-              <Text style={styles.primaryButtonText}>Done</Text>
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
-    </KeyboardAvoidingView>
+            </View>
+          ) : null}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -357,7 +390,12 @@ function createStyles(colors: ThemeColors) {
     },
     title: { fontSize: 18, fontWeight: '700', color: colors.text },
     closeButton: { color: colors.primary, fontSize: 15, fontWeight: '600' },
-    description: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 16 },
+    description: {
+      color: colors.muted,
+      fontSize: 14,
+      lineHeight: 20,
+      marginBottom: 16,
+    },
     scanningSpinner: { marginVertical: 24 },
     list: { maxHeight: 240, marginBottom: 12 },
     row: {
@@ -370,10 +408,18 @@ function createStyles(colors: ThemeColors) {
       borderColor: colors.border,
       marginBottom: 8,
     },
-    rowSelected: { borderColor: colors.primary, backgroundColor: colors.surface },
+    rowSelected: {
+      borderColor: colors.primary,
+      backgroundColor: colors.surface,
+    },
     rowTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
     rowSubtitle: { fontSize: 12, color: colors.muted, marginTop: 2 },
-    check: { color: colors.primary, fontSize: 18, fontWeight: '700', marginLeft: 8 },
+    check: {
+      color: colors.primary,
+      fontSize: 18,
+      fontWeight: '700',
+      marginLeft: 8,
+    },
     selectedBox: {
       borderWidth: 1,
       borderColor: colors.primary,
@@ -418,9 +464,18 @@ function createStyles(colors: ThemeColors) {
       borderColor: colors.border,
       backgroundColor: colors.surface,
     },
-    secondaryButtonText: { color: colors.text, fontSize: 16, fontWeight: '600' },
+    secondaryButtonText: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: '600',
+    },
     buttonDisabled: { opacity: 0.7 },
     doneBox: { paddingVertical: 16 },
-    doneTitle: { fontSize: 22, fontWeight: '700', color: colors.text, marginBottom: 8 },
+    doneTitle: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: 8,
+    },
   });
 }
