@@ -47,12 +47,18 @@ type PairDeviceScreenProps = {
   mode?: 'pair' | 'add-wifi';
   /** Required when mode is 'add-wifi'. */
   pairedDeviceId?: string | null;
+  /** Release the capture-sync BLE session before provisioning. */
+  onBeforeBleProvision?: () => Promise<void>;
+  /** Resume capture sync after provisioning finishes. */
+  onAfterBleProvision?: () => Promise<void>;
 };
 
 export function PairDeviceScreen({
   onClose,
   mode = 'pair',
   pairedDeviceId = null,
+  onBeforeBleProvision,
+  onAfterBleProvision,
 }: PairDeviceScreenProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -102,6 +108,7 @@ export function PairDeviceScreen({
       setPhase('pairing');
       setStatus('Saving Wi-Fi…');
       try {
+        await onBeforeBleProvision?.();
         const result = await provisionWifiNetwork(
           deviceId,
           ssid.trim(),
@@ -119,6 +126,8 @@ export function PairDeviceScreen({
           err instanceof Error ? err.message : 'Please try again.',
         );
         setPhase('ready');
+      } finally {
+        await onAfterBleProvision?.();
       }
       return;
     }
@@ -137,6 +146,7 @@ export function PairDeviceScreen({
     setPhase('pairing');
     setStatus('Pairing…');
     try {
+      await onBeforeBleProvision?.();
       const result = await connectAndProvision(
         selected.id,
         {
@@ -157,6 +167,8 @@ export function PairDeviceScreen({
         err instanceof Error ? err.message : 'Please try again.',
       );
       setPhase('ready');
+    } finally {
+      await onAfterBleProvision?.();
     }
   }
 

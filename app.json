@@ -7,7 +7,7 @@
     "version": "1.0.6",
     "ios": {
       "bundleIdentifier": "com.kishansagathiya.donna",
-      "buildNumber": "39"
+      "buildNumber": "40"
     },
     "extra": {
       "eas": {

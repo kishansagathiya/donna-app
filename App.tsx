@@ -230,7 +230,11 @@ function AppContent() {
       </KeyboardAvoidingView>
 
       {pairSheetOpen ? (
-        <PairDeviceScreen onClose={() => setPairSheetOpen(false)} />
+        <PairDeviceScreen
+          onClose={() => setPairSheetOpen(false)}
+          onBeforeBleProvision={deviceSync.disconnectForProvisioning}
+          onAfterBleProvision={deviceSync.reconnectDevice}
+        />
       ) : null}
 
       {addWifiSheetOpen ? (
@@ -238,6 +242,8 @@ function AppContent() {
           mode="add-wifi"
           pairedDeviceId={deviceSync.pairedDeviceId}
           onClose={() => setAddWifiSheetOpen(false)}
+          onBeforeBleProvision={deviceSync.disconnectForProvisioning}
+          onAfterBleProvision={deviceSync.reconnectDevice}
         />
       ) : null}
 

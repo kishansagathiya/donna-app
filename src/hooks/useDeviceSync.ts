@@ -37,6 +37,7 @@ import {
   setPairedDeviceId,
   scanForDonnaDevices,
   parseWifiSavedCount,
+  parseRelayReady,
 } from '../services/deviceBle';
 import { uploadCapture, type CaptureUploadResult } from '../services/capturesApi';
 
@@ -85,10 +86,18 @@ function concatenateByteChunks(chunks: Uint8Array[]): Uint8Array {
   return out;
 }
 
-export function useDeviceSync(): DeviceSyncStatus & { forgetDevice: () => Promise<void> } {
+export function useDeviceSync(): DeviceSyncStatus & {
+  forgetDevice: () => Promise<void>;
+  disconnectForProvisioning: () => Promise<void>;
+  reconnectDevice: () => Promise<void>;
+} {
   const [status, setStatus] = useState<DeviceSyncStatus>(initial);
   const sessionRef = useRef<CaptureSession | null>(null);
   const inflightRef = useRef<InflightCapture | null>(null);
+  const uploadBusyRef = useRef(false);
+  const connectToPairedRef = useRef<(deviceId: string) => Promise<void>>(
+    async () => {},
+  );
 
   async function forgetDevice() {
     if (sessionRef.current) {
@@ -102,11 +111,32 @@ export function useDeviceSync(): DeviceSyncStatus & { forgetDevice: () => Promis
   useEffect(() => {
     let cancelled = false;
 
+    function maybeStartDrain() {
+      const session = sessionRef.current;
+      if (!session || inflightRef.current || uploadBusyRef.current) return;
+      sendStartCommand(session).catch(() => {});
+    }
+
     const handleStatus: StatusHandler = (msg) => {
       if (cancelled) return;
+      const relayReady = parseRelayReady(msg);
+      if (relayReady !== null) {
+        setStatus(s => ({
+          ...s,
+          pendingCount: relayReady.count,
+          lastMessage: msg,
+        }));
+        if (relayReady.count > 0) {
+          maybeStartDrain();
+        }
+        return;
+      }
       if (msg.startsWith('pending:')) {
         const n = parseInt(msg.slice('pending:'.length), 10) || 0;
         setStatus(s => ({ ...s, pendingCount: n }));
+        if (n > 0) {
+          maybeStartDrain();
+        }
         return;
       }
       const wifiCount = parseWifiSavedCount(msg);
@@ -152,6 +182,7 @@ export function useDeviceSync(): DeviceSyncStatus & { forgetDevice: () => Promis
         }
         const wav = concatenateByteChunks(inflight.bytes);
         setStatus(s => ({ ...s, uploadState: 'uploading' }));
+        uploadBusyRef.current = true;
         const result: CaptureUploadResult = await uploadCapture(wav);
         if (result.ok) {
           await acknowledgeCapture(session, inflight.name).catch(() => {});
@@ -171,11 +202,12 @@ export function useDeviceSync(): DeviceSyncStatus & { forgetDevice: () => Promis
             lastMessage: result.error ?? 'Upload failed.',
           }));
         }
+        uploadBusyRef.current = false;
         // Ask for the next capture (if any) — the device emits 0x04 idle
         // when nothing is left, which routes through the 'idle' branch.
         setTimeout(() => {
-          if (!cancelled && sessionRef.current) {
-            sendStartCommand(sessionRef.current).catch(() => {});
+          if (!cancelled) {
+            maybeStartDrain();
           }
         }, 200);
         return;
@@ -189,8 +221,10 @@ export function useDeviceSync(): DeviceSyncStatus & { forgetDevice: () => Promis
         const session = await startCaptureSession(deviceId, {
           onCaptureFrame: handleFrame,
           onStatus: handleStatus,
-          onPendingCount: (n) =>
-            setStatus(s => ({ ...s, pendingCount: n })),
+          onPendingCount: (n) => {
+            setStatus(s => ({ ...s, pendingCount: n }));
+            if (n > 0) maybeStartDrain();
+          },
         });
         if (cancelled) {
           await session.disconnect().catch(() => {});
@@ -214,6 +248,8 @@ export function useDeviceSync(): DeviceSyncStatus & { forgetDevice: () => Promis
         // back to the screen and tap "Connect". v1 doesn't auto-scan here.
       }
     }
+
+    connectToPairedRef.current = connectToPaired;
 
     async function init() {
       const paired = await getPairedDeviceId();
@@ -267,7 +303,22 @@ export function useDeviceSync(): DeviceSyncStatus & { forgetDevice: () => Promis
     };
   }, []);
 
-  return { ...status, forgetDevice };
+  async function disconnectForProvisioning() {
+    if (sessionRef.current) {
+      await sessionRef.current.disconnect().catch(() => {});
+      sessionRef.current = null;
+      setStatus(s => ({ ...s, connectionState: 'disconnected' }));
+    }
+  }
+
+  async function reconnectDevice() {
+    const paired = await getPairedDeviceId();
+    if (paired && !sessionRef.current) {
+      await connectToPairedRef.current(paired);
+    }
+  }
+
+  return { ...status, forgetDevice, disconnectForProvisioning, reconnectDevice };
 }
 
 export async function listPairedDevices(): Promise<DeviceScan[]> {

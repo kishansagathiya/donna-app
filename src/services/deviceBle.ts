@@ -124,6 +124,16 @@ export function parseWifiSavedCount(status: string): number | null {
   return match ? parseInt(match[1], 10) : null;
 }
 
+/** Parse `relay_ready:<reason>:<count>` status strings from the device. */
+export function parseRelayReady(
+  status: string,
+): { reason: string; count: number } | null {
+  const match = /^relay_ready:([^:]+):(\d+)$/.exec(status.trim());
+  if (!match) return null;
+  const count = parseInt(match[2], 10);
+  return { reason: match[1], count: Number.isFinite(count) ? count : 0 };
+}
+
 async function waitForDeviceStatus(
   device: Device,
   predicate: (status: string) => boolean,
@@ -131,11 +141,27 @@ async function waitForDeviceStatus(
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     let settled = false;
-    const timer = setTimeout(() => {
+
+    const finish = (status: string) => {
       if (settled) return;
       settled = true;
+      clearTimeout(timer);
+      clearInterval(pollTimer);
       sub.remove();
-      reject(new Error('Timed out waiting for the device to respond.'));
+      resolve(status);
+    };
+
+    const fail = (message: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearInterval(pollTimer);
+      sub.remove();
+      reject(new Error(message));
+    };
+
+    const timer = setTimeout(() => {
+      fail('Timed out waiting for the device to respond.');
     }, timeoutMs);
 
     const sub = device.monitorCharacteristicForService(
@@ -143,15 +169,45 @@ async function waitForDeviceStatus(
       (err, char) => {
         if (settled || err || !char?.value) return;
         const status = base64ToString(char.value);
-        if (predicate(status)) {
-          settled = true;
-          clearTimeout(timer);
-          sub.remove();
-          resolve(status);
-        }
+        if (predicate(status)) finish(status);
       },
     );
+
+    // Poll as a fallback when another client already consumed the notification.
+    const pollTimer = setInterval(() => {
+      if (settled) return;
+      device.readCharacteristicForService(DONNA_SERVICE_UUID, CH_STATUS)
+        .then(char => {
+          if (settled || !char?.value) return;
+          const status = base64ToString(char.value);
+          if (predicate(status)) finish(status);
+        })
+        .catch(() => {});
+    }, 750);
   });
+}
+
+async function connectForProvisioning(deviceId: string): Promise<Device> {
+  // Drop any capture-sync session so provisioning owns the GATT link.
+  await ble.cancelDeviceConnection(deviceId).catch(() => {});
+  await delay(300);
+
+  const connectMs = 15000;
+  const device = await Promise.race([
+    ble.connectToDevice(deviceId, { requestMTU: 247 }),
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error('Timed out connecting to the device. Move closer and try again.')),
+        connectMs,
+      ),
+    ),
+  ]);
+  await device.discoverAllServicesAndCharacteristics();
+  return device;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function writeWifiCredentials(
@@ -160,10 +216,26 @@ async function writeWifiCredentials(
   psk: string,
   onStatus?: StatusHandler,
 ): Promise<WifiProvisionResult> {
+  let ignoredStatus: string | null = null;
+  try {
+    const char = await device.readCharacteristicForService(
+      DONNA_SERVICE_UUID, CH_STATUS,
+    );
+    ignoredStatus = base64ToString(char.value ?? '');
+  } catch {
+    // best-effort
+  }
+
   const statusPromise = waitForDeviceStatus(
     device,
-    (s) => parseWifiSavedCount(s) !== null || s === 'wifi_fail',
+    (s) => {
+      if (ignoredStatus && s === ignoredStatus) return false;
+      return parseWifiSavedCount(s) !== null || s === 'wifi_fail';
+    },
   );
+
+  // Give the status subscription a moment to register before we write.
+  await delay(100);
 
   // SSID then PSK — the device commits once both halves arrive.
   await writeStringAsBytes(device, CH_WIFI_SSID, ssid);
@@ -224,8 +296,7 @@ export async function connectAndProvision(
   provision: ProvisionRequest,
   onStatus?: StatusHandler,
 ): Promise<WifiProvisionResult> {
-  const device = await ble.connectToDevice(deviceId, { requestMTU: 247 });
-  await device.discoverAllServicesAndCharacteristics();
+  const device = await connectForProvisioning(deviceId);
 
   const wifiResult = await writeWifiCredentials(
     device,
@@ -258,8 +329,7 @@ export async function provisionWifiNetwork(
   wifiPsk: string,
   onStatus?: StatusHandler,
 ): Promise<WifiProvisionResult> {
-  const device = await ble.connectToDevice(deviceId, { requestMTU: 247 });
-  await device.discoverAllServicesAndCharacteristics();
+  const device = await connectForProvisioning(deviceId);
   try {
     return await writeWifiCredentials(device, wifiSsid, wifiPsk, onStatus);
   } finally {
@@ -341,7 +411,32 @@ export async function startCaptureSession(
     ),
   );
 
-  // Kick off the first batch.
+  // Apply any status already on the characteristic (e.g. relay_ready emitted
+  // before the subscription registered).
+  try {
+    const statusChar = await device.readCharacteristicForService(
+      DONNA_SERVICE_UUID, CH_STATUS,
+    );
+    if (statusChar.value) {
+      handlers.onStatus?.(base64ToString(statusChar.value));
+    }
+  } catch {
+    // best-effort
+  }
+
+  try {
+    const pendingChar = await device.readCharacteristicForService(
+      DONNA_SERVICE_UUID, CH_PENDING_COUNT,
+    );
+    if (pendingChar.value) {
+      const b = bytesFromBase64(pendingChar.value);
+      handlers.onPendingCount?.(b[0] ?? 0);
+    }
+  } catch {
+    // best-effort
+  }
+
+  // Kick off the first batch (relay_ready may also trigger start when count > 0).
   await device.writeCharacteristicWithResponseForService(
     DONNA_SERVICE_UUID, CH_CAPTURE_CTRL,
     base64FromBytes(stringToBytes('start')),
