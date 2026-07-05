@@ -3,12 +3,12 @@
  * capture device) into the server's /voice WebSocket in `notes` mode, which
  * is the exact same path the iOS app uses for phone-side voice notes.
  *
- * The server transcribes, saves a conversation_turn with channel='voice', and
- * a few seconds later runs the post-session compile that produces a Note
- * (visible in the Notes tab) and updates the user's memory facts.
+ * The server transcribes, saves a Note (visible in the Notes tab) and stores
+ * the dictation WAV in the `note-audio` Supabase bucket so users can replay
+ * it later. It also updates the user's memory facts.
  *
- * The resulting audio file shape on the server side is therefore identical
- * to a phone-side voice note: `source_type = 'voice_turn'`, channel='voice'.
+ * The resulting note shape on the server side is therefore identical to a
+ * phone-side voice note: `source_type = 'manual'` with `audio_path` set.
  */
 
 import { supabase, getAccessToken, getSession } from '../services/auth';

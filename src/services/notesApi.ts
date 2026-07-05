@@ -11,6 +11,7 @@ export type NoteSummary = {
   source_type: string;
   keywords: string[] | null;
   category: string | null;
+  has_audio: boolean;
 };
 
 export type Note = NoteSummary & {
@@ -20,6 +21,7 @@ export type Note = NoteSummary & {
   user_last_modified: string | null;
   created_at: string;
   updated_at: string;
+  audio_url?: string;
 };
 
 export type NoteTags = {
@@ -188,6 +190,7 @@ function noteSummaryFromContent(content: string): NoteSummary {
     source_type: 'manual',
     keywords: null,
     category: null,
+    has_audio: false,
   };
 }
 

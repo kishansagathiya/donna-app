@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import { NoteAudioPlayer } from '../components/NoteAudioPlayer';
 import { useTheme } from '../hooks/useTheme';
 import {
   deleteNote,
@@ -45,6 +46,7 @@ function toSummary(note: Note): NoteSummary {
     source_type: note.source_type,
     keywords: note.keywords,
     category: note.category,
+    has_audio: note.has_audio,
   };
 }
 
@@ -256,6 +258,10 @@ export function NoteDetailScreen({
                 ? ` · from ${item.source_type.replace('_', ' ')}`
                 : ''}
             </Text>
+
+            {item.audio_url ? (
+              <NoteAudioPlayer url={item.audio_url} />
+            ) : null}
 
             <Text style={styles.sectionLabel}>Tags</Text>
             <View style={styles.tagRow}>
