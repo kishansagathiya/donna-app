@@ -40,6 +40,7 @@ PODS:
   - hermes-engine/cdp (250829098.0.10)
   - hermes-engine/Hermes (250829098.0.10)
   - hermes-engine/Public (250829098.0.10)
+  - MultiplatformBleAdapter (0.2.0)
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -1930,6 +1931,35 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
+  - react-native-ble-plx (3.5.1):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - MultiplatformBleAdapter (= 0.2.0)
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
   - react-native-blob-util (0.21.3):
     - boost
     - DoubleConversion
@@ -2942,6 +2972,7 @@ DEPENDENCIES:
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - React-mutationobservernativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/mutationobserver`)
+  - react-native-ble-plx (from `../node_modules/react-native-ble-plx`)
   - react-native-blob-util (from `../node_modules/react-native-blob-util`)
   - react-native-document-picker (from `../node_modules/react-native-document-picker`)
   - react-native-image-picker (from `../node_modules/react-native-image-picker`)
@@ -2989,6 +3020,7 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - MultiplatformBleAdapter
     - SocketRocket
 
 EXTERNAL SOURCES:
@@ -3083,6 +3115,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
   React-mutationobservernativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/mutationobserver"
+  react-native-ble-plx:
+    :path: "../node_modules/react-native-ble-plx"
   react-native-blob-util:
     :path: "../node_modules/react-native-blob-util"
   react-native-document-picker:
@@ -3179,6 +3213,7 @@ SPEC CHECKSUMS:
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
   glog: e56ede4028c4b7418e6b1195a36b1656bb35e225
   hermes-engine: 2ea90e4f7b0a2ecfd78a716f5713f70a309d14d2
+  MultiplatformBleAdapter: b1fddd0d499b96b607e00f0faa8e60648343dc1d
   RCT-Folly: 957659fd132051eccf60310f242798220177d26e
   RCTDeprecation: 225e022b85a206cf0883a909c4a114159783363c
   RCTRequired: 827a95c181af0886a11e21bc66c084088cf87839
@@ -3216,6 +3251,7 @@ SPEC CHECKSUMS:
   React-Mapbuffer: 7c5ee2aa71345e51a2a1fecf4337d6e9388945c3
   React-microtasksnativemodule: eb2e69e46d9330c506a6c3cbba2be77d446d63b2
   React-mutationobservernativemodule: 76306de84991708fc7b06e38c200fabb0e441144
+  react-native-ble-plx: d59f9cc4e6b796c6cac1bc13a219f2e24228f145
   react-native-blob-util: 98c7343a791dcae24dd1b427c2b4bf74c934fa27
   react-native-document-picker: 6151275a22fd452b9241855250f574aa2520d1f9
   react-native-image-picker: 43e6cd4231e670030fe09b079d696fa5a634ccfc
@@ -3255,12 +3291,12 @@ SPEC CHECKSUMS:
   ReactCommon: 7121294d2f9b2aef0d458ba6d230d18d6ee4cba2
   RNAppleAuthentication: d6fe579e5f43cf8db54bdc48518bccea61c592a4
   RNAudioAPI: dc3ba98cf3f02b478fde0af25f79daa6979ccc21
-  RNPermissions: 3bc9478350fc81a56664f169ce831c6eb67e35e2
+  RNPermissions: 17196b9a164f6727fdf3508ab2bc71b3e22504fa
   RNShareMenu: cb9dac548c8bf147d06f0bf07296ad51ea9f5fc3
   RNSVG: a93856a60bcd766b4d5d20f96a7b4a2978462ca4
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 2fe23f676416a73cb4be2c15929e352c9395b9cf
 
-PODFILE CHECKSUM: 50f49096f44aa244ddc370c5280a9ce84a58ded3
+PODFILE CHECKSUM: 661703e572ae04f69292600d12f3b849006cc1ee
 
 COCOAPODS: 1.16.2

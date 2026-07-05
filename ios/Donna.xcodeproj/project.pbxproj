@@ -221,7 +221,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nHERMES_PLIST=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework/Info.plist\"\nif [ -f \"$HERMES_PLIST\" ]; then\n  /usr/libexec/PlistBuddy -c \"Delete :MinimumOSVersion\" \"$HERMES_PLIST\" 2>/dev/null || true\n  /usr/libexec/PlistBuddy -c \"Add :MinimumOSVersion string 15.1\" \"$HERMES_PLIST\" || /usr/libexec/PlistBuddy -c \"Set :MinimumOSVersion 15.1\" \"$HERMES_PLIST\"\nfi\n";
+			shellScript = "set -e\nHERMES_FW=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework\"\nHERMES_PLIST=\"${HERMES_FW}/Info.plist\"\nif [ -f \"$HERMES_PLIST\" ]; then\n  /usr/libexec/PlistBuddy -c \"Delete :MinimumOSVersion\" \"$HERMES_PLIST\" 2>/dev/null || true\n  /usr/libexec/PlistBuddy -c \"Add :MinimumOSVersion string 15.1\" \"$HERMES_PLIST\" || /usr/libexec/PlistBuddy -c \"Set :MinimumOSVersion 15.1\" \"$HERMES_PLIST\"\n  if [ \"${PLATFORM_NAME}\" = \"iphoneos\" ] && [ -n \"${EXPANDED_CODE_SIGN_IDENTITY}\" ] && [ \"${EXPANDED_CODE_SIGN_IDENTITY}\" != \"-\" ]; then\n    /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --preserve-metadata=entitlements,flags,runtime \"${HERMES_FW}\"\n  fi\nfi\n";
 			showEnvVarsInLog = 0;
 		};
 		C38B50BA6285516D6DCD4F65 /* [CP] Check Pods Manifest.lock */ = {
