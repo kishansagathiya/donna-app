@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
   Alert,
   Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -88,7 +90,10 @@ export function PairDeviceScreen({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <View style={styles.backdrop}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.backdrop}
+    >
       <Pressable style={styles.scrim} onPress={onClose} />
       <View style={styles.sheet}>
         <View style={styles.header}>
@@ -137,7 +142,11 @@ export function PairDeviceScreen({ onClose }: { onClose: () => void }) {
         ) : null}
 
         {phase === 'ready' || phase === 'pairing' ? (
-          <>
+          <View style={styles.formContainer}>
+            <ScrollView
+              contentContainerStyle={styles.formContent}
+              keyboardShouldPersistTaps="handled"
+            >
             {selected ? (
               <View style={styles.selectedBox}>
                 <Text style={styles.rowTitle}>{selected.name}</Text>
@@ -204,7 +213,8 @@ export function PairDeviceScreen({ onClose }: { onClose: () => void }) {
             </Pressable>
 
             {status ? <Text style={styles.hint}>{status}</Text> : null}
-          </>
+            </ScrollView>
+          </View>
         ) : null}
 
         {phase === 'done' ? (
@@ -221,7 +231,7 @@ export function PairDeviceScreen({ onClose }: { onClose: () => void }) {
           </View>
         ) : null}
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -241,6 +251,13 @@ function createStyles(colors: ThemeColors) {
       borderTopRightRadius: 24,
       padding: 24,
       maxHeight: '90%',
+      paddingBottom: 0,
+    },
+    formContainer: {
+      flexShrink: 1,
+    },
+    formContent: {
+      paddingBottom: 24,
     },
     header: {
       flexDirection: 'row',
