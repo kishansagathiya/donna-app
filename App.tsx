@@ -143,6 +143,7 @@ function AppContent() {
   } = useVoiceSession();
   const deviceSync = useDeviceSync();
   const [pairSheetOpen, setPairSheetOpen] = useState(false);
+  const [addWifiSheetOpen, setAddWifiSheetOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const {
     toast,
@@ -219,6 +220,7 @@ function AppContent() {
           <ProfileScreen
             deviceSync={deviceSync}
             onPairDevicePress={() => setPairSheetOpen(true)}
+            onAddWifiPress={() => setAddWifiSheetOpen(true)}
           />
         ) : null}
 
@@ -229,6 +231,14 @@ function AppContent() {
 
       {pairSheetOpen ? (
         <PairDeviceScreen onClose={() => setPairSheetOpen(false)} />
+      ) : null}
+
+      {addWifiSheetOpen ? (
+        <PairDeviceScreen
+          mode="add-wifi"
+          pairedDeviceId={deviceSync.pairedDeviceId}
+          onClose={() => setAddWifiSheetOpen(false)}
+        />
       ) : null}
 
       <AddMemorySheet

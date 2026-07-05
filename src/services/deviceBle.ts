@@ -6,7 +6,9 @@
  *   - scanning for "Donna Device"
  *   - reading/writing provisioning characteristics (Wi-Fi SSID/PSK, JWT,
  *     refresh token — JWT/refresh are sent in chunked writes with a marker
- *     byte: 0x01 = continuation, 0x02 = final, 0x00 = reset)
+ *     byte: 0x01 = continuation, 0x02 = final, 0x00 = reset). Each SSID+PSK
+ *     pair is added to the device's saved network list (up to DONNA_WIFI_MAX_NETS);
+ *     the device reports `wifi_saved:N` on success.
  *   - subscribing to the framed capture-data indication stream and
  *     reassembling it back into a WAV file
  *   - driving the capture control characteristic with start/ack/delete commands
@@ -19,6 +21,7 @@ import { BleManager, Device, Subscription } from 'react-native-ble-plx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const DONNA_SERVICE_UUID        = '6e7c1c00-0000-1000-8000-00805f9b34fb';
+export const DONNA_WIFI_MAX_NETS         = 5;
 const CH_WIFI_SSID                     = '6e7c1c00-0001-1000-8000-00805f9b34fb';
 const CH_WIFI_PSK                      = '6e7c1c00-0002-1000-8000-00805f9b34fb';
 const CH_JWT                          = '6e7c1c00-0003-1000-8000-00805f9b34fb';
@@ -109,6 +112,75 @@ export type ProvisionRequest = {
   refreshToken: string;
 };
 
+export type WifiProvisionResult = {
+  networkCount: number;
+  status: string;
+};
+
+/** Parse `wifi_saved` or `wifi_saved:N` status strings from the device. */
+export function parseWifiSavedCount(status: string): number | null {
+  if (status === 'wifi_saved') return 1;
+  const match = /^wifi_saved:(\d+)$/.exec(status.trim());
+  return match ? parseInt(match[1], 10) : null;
+}
+
+async function waitForDeviceStatus(
+  device: Device,
+  predicate: (status: string) => boolean,
+  timeoutMs = 12000,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      sub.remove();
+      reject(new Error('Timed out waiting for the device to respond.'));
+    }, timeoutMs);
+
+    const sub = device.monitorCharacteristicForService(
+      DONNA_SERVICE_UUID, CH_STATUS,
+      (err, char) => {
+        if (settled || err || !char?.value) return;
+        const status = base64ToString(char.value);
+        if (predicate(status)) {
+          settled = true;
+          clearTimeout(timer);
+          sub.remove();
+          resolve(status);
+        }
+      },
+    );
+  });
+}
+
+async function writeWifiCredentials(
+  device: Device,
+  ssid: string,
+  psk: string,
+  onStatus?: StatusHandler,
+): Promise<WifiProvisionResult> {
+  const statusPromise = waitForDeviceStatus(
+    device,
+    (s) => parseWifiSavedCount(s) !== null || s === 'wifi_fail',
+  );
+
+  // SSID then PSK — the device commits once both halves arrive.
+  await writeStringAsBytes(device, CH_WIFI_SSID, ssid);
+  await writeStringAsBytes(device, CH_WIFI_PSK, psk);
+
+  const status = await statusPromise;
+  onStatus?.(status);
+  if (status === 'wifi_fail') {
+    throw new Error('The device could not save this Wi-Fi network.');
+  }
+  const networkCount = parseWifiSavedCount(status);
+  if (networkCount === null) {
+    throw new Error(`Unexpected device status: ${status}`);
+  }
+  return { networkCount, status };
+}
+
 async function writeStringAsBytes(device: Device, charUuid: string, value: string): Promise<void> {
   const char = await device.writeCharacteristicWithResponseForService(
     DONNA_SERVICE_UUID, charUuid,
@@ -151,21 +223,21 @@ export async function connectAndProvision(
   deviceId: string,
   provision: ProvisionRequest,
   onStatus?: StatusHandler,
-): Promise<void> {
-  let device = await ble.connectToDevice(deviceId, { requestMTU: 247 });
+): Promise<WifiProvisionResult> {
+  const device = await ble.connectToDevice(deviceId, { requestMTU: 247 });
   await device.discoverAllServicesAndCharacteristics();
 
-  // Send Wi-Fi SSID, then PSK — the device stores them together once both
-  // halves arrive (across whichever order).
-  await writeStringAsBytes(device, CH_WIFI_SSID, provision.wifiSsid);
-  await writeStringAsBytes(device, CH_WIFI_PSK,  provision.wifiPsk);
+  const wifiResult = await writeWifiCredentials(
+    device,
+    provision.wifiSsid,
+    provision.wifiPsk,
+    onStatus,
+  );
 
-  // Now send JWT (chunked, final-marked), then refresh token. The device
-  // saves each half independently as they arrive.
+  // JWT and refresh are sent in chunked writes with a final marker byte.
   await writeChunkedToken(device, CH_JWT,     provision.jwt);
   await writeChunkedToken(device, CH_REFRESH, provision.refreshToken);
 
-  // Read back the status to verify provisioning succeeded.
   try {
     const statusChar = await device.readCharacteristicForService(
       DONNA_SERVICE_UUID, CH_STATUS,
@@ -176,6 +248,23 @@ export async function connectAndProvision(
   }
   await device.cancelConnection();
   await setPairedDeviceId(deviceId);
+  return wifiResult;
+}
+
+/** Add a Wi-Fi network to an already-paired device (no JWT re-provisioning). */
+export async function provisionWifiNetwork(
+  deviceId: string,
+  wifiSsid: string,
+  wifiPsk: string,
+  onStatus?: StatusHandler,
+): Promise<WifiProvisionResult> {
+  const device = await ble.connectToDevice(deviceId, { requestMTU: 247 });
+  await device.discoverAllServicesAndCharacteristics();
+  try {
+    return await writeWifiCredentials(device, wifiSsid, wifiPsk, onStatus);
+  } finally {
+    await device.cancelConnection().catch(() => {});
+  }
 }
 
 // ─── Telemetry session ──────────────────────────────────────────────────────

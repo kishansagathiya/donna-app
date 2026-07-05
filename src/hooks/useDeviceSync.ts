@@ -36,6 +36,7 @@ import {
   getPairedDeviceId,
   setPairedDeviceId,
   scanForDonnaDevices,
+  parseWifiSavedCount,
 } from '../services/deviceBle';
 import { uploadCapture, type CaptureUploadResult } from '../services/capturesApi';
 
@@ -53,6 +54,7 @@ export type DeviceSyncStatus = {
   pendingCount: number;
   uploadState: UploadState;
   lastMessage: string | null;
+  wifiNetworkCount: number | null;
 };
 
 const initial: DeviceSyncStatus = {
@@ -61,6 +63,7 @@ const initial: DeviceSyncStatus = {
   pendingCount: 0,
   uploadState: 'idle',
   lastMessage: null,
+  wifiNetworkCount: null,
 };
 
 type InflightCapture = {
@@ -104,9 +107,14 @@ export function useDeviceSync(): DeviceSyncStatus & { forgetDevice: () => Promis
       if (msg.startsWith('pending:')) {
         const n = parseInt(msg.slice('pending:'.length), 10) || 0;
         setStatus(s => ({ ...s, pendingCount: n }));
-      } else {
-        setStatus(s => ({ ...s, lastMessage: msg }));
+        return;
       }
+      const wifiCount = parseWifiSavedCount(msg);
+      if (wifiCount !== null) {
+        setStatus(s => ({ ...s, wifiNetworkCount: wifiCount, lastMessage: msg }));
+        return;
+      }
+      setStatus(s => ({ ...s, lastMessage: msg }));
     };
 
     const handleFrame = async (frame: CaptureFrame) => {
@@ -284,4 +292,4 @@ export async function currentAccessTokenForProvisioning(): Promise<{
   return { jwt: session.access_token, refreshToken: session.refresh_token };
 }
 
-export { connectAndProvision };
+export { connectAndProvision, provisionWifiNetwork } from '../services/deviceBle';
