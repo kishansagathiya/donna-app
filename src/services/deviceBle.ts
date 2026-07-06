@@ -24,7 +24,7 @@ const CH_STATUS                        = '6e7c1c00-0008-1000-8000-00805f9b34fb';
 
 const PAIRED_DEVICE_ID_KEY             = 'donna.pairedDeviceId.v1';
 
-const ble = new BleManager();
+const ble = new BleManager({ restoreStateIdentifier: 'donna-ble-central-v1' });
 
 // ─── Types ────────────────────────────────────────────────────────────────
 

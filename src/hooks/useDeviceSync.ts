@@ -1,14 +1,14 @@
 /**
- * useDeviceSync — auto-connects to the user's paired Donna Device while the
- * app is in the foreground, drains any pending captures over BLE by
- * reassembling the framed capture-data indication stream into WAVs and
- * uploading them via `capturesApi.uploadCapture`. After a successful upload
- * the device is told to archive the capture; on failure it's left on the
- * device's SD card so the next attempt can retry.
+ * useDeviceSync — auto-connects to the user's paired Donna Device, drains any
+ * pending captures over BLE by reassembling the framed capture-data indication
+ * stream into WAVs and uploading them via `capturesApi.uploadCapture`. After a
+ * successful upload the device is told to archive the capture; on failure it's
+ * left on the device's SD card so the next attempt can retry.
  *
- * This hook is intentionally app-wide global and tied to AppState:
- *  - On active: if we have a paired device, connect (best-effort).
- *  - On background: disconnect the BLE session.
+ * Sync continues while the app is in the background (iOS `bluetooth-central`
+ * background mode). This hook is app-wide global and tied to AppState only for
+ * reconnect:
+ *  - On launch / active: if we have a paired device, connect (best-effort).
  *  - On the device going out of range: settle the current capture, await
  *    auto-reconnect via `react-native-ble-plx`'s connection state events.
  *
@@ -338,7 +338,9 @@ export function useDeviceSync(): DeviceSyncStatus & {
 
     init();
 
-    // Reconnect when the app comes back to the foreground.
+    // Reconnect when the app returns to the foreground after iOS suspended
+    // the BLE session (e.g. out of range). Do not disconnect on background —
+    // UIBackgroundModes bluetooth-central keeps the relay alive.
     function handleAppStateChange(next: AppStateStatus) {
       if (next === 'active' && !sessionRef.current && !cancelled) {
         getPairedDeviceId().then(id => {
@@ -346,15 +348,6 @@ export function useDeviceSync(): DeviceSyncStatus & {
             connectToPaired(id);
           }
         });
-      } else if ((next === 'background' || next === 'inactive') && sessionRef.current) {
-        if (inflightTimerRef.current) {
-          clearTimeout(inflightTimerRef.current);
-          inflightTimerRef.current = null;
-        }
-        inflightRef.current = null;
-        sessionRef.current.disconnect().catch(() => {});
-        sessionRef.current = null;
-        setStatus(s => ({ ...s, connectionState: 'disconnected' }));
       }
     }
     const sub = AppState.addEventListener('change', handleAppStateChange);
