@@ -209,7 +209,9 @@ function AppContent() {
           />
         ) : null}
 
-        {tab === 'notes' ? <NotesScreen /> : null}
+        {tab === 'notes' ? (
+          <NotesScreen notesRefreshToken={deviceSync.notesRefreshToken} />
+        ) : null}
 
         {tab === 'memory' ? (
           <MemoryScreen onAddSourcePress={() => setSheetOpen(true)} />

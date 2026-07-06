@@ -54,6 +54,8 @@ export type DeviceSyncStatus = {
   pendingCount: number;
   uploadState: UploadState;
   lastMessage: string | null;
+  /** Increments after a capture becomes a saved note — Notes tab can reload on change. */
+  notesRefreshToken: number;
 };
 
 const initial: DeviceSyncStatus = {
@@ -62,6 +64,7 @@ const initial: DeviceSyncStatus = {
   pendingCount: 0,
   uploadState: 'idle',
   lastMessage: null,
+  notesRefreshToken: 0,
 };
 
 type InflightCapture = {
@@ -69,7 +72,15 @@ type InflightCapture = {
   totalBytes: number;
   bytes: Uint8Array[];
   receivedBytes: number;
+  lastChunkAt: number;
 };
+
+const INFLIGHT_STALL_MS = 45000;
+
+function isTransferIncomplete(received: number, declared: number): boolean {
+  if (declared <= 0) return received < 44;
+  return received < declared;
+}
 
 function concatenateByteChunks(chunks: Uint8Array[]): Uint8Array {
   let total = 0;
@@ -93,6 +104,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
   const inflightRef = useRef<InflightCapture | null>(null);
   const uploadBusyRef = useRef(false);
   const retryPausedRef = useRef(false);
+  const inflightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectToPairedRef = useRef<(deviceId: string) => Promise<void>>(
     async () => {},
   );
@@ -109,21 +121,51 @@ export function useDeviceSync(): DeviceSyncStatus & {
   useEffect(() => {
     let cancelled = false;
 
+    function clearInflight(reason?: string) {
+      inflightRef.current = null;
+      if (inflightTimerRef.current) {
+        clearTimeout(inflightTimerRef.current);
+        inflightTimerRef.current = null;
+      }
+      if (reason) {
+        setStatus(s => ({
+          ...s,
+          uploadState: 'failed',
+          lastMessage: reason,
+        }));
+      }
+    }
+
+    function armInflightWatchdog() {
+      if (inflightTimerRef.current) clearTimeout(inflightTimerRef.current);
+      inflightTimerRef.current = setTimeout(() => {
+        inflightTimerRef.current = null;
+        const inflight = inflightRef.current;
+        if (!inflight) return;
+        clearInflight(
+          `Timed out receiving ${inflight.name} from Donna (${inflight.receivedBytes} bytes). Retrying…`,
+        );
+        const session = sessionRef.current;
+        if (session) sendStopCommand(session).catch(() => {});
+        setTimeout(() => {
+          if (!cancelled) maybeStartDrain();
+        }, 1500);
+      }, INFLIGHT_STALL_MS);
+    }
+
     function maybeStartDrain() {
       const session = sessionRef.current;
       if (!session || inflightRef.current || uploadBusyRef.current || retryPausedRef.current) return;
-      sendStartCommand(session).catch(() => {});
+      sendStartCommand(session).catch(err => {
+        console.log('[useDeviceSync] start command failed', err);
+      });
     }
 
     const handleStatus: StatusHandler = (msg) => {
       if (cancelled) return;
       const relayReady = parseRelayReady(msg);
       if (relayReady !== null) {
-        setStatus(s => ({
-          ...s,
-          pendingCount: relayReady.count,
-          lastMessage: msg,
-        }));
+        setStatus(s => ({ ...s, pendingCount: relayReady.count }));
         if (relayReady.count > 0) {
           maybeStartDrain();
         }
@@ -134,16 +176,13 @@ export function useDeviceSync(): DeviceSyncStatus & {
         setStatus(s => ({
           ...s,
           uploadState: 'uploading',
-          lastMessage: `Syncing ${relayProgress.percent}%`,
+          lastMessage: `Receiving from device ${relayProgress.percent}%`,
         }));
         return;
       }
       if (msg.startsWith('pending:')) {
         const n = parseInt(msg.slice('pending:'.length), 10) || 0;
         setStatus(s => ({ ...s, pendingCount: n }));
-        if (n > 0) {
-          maybeStartDrain();
-        }
         return;
       }
       setStatus(s => ({ ...s, lastMessage: msg }));
@@ -152,8 +191,8 @@ export function useDeviceSync(): DeviceSyncStatus & {
     const handleFrame = async (frame: CaptureFrame) => {
       if (cancelled) return;
       if (frame.kind === 'idle') {
+        clearInflight();
         setStatus(s => ({ ...s, pendingCount: 0, uploadState: 'idle' }));
-        inflightRef.current = null;
         return;
       }
       if (frame.kind === 'header') {
@@ -162,8 +201,14 @@ export function useDeviceSync(): DeviceSyncStatus & {
           totalBytes: frame.totalBytes,
           bytes: [],
           receivedBytes: 0,
+          lastChunkAt: Date.now(),
         };
-        setStatus(s => ({ ...s, uploadState: 'uploading' }));
+        armInflightWatchdog();
+        setStatus(s => ({
+          ...s,
+          uploadState: 'uploading',
+          lastMessage: `Receiving ${frame.name} from device…`,
+        }));
         return;
       }
       if (frame.kind === 'data') {
@@ -171,45 +216,61 @@ export function useDeviceSync(): DeviceSyncStatus & {
         if (inflight) {
           inflight.bytes.push(frame.bytes);
           inflight.receivedBytes += frame.bytes.length;
+          inflight.lastChunkAt = Date.now();
+          armInflightWatchdog();
         }
         return;
       }
       if (frame.kind === 'end') {
         const inflight = inflightRef.current;
+        if (inflightTimerRef.current) {
+          clearTimeout(inflightTimerRef.current);
+          inflightTimerRef.current = null;
+        }
         inflightRef.current = null;
         const session = sessionRef.current;
-        if (!inflight || !session) {
-          setStatus(s => ({ ...s, uploadState: 'failed' }));
+        if (!inflight || !session || inflight.name !== frame.name) {
+          setStatus(s => ({ ...s, uploadState: 'failed', lastMessage: 'Capture stream ended unexpectedly.' }));
           return;
         }
         const wav = concatenateByteChunks(inflight.bytes);
-        setStatus(s => ({ ...s, uploadState: 'uploading' }));
+        if (isTransferIncomplete(wav.length, inflight.totalBytes)) {
+          await sendStopCommand(session).catch(() => {});
+          setStatus(s => ({
+            ...s,
+            uploadState: 'failed',
+            lastMessage: `Incomplete transfer: received ${wav.length} of ${inflight.totalBytes} bytes. Retrying…`,
+          }));
+          setTimeout(() => {
+            if (!cancelled) maybeStartDrain();
+          }, 2000);
+          return;
+        }
+        setStatus(s => ({
+          ...s,
+          uploadState: 'uploading',
+          lastMessage: `Uploading ${inflight.name} to cloud…`,
+        }));
         uploadBusyRef.current = true;
-        const result: CaptureUploadResult =
-          inflight.totalBytes > 0 && wav.length !== inflight.totalBytes
-            ? {
-                ok: false,
-                error: `Incomplete transfer: received ${wav.length} of ${inflight.totalBytes} bytes.`,
-              }
-            : await uploadCapture(wav).catch(err => ({
-                ok: false,
-                error: err instanceof Error ? err.message : 'Upload failed.',
-              }));
-        let shouldContinueDraining = false;
+        const result: CaptureUploadResult = await uploadCapture(wav).catch(err => ({
+          ok: false,
+          error: err instanceof Error ? err.message : 'Upload failed.',
+        }));
         if (result.ok) {
           await acknowledgeCapture(session, inflight.name).catch(() => {});
           retryPausedRef.current = false;
-          shouldContinueDraining = true;
           setStatus(s => ({
             ...s,
             uploadState: 'uploaded',
             pendingCount: Math.max(0, s.pendingCount - 1),
+            notesRefreshToken: s.notesRefreshToken + 1,
             lastMessage: result.transcript
-              ? `Transcript: ${result.transcript.slice(0, 96)}${result.transcript.length > 96 ? '…' : ''}`
-              : 'Synced.',
+              ? `Note saved: ${result.transcript.slice(0, 96)}${result.transcript.length > 96 ? '…' : ''}`
+              : 'Note saved.',
           }));
         } else {
-          retryPausedRef.current = true;
+          // Retry on the next drain attempt instead of blocking until reconnect.
+          retryPausedRef.current = false;
           await sendStopCommand(session).catch(() => {});
           setStatus(s => ({
             ...s,
@@ -221,10 +282,10 @@ export function useDeviceSync(): DeviceSyncStatus & {
         // Ask for the next capture (if any) — the device emits 0x04 idle
         // when nothing is left, which routes through the 'idle' branch.
         setTimeout(() => {
-          if (!cancelled && shouldContinueDraining) {
+          if (!cancelled) {
             maybeStartDrain();
           }
-        }, 200);
+        }, result.ok ? 200 : 2000);
         return;
       }
     };
@@ -239,7 +300,6 @@ export function useDeviceSync(): DeviceSyncStatus & {
           onStatus: handleStatus,
           onPendingCount: (n) => {
             setStatus(s => ({ ...s, pendingCount: n }));
-            if (n > 0) maybeStartDrain();
           },
         });
         if (cancelled) {
@@ -287,6 +347,11 @@ export function useDeviceSync(): DeviceSyncStatus & {
           }
         });
       } else if ((next === 'background' || next === 'inactive') && sessionRef.current) {
+        if (inflightTimerRef.current) {
+          clearTimeout(inflightTimerRef.current);
+          inflightTimerRef.current = null;
+        }
+        inflightRef.current = null;
         sessionRef.current.disconnect().catch(() => {});
         sessionRef.current = null;
         setStatus(s => ({ ...s, connectionState: 'disconnected' }));
@@ -310,6 +375,10 @@ export function useDeviceSync(): DeviceSyncStatus & {
 
     return () => {
       cancelled = true;
+      if (inflightTimerRef.current) {
+        clearTimeout(inflightTimerRef.current);
+        inflightTimerRef.current = null;
+      }
       sub.remove();
       authSub.data.subscription.unsubscribe();
       if (sessionRef.current) {

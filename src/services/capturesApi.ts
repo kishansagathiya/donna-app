@@ -25,6 +25,17 @@ export type CaptureUploadResult =
   | { ok: true; transcript: string }
   | { ok: false; error: string };
 
+function validateWavHeader(wavBytes: Uint8Array): string | null {
+  if (wavBytes.length <= WAV_HEADER_BYTES) {
+    return 'Capture too small to be a WAV.';
+  }
+  const tag = String.fromCharCode(wavBytes[0], wavBytes[1], wavBytes[2], wavBytes[3]);
+  if (tag !== 'RIFF') {
+    return 'Invalid capture audio (corrupt WAV header).';
+  }
+  return null;
+}
+
 function sendFrames(
   ws: WebSocket,
   message: ClientMessage,
@@ -61,8 +72,9 @@ function refreshJwt(): Promise<string | null> {
  * locally first.
  */
 export async function uploadCapture(wavBytes: Uint8Array): Promise<CaptureUploadResult> {
-  if (wavBytes.length <= WAV_HEADER_BYTES) {
-    return { ok: false, error: 'Capture too small to be a WAV.' };
+  const wavError = validateWavHeader(wavBytes);
+  if (wavError) {
+    return { ok: false, error: wavError };
   }
 
   let accessToken = await getAccessToken();
@@ -85,34 +97,10 @@ export async function uploadCapture(wavBytes: Uint8Array): Promise<CaptureUpload
     let settled = false;
     let seq = 0;
     let transcript = '';
+    let sessionReady = false;
     let timeout: ReturnType<typeof setTimeout> | null = null;
-    const settleOK = () => {
-      if (settled) return;
-      settled = true;
-      if (timeout) clearTimeout(timeout);
-      try { ws.close(); } catch { /* ignore */ }
-      resolve({ ok: true, transcript });
-    };
-    const settleErr = (msg: string) => {
-      if (settled) return;
-      settled = true;
-      if (timeout) clearTimeout(timeout);
-      try { ws.close(); } catch { /* ignore */ }
-      resolve({ ok: false, error: msg });
-    };
 
-    const url = `${VOICE_WS_URL}?token=${encodeURIComponent(accessToken)}`;
-    console.log('[capturesApi] uploading capture to', VOICE_WS_URL.replace(/token=[^&]+/, ''), `bytes=${wavBytes.length}`);
-    const ws = new WebSocket(url);
-
-    ws.onopen = () => {
-      sendFrames(ws, {
-        type: 'session.start',
-        mode: 'notes',
-        sessionId,
-      });
-
-      // Strip the 44-byte WAV header; chunk the rest into PCM frames.
+    const sendPcmChunks = (ws: WebSocket) => {
       const bytes = wavBytes.subarray(WAV_HEADER_BYTES);
       let offset = 0;
       while (offset < bytes.length) {
@@ -132,12 +120,56 @@ export async function uploadCapture(wavBytes: Uint8Array): Promise<CaptureUpload
       sendFrames(ws, { type: 'turn.end' });
     };
 
+    const settleOK = () => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      try { ws.close(); } catch { /* ignore */ }
+      resolve({ ok: true, transcript });
+    };
+    const settleErr = (msg: string) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      try { ws.close(); } catch { /* ignore */ }
+      resolve({ ok: false, error: msg });
+    };
+
+    const url = `${VOICE_WS_URL}?token=${encodeURIComponent(accessToken!)}`;
+    console.log('[capturesApi] uploading capture to', VOICE_WS_URL.replace(/token=[^&]+/, ''), `bytes=${wavBytes.length}`);
+    const ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      sendFrames(ws, {
+        type: 'session.start',
+        mode: 'notes',
+        sessionId,
+      });
+    };
+
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(String(event.data));
+        if (message.type === 'session.ready' && !sessionReady) {
+          sessionReady = true;
+          sendPcmChunks(ws);
+          return;
+        }
         if (message.type === 'turn.transcript' && typeof message.text === 'string') {
           transcript = message.text;
         } else if (message.type === 'turn.done') {
+          if (message.skipped) {
+            settleErr(
+              'Capture was too quiet or unclear to save as a note. It was kept on Donna for retry.',
+            );
+            return;
+          }
+          if (!transcript.trim()) {
+            settleErr(
+              'No speech detected in this capture. It was kept on Donna for retry.',
+            );
+            return;
+          }
           settleOK();
         } else if (message.type === 'error') {
           settleErr(message.message ?? 'Server error during capture upload.');

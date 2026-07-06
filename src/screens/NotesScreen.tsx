@@ -110,7 +110,7 @@ function NoteCard({
   );
 }
 
-export function NotesScreen() {
+export function NotesScreen({ notesRefreshToken = 0 }: { notesRefreshToken?: number }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -170,7 +170,7 @@ export function NotesScreen() {
     void listTags(30)
       .then(setTags)
       .catch(() => setTags([]));
-  }, [view, loadNotes]);
+  }, [view, loadNotes, notesRefreshToken]);
 
   const selectTag = (tag: string | null) => {
     setActiveTag(tag);
