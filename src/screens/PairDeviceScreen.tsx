@@ -1,12 +1,6 @@
 /**
  * PairDeviceScreen — scans for nearby Donna Devices over BLE, lets the user
- * pick one, enters the Wi-Fi SSID/PSK + (auto-filled from session) JWT and
- * refresh token, and writes them to the device via connectAndProvision().
- *
- * Also supports an "add-wifi" mode for already-paired devices: the user enters
- * another SSID/PSK and the app calls provisionWifiNetwork() without
- * re-sending auth tokens. The device stores up to DONNA_WIFI_MAX_NETS networks
- * and tries them in order on connect.
+ * pick one, and stores it for BLE relay sync.
  *
  * Pairing stores the chosen device's peripheral id in AsyncStorage so the
  * global useDeviceSync hook auto-reconnects on subsequent app launches.
@@ -24,141 +18,61 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import type { ThemeColors } from '../theme/colors';
-import { useAuth } from '../hooks/useAuth';
 import {
-  DONNA_WIFI_MAX_NETS,
   type DeviceScan,
   scanForDonnaDevices,
-  connectAndProvision,
-  provisionWifiNetwork,
+  connectAndPairBleOnly,
 } from '../services/deviceBle';
 
 type Phase = 'scanning' | 'ready' | 'pairing' | 'done';
 
 type PairDeviceScreenProps = {
   onClose: () => void;
-  /** Full pairing (default) or add another Wi-Fi network to a paired device. */
-  mode?: 'pair' | 'add-wifi';
-  /** Required when mode is 'add-wifi'. */
-  pairedDeviceId?: string | null;
-  /** Release the capture-sync BLE session before provisioning. */
+  /** Release the capture-sync BLE session before pairing. */
   onBeforeBleProvision?: () => Promise<void>;
-  /** Resume capture sync after provisioning finishes. */
+  /** Resume capture sync after pairing finishes. */
   onAfterBleProvision?: () => Promise<void>;
 };
 
 export function PairDeviceScreen({
   onClose,
-  mode = 'pair',
-  pairedDeviceId = null,
   onBeforeBleProvision,
   onAfterBleProvision,
 }: PairDeviceScreenProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
-  const { session } = useAuth();
-  const isAddWifi = mode === 'add-wifi';
 
-  const [phase, setPhase] = useState<Phase>(isAddWifi ? 'ready' : 'scanning');
+  const [phase, setPhase] = useState<Phase>('scanning');
   const [devices, setDevices] = useState<DeviceScan[]>([]);
   const [selected, setSelected] = useState<DeviceScan | null>(null);
-  const [savedDeviceId, setSavedDeviceId] = useState<string | null>(
-    isAddWifi ? (pairedDeviceId ?? null) : null,
-  );
-  const [wifiOnly, setWifiOnly] = useState(isAddWifi);
-  const [savedNetworkCount, setSavedNetworkCount] = useState<number | null>(
-    null,
-  );
-  const [ssid, setSsid] = useState('');
-  const [psk, setPsk] = useState('');
   const [status, setStatus] = useState<string>('');
   const stopScanRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (phase !== 'scanning' || isAddWifi) return;
+    if (phase !== 'scanning') return;
     const stop = scanForDonnaDevices(
       list => setDevices(list),
       msg => setStatus(`Scan: ${msg}`),
     );
     stopScanRef.current = stop;
     return () => stop();
-  }, [phase, isAddWifi]);
+  }, [phase]);
 
   async function handleSubmit() {
-    if (!ssid.trim() || !psk) {
-      Alert.alert('Missing info', 'Enter your Wi-Fi name and password.');
-      return;
-    }
-
-    if (wifiOnly) {
-      const deviceId = isAddWifi ? pairedDeviceId : savedDeviceId;
-      if (!deviceId) {
-        Alert.alert(
-          'No device',
-          'Pair a device first before adding Wi-Fi networks.',
-        );
-        return;
-      }
-      setPhase('pairing');
-      setStatus('Saving Wi-Fi…');
-      try {
-        await onBeforeBleProvision?.();
-        const result = await provisionWifiNetwork(
-          deviceId,
-          ssid.trim(),
-          psk,
-          s => setStatus(s || ''),
-        );
-        setSavedNetworkCount(result.networkCount);
-        setStatus(
-          `Saved (${result.networkCount} network${result.networkCount === 1 ? '' : 's'} stored).`,
-        );
-        setPhase('done');
-      } catch (err) {
-        Alert.alert(
-          'Could not save Wi-Fi',
-          err instanceof Error ? err.message : 'Please try again.',
-        );
-        setPhase('ready');
-      } finally {
-        await onAfterBleProvision?.();
-      }
-      return;
-    }
-
     if (!selected) {
-      Alert.alert(
-        'Missing info',
-        'Pick a device and enter your Wi-Fi name and password.',
-      );
-      return;
-    }
-    if (!session) {
-      Alert.alert('Not signed in', 'Please sign in before pairing.');
+      Alert.alert('Missing info', 'Pick a device to pair.');
       return;
     }
     setPhase('pairing');
     setStatus('Pairing…');
     try {
       await onBeforeBleProvision?.();
-      const result = await connectAndProvision(
-        selected.id,
-        {
-          wifiSsid: ssid.trim(),
-          wifiPsk: psk,
-          jwt: session.access_token,
-          refreshToken: session.refresh_token,
-        },
-        s => setStatus(s || ''),
-      );
-      setSavedNetworkCount(result.networkCount);
-      setSavedDeviceId(selected.id);
+      await connectAndPairBleOnly(selected.id, s => setStatus(s || ''));
       setStatus('Paired.');
       setPhase('done');
     } catch (err) {
@@ -172,22 +86,7 @@ export function PairDeviceScreen({
     }
   }
 
-  function handleAddAnotherNetwork() {
-    setWifiOnly(true);
-    setSsid('');
-    setPsk('');
-    setStatus('');
-    setPhase('ready');
-  }
-
-  const title =
-    wifiOnly && !isAddWifi
-      ? 'Add Wi-Fi network'
-      : isAddWifi
-        ? 'Add Wi-Fi network'
-        : 'Pair Donna device';
-  const canAddMore =
-    savedNetworkCount !== null && savedNetworkCount < DONNA_WIFI_MAX_NETS;
+  const title = 'Pair Donna device';
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
@@ -252,7 +151,7 @@ export function PairDeviceScreen({
                 contentContainerStyle={styles.formContent}
                 keyboardShouldPersistTaps="handled"
               >
-                {selected && !isAddWifi ? (
+                {selected ? (
                   <View style={styles.selectedBox}>
                     <Text style={styles.rowTitle}>{selected.name}</Text>
                     <Text style={styles.rowSubtitle}>
@@ -271,45 +170,10 @@ export function PairDeviceScreen({
                   </View>
                 ) : null}
 
-                {wifiOnly ? (
-                  <Text style={styles.description}>
-                    Add another Wi-Fi network to your paired Donna device. The
-                    device remembers up to {DONNA_WIFI_MAX_NETS} networks and
-                    connects to whichever is in range — home, office, or a phone
-                    hotspot.
-                  </Text>
-                ) : null}
-
-                <Text style={styles.fieldLabel}>Wi-Fi network name</Text>
-                <TextInput
-                  style={styles.input}
-                  value={ssid}
-                  onChangeText={setSsid}
-                  placeholder="Home Wi-Fi"
-                  placeholderTextColor={colors.muted}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={phase !== 'pairing'}
-                />
-
-                <Text style={styles.fieldLabel}>Wi-Fi password</Text>
-                <TextInput
-                  style={styles.input}
-                  value={psk}
-                  onChangeText={setPsk}
-                  placeholder="••••••••"
-                  placeholderTextColor={colors.muted}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={phase !== 'pairing'}
-                />
-
-                <Text style={styles.hint}>
-                  {wifiOnly
-                    ? "This network is added to the device's saved list. Re-entering the same network name updates its password."
-                    : 'The device stores this network and can hold up to ' +
-                      `${DONNA_WIFI_MAX_NETS} Wi-Fi networks. You can add more from Profile after pairing.`}
+                <Text style={styles.description}>
+                  Captures stay on the device until your phone relays them over
+                  Bluetooth. Open Donna with Bluetooth on to upload pending
+                  captures automatically.
                 </Text>
 
                 <Pressable
@@ -326,9 +190,7 @@ export function PairDeviceScreen({
                   {phase === 'pairing' ? (
                     <ActivityIndicator color={colors.white} size="small" />
                   ) : (
-                    <Text style={styles.primaryButtonText}>
-                      {wifiOnly ? 'Save network' : 'Pair device'}
-                    </Text>
+                    <Text style={styles.primaryButtonText}>Pair device</Text>
                   )}
                 </Pressable>
 
@@ -339,26 +201,12 @@ export function PairDeviceScreen({
 
           {phase === 'done' ? (
             <View style={styles.doneBox}>
-              <Text style={styles.doneTitle}>
-                {wifiOnly ? 'Network saved' : 'All set'}
-              </Text>
+              <Text style={styles.doneTitle}>All set</Text>
               <Text style={styles.hint}>
-                {wifiOnly
-                  ? savedNetworkCount !== null
-                    ? `Your device now has ${savedNetworkCount} saved Wi-Fi network${savedNetworkCount === 1 ? '' : 's'}. It will try them automatically when connecting.`
-                    : 'Your Wi-Fi network was saved to the device.'
-                  : "Your Donna device is paired. Push the REC button to make a capture — if it's on Wi-Fi, it'll upload on its own. If it's offline, your phone will relay the capture next time you open the Donna app."}
+                Your Donna device is paired for phone relay. Record a capture,
+                then open Donna with Bluetooth on; your phone will upload
+                pending captures automatically.
               </Text>
-              {canAddMore ? (
-                <Pressable
-                  style={styles.secondaryButton}
-                  onPress={handleAddAnotherNetwork}
-                >
-                  <Text style={styles.secondaryButtonText}>
-                    Add another network
-                  </Text>
-                </Pressable>
-              ) : null}
               <Pressable style={styles.primaryButton} onPress={onClose}>
                 <Text style={styles.primaryButtonText}>Done</Text>
               </Pressable>
@@ -442,22 +290,6 @@ function createStyles(colors: ThemeColors) {
     },
     changeButton: { marginTop: 4 },
     changeText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
-    fieldLabel: {
-      marginTop: 12,
-      marginBottom: 6,
-      fontSize: 13,
-      color: colors.muted,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 12,
-      fontSize: 16,
-      color: colors.text,
-      backgroundColor: colors.surface,
-    },
     hint: { color: colors.muted, fontSize: 13, marginTop: 12, lineHeight: 18 },
     primaryButton: {
       marginTop: 16,
@@ -467,20 +299,6 @@ function createStyles(colors: ThemeColors) {
       alignItems: 'center',
     },
     primaryButtonText: { color: colors.white, fontSize: 16, fontWeight: '600' },
-    secondaryButton: {
-      marginTop: 16,
-      borderRadius: 12,
-      paddingVertical: 14,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-    },
-    secondaryButtonText: {
-      color: colors.text,
-      fontSize: 16,
-      fontWeight: '600',
-    },
     buttonDisabled: { opacity: 0.7 },
     doneBox: { paddingVertical: 16 },
     doneTitle: {

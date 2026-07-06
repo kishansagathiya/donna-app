@@ -22,22 +22,21 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
-import { getAccessToken, getSession, supabase } from '../services/auth';
+import { supabase } from '../services/auth';
 import {
   type CaptureFrame,
   type CaptureSession,
   type StatusHandler,
   type DeviceScan,
-  connectAndProvision,
   startCaptureSession,
   sendStartCommand,
+  sendStopCommand,
   acknowledgeCapture,
-  deleteCapture,
   getPairedDeviceId,
   setPairedDeviceId,
   scanForDonnaDevices,
-  parseWifiSavedCount,
   parseRelayReady,
+  parseRelayProgress,
 } from '../services/deviceBle';
 import { uploadCapture, type CaptureUploadResult } from '../services/capturesApi';
 
@@ -55,7 +54,6 @@ export type DeviceSyncStatus = {
   pendingCount: number;
   uploadState: UploadState;
   lastMessage: string | null;
-  wifiNetworkCount: number | null;
 };
 
 const initial: DeviceSyncStatus = {
@@ -64,7 +62,6 @@ const initial: DeviceSyncStatus = {
   pendingCount: 0,
   uploadState: 'idle',
   lastMessage: null,
-  wifiNetworkCount: null,
 };
 
 type InflightCapture = {
@@ -95,6 +92,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
   const sessionRef = useRef<CaptureSession | null>(null);
   const inflightRef = useRef<InflightCapture | null>(null);
   const uploadBusyRef = useRef(false);
+  const retryPausedRef = useRef(false);
   const connectToPairedRef = useRef<(deviceId: string) => Promise<void>>(
     async () => {},
   );
@@ -113,7 +111,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
 
     function maybeStartDrain() {
       const session = sessionRef.current;
-      if (!session || inflightRef.current || uploadBusyRef.current) return;
+      if (!session || inflightRef.current || uploadBusyRef.current || retryPausedRef.current) return;
       sendStartCommand(session).catch(() => {});
     }
 
@@ -131,17 +129,21 @@ export function useDeviceSync(): DeviceSyncStatus & {
         }
         return;
       }
+      const relayProgress = parseRelayProgress(msg);
+      if (relayProgress !== null) {
+        setStatus(s => ({
+          ...s,
+          uploadState: 'uploading',
+          lastMessage: `Syncing ${relayProgress.percent}%`,
+        }));
+        return;
+      }
       if (msg.startsWith('pending:')) {
         const n = parseInt(msg.slice('pending:'.length), 10) || 0;
         setStatus(s => ({ ...s, pendingCount: n }));
         if (n > 0) {
           maybeStartDrain();
         }
-        return;
-      }
-      const wifiCount = parseWifiSavedCount(msg);
-      if (wifiCount !== null) {
-        setStatus(s => ({ ...s, wifiNetworkCount: wifiCount, lastMessage: msg }));
         return;
       }
       setStatus(s => ({ ...s, lastMessage: msg }));
@@ -183,9 +185,21 @@ export function useDeviceSync(): DeviceSyncStatus & {
         const wav = concatenateByteChunks(inflight.bytes);
         setStatus(s => ({ ...s, uploadState: 'uploading' }));
         uploadBusyRef.current = true;
-        const result: CaptureUploadResult = await uploadCapture(wav);
+        const result: CaptureUploadResult =
+          inflight.totalBytes > 0 && wav.length !== inflight.totalBytes
+            ? {
+                ok: false,
+                error: `Incomplete transfer: received ${wav.length} of ${inflight.totalBytes} bytes.`,
+              }
+            : await uploadCapture(wav).catch(err => ({
+                ok: false,
+                error: err instanceof Error ? err.message : 'Upload failed.',
+              }));
+        let shouldContinueDraining = false;
         if (result.ok) {
           await acknowledgeCapture(session, inflight.name).catch(() => {});
+          retryPausedRef.current = false;
+          shouldContinueDraining = true;
           setStatus(s => ({
             ...s,
             uploadState: 'uploaded',
@@ -195,18 +209,19 @@ export function useDeviceSync(): DeviceSyncStatus & {
               : 'Synced.',
           }));
         } else {
-          await deleteCapture(session, inflight.name).catch(() => {});
+          retryPausedRef.current = true;
+          await sendStopCommand(session).catch(() => {});
           setStatus(s => ({
             ...s,
             uploadState: 'failed',
-            lastMessage: result.error ?? 'Upload failed.',
+            lastMessage: `${result.error ?? 'Upload failed.'} Capture kept on Donna for retry.`,
           }));
         }
         uploadBusyRef.current = false;
         // Ask for the next capture (if any) — the device emits 0x04 idle
         // when nothing is left, which routes through the 'idle' branch.
         setTimeout(() => {
-          if (!cancelled) {
+          if (!cancelled && shouldContinueDraining) {
             maybeStartDrain();
           }
         }, 200);
@@ -218,6 +233,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
       if (cancelled) return;
       setStatus(s => ({ ...s, connectionState: 'connecting' }));
       try {
+        retryPausedRef.current = false;
         const session = await startCaptureSession(deviceId, {
           onCaptureFrame: handleFrame,
           onStatus: handleStatus,
@@ -333,14 +349,3 @@ export async function listPairedDevices(): Promise<DeviceScan[]> {
     setTimeout(() => { stop(); resolve(latest); }, 5000);
   });
 }
-
-export async function currentAccessTokenForProvisioning(): Promise<{
-  jwt: string;
-  refreshToken: string;
-} | null> {
-  const session = await getSession();
-  if (!session) return null;
-  return { jwt: session.access_token, refreshToken: session.refresh_token };
-}
-
-export { connectAndProvision, provisionWifiNetwork } from '../services/deviceBle';

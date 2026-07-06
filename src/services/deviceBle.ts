@@ -4,14 +4,10 @@
  * Pairs with the ESP32 firmware's "Donna Capture" GATT service
  * (6e7c1c00-0000-1000-8000-00805f9b34fb). Handles:
  *   - scanning for "Donna Device"
- *   - reading/writing provisioning characteristics (Wi-Fi SSID/PSK, JWT,
- *     refresh token — JWT/refresh are sent in chunked writes with a marker
- *     byte: 0x01 = continuation, 0x02 = final, 0x00 = reset). Each SSID+PSK
- *     pair is added to the device's saved network list (up to DONNA_WIFI_MAX_NETS);
- *     the device reports `wifi_saved:N` on success.
+ *   - storing the selected BLE peripheral id for reconnect
  *   - subscribing to the framed capture-data indication stream and
  *     reassembling it back into a WAV file
- *   - driving the capture control characteristic with start/ack/delete commands
+ *   - driving the capture control characteristic with start/stop/ack/delete commands
  *
  * The reassembled WAV bytes are delivered to the caller via a callback. The
  * caller is responsible for uploading them (see src/services/capturesApi.ts).
@@ -21,21 +17,12 @@ import { BleManager, Device, Subscription } from 'react-native-ble-plx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const DONNA_SERVICE_UUID        = '6e7c1c00-0000-1000-8000-00805f9b34fb';
-export const DONNA_WIFI_MAX_NETS         = 5;
-const CH_WIFI_SSID                     = '6e7c1c00-0001-1000-8000-00805f9b34fb';
-const CH_WIFI_PSK                      = '6e7c1c00-0002-1000-8000-00805f9b34fb';
-const CH_JWT                          = '6e7c1c00-0003-1000-8000-00805f9b34fb';
-const CH_REFRESH                       = '6e7c1c00-0004-1000-8000-00805f9b34fb';
 const CH_PENDING_COUNT                 = '6e7c1c00-0005-1000-8000-00805f9b34fb';
 const CH_CAPTURE_DATA                  = '6e7c1c00-0006-1000-8000-00805f9b34fb';
 const CH_CAPTURE_CTRL                  = '6e7c1c00-0007-1000-8000-00805f9b34fb';
 const CH_STATUS                        = '6e7c1c00-0008-1000-8000-00805f9b34fb';
 
 const PAIRED_DEVICE_ID_KEY             = 'donna.pairedDeviceId.v1';
-
-// BLE chunked write payload cap (per single Write Request). Leave room for the
-// 1-byte marker prefix.
-const BLE_CHUNK_WRITE_BYTES            = 200;
 
 const ble = new BleManager();
 
@@ -105,25 +92,6 @@ export function scanForDonnaDevices(
 
 // ─── Connect / provision ──────────────────────────────────────────────────
 
-export type ProvisionRequest = {
-  wifiSsid: string;
-  wifiPsk: string;
-  jwt: string;
-  refreshToken: string;
-};
-
-export type WifiProvisionResult = {
-  networkCount: number;
-  status: string;
-};
-
-/** Parse `wifi_saved` or `wifi_saved:N` status strings from the device. */
-export function parseWifiSavedCount(status: string): number | null {
-  if (status === 'wifi_saved') return 1;
-  const match = /^wifi_saved:(\d+)$/.exec(status.trim());
-  return match ? parseInt(match[1], 10) : null;
-}
-
 /** Parse `relay_ready:<reason>:<count>` status strings from the device. */
 export function parseRelayReady(
   status: string,
@@ -134,57 +102,20 @@ export function parseRelayReady(
   return { reason: match[1], count: Number.isFinite(count) ? count : 0 };
 }
 
-async function waitForDeviceStatus(
-  device: Device,
-  predicate: (status: string) => boolean,
-  timeoutMs = 12000,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-
-    const finish = (status: string) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      clearInterval(pollTimer);
-      sub.remove();
-      resolve(status);
-    };
-
-    const fail = (message: string) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      clearInterval(pollTimer);
-      sub.remove();
-      reject(new Error(message));
-    };
-
-    const timer = setTimeout(() => {
-      fail('Timed out waiting for the device to respond.');
-    }, timeoutMs);
-
-    const sub = device.monitorCharacteristicForService(
-      DONNA_SERVICE_UUID, CH_STATUS,
-      (err, char) => {
-        if (settled || err || !char?.value) return;
-        const status = base64ToString(char.value);
-        if (predicate(status)) finish(status);
-      },
-    );
-
-    // Poll as a fallback when another client already consumed the notification.
-    const pollTimer = setInterval(() => {
-      if (settled) return;
-      device.readCharacteristicForService(DONNA_SERVICE_UUID, CH_STATUS)
-        .then(char => {
-          if (settled || !char?.value) return;
-          const status = base64ToString(char.value);
-          if (predicate(status)) finish(status);
-        })
-        .catch(() => {});
-    }, 750);
-  });
+export function parseRelayProgress(
+  status: string,
+): { name: string; sent: number; total: number; percent: number } | null {
+  const match = /^relay_progress:([^:]+):(\d+):(\d+)$/.exec(status.trim());
+  if (!match) return null;
+  const sent = parseInt(match[2], 10);
+  const total = parseInt(match[3], 10);
+  if (!Number.isFinite(sent) || !Number.isFinite(total) || total <= 0) return null;
+  return {
+    name: match[1],
+    sent,
+    total,
+    percent: Math.max(0, Math.min(100, Math.floor((sent * 100) / total))),
+  };
 }
 
 async function connectForProvisioning(deviceId: string): Promise<Device> {
@@ -210,105 +141,12 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function writeWifiCredentials(
-  device: Device,
-  ssid: string,
-  psk: string,
-  onStatus?: StatusHandler,
-): Promise<WifiProvisionResult> {
-  let ignoredStatus: string | null = null;
-  try {
-    const char = await device.readCharacteristicForService(
-      DONNA_SERVICE_UUID, CH_STATUS,
-    );
-    ignoredStatus = base64ToString(char.value ?? '');
-  } catch {
-    // best-effort
-  }
-
-  const statusPromise = waitForDeviceStatus(
-    device,
-    (s) => {
-      if (ignoredStatus && s === ignoredStatus) return false;
-      return parseWifiSavedCount(s) !== null || s === 'wifi_fail';
-    },
-  );
-
-  // Give the status subscription a moment to register before we write.
-  await delay(100);
-
-  // SSID then PSK — the device commits once both halves arrive.
-  await writeStringAsBytes(device, CH_WIFI_SSID, ssid);
-  await writeStringAsBytes(device, CH_WIFI_PSK, psk);
-
-  const status = await statusPromise;
-  onStatus?.(status);
-  if (status === 'wifi_fail') {
-    throw new Error('The device could not save this Wi-Fi network.');
-  }
-  const networkCount = parseWifiSavedCount(status);
-  if (networkCount === null) {
-    throw new Error(`Unexpected device status: ${status}`);
-  }
-  return { networkCount, status };
-}
-
-async function writeStringAsBytes(device: Device, charUuid: string, value: string): Promise<void> {
-  const char = await device.writeCharacteristicWithResponseForService(
-    DONNA_SERVICE_UUID, charUuid,
-    base64FromBytes(stringToBytes(value)),
-  );
-  void char;
-}
-
-async function writeChunkedToken(device: Device, charUuid: string, token: string): Promise<void> {
-  // First byte is a marker:
-  //   0x01 = continuation chunk
-  //   0x02 = final chunk
-  const bytes = stringToBytes(token);
-  let offset = 0;
-  const chunkSize = BLE_CHUNK_WRITE_BYTES - 1;
-  while (offset < bytes.length) {
-    const isFinal = offset + chunkSize >= bytes.length;
-    const end = isFinal ? bytes.length : offset + chunkSize;
-    const chunk = new Uint8Array(end - offset + 1);
-    chunk[0] = isFinal ? 0x02 : 0x01;
-    chunk.set(bytes.subarray(offset, end), 1);
-    await device.writeCharacteristicWithResponseForService(
-      DONNA_SERVICE_UUID, charUuid,
-      base64FromBytes(chunk),
-    );
-    offset = end;
-  }
-  // Edge case: the token is empty. Send a single final empty chunk so the
-  // device commits (length 0 → saveFn(empty) on the device).
-  if (bytes.length === 0) {
-    const chunk = new Uint8Array([0x02]);
-    await device.writeCharacteristicWithResponseForService(
-      DONNA_SERVICE_UUID, charUuid,
-      base64FromBytes(chunk),
-    );
-  }
-}
-
-export async function connectAndProvision(
+/** Pair over BLE. Captures are relayed through this phone; no device Wi-Fi setup. */
+export async function connectAndPairBleOnly(
   deviceId: string,
-  provision: ProvisionRequest,
   onStatus?: StatusHandler,
-): Promise<WifiProvisionResult> {
+): Promise<void> {
   const device = await connectForProvisioning(deviceId);
-
-  const wifiResult = await writeWifiCredentials(
-    device,
-    provision.wifiSsid,
-    provision.wifiPsk,
-    onStatus,
-  );
-
-  // JWT and refresh are sent in chunked writes with a final marker byte.
-  await writeChunkedToken(device, CH_JWT,     provision.jwt);
-  await writeChunkedToken(device, CH_REFRESH, provision.refreshToken);
-
   try {
     const statusChar = await device.readCharacteristicForService(
       DONNA_SERVICE_UUID, CH_STATUS,
@@ -319,22 +157,6 @@ export async function connectAndProvision(
   }
   await device.cancelConnection();
   await setPairedDeviceId(deviceId);
-  return wifiResult;
-}
-
-/** Add a Wi-Fi network to an already-paired device (no JWT re-provisioning). */
-export async function provisionWifiNetwork(
-  deviceId: string,
-  wifiSsid: string,
-  wifiPsk: string,
-  onStatus?: StatusHandler,
-): Promise<WifiProvisionResult> {
-  const device = await connectForProvisioning(deviceId);
-  try {
-    return await writeWifiCredentials(device, wifiSsid, wifiPsk, onStatus);
-  } finally {
-    await device.cancelConnection().catch(() => {});
-  }
 }
 
 // ─── Telemetry session ──────────────────────────────────────────────────────
@@ -354,7 +176,9 @@ export async function startCaptureSession(
   },
 ): Promise<CaptureSession> {
   const device = await ble.connectToDevice(deviceId, { requestMTU: 247 });
+  console.log('[deviceBle] connected', deviceId);
   await device.discoverAllServicesAndCharacteristics();
+  console.log('[deviceBle] discovered services');
 
   const subs: Subscription[] = [];
 
@@ -363,7 +187,11 @@ export async function startCaptureSession(
     device.monitorCharacteristicForService(
       DONNA_SERVICE_UUID, CH_STATUS,
       (err, char) => {
-        if (err || !char?.value) return;
+        if (err) {
+          console.log('[deviceBle] status monitor error', err.message);
+          return;
+        }
+        if (!char?.value) return;
         handlers.onStatus?.(base64ToString(char.value));
       },
     ),
@@ -374,7 +202,11 @@ export async function startCaptureSession(
     device.monitorCharacteristicForService(
       DONNA_SERVICE_UUID, CH_PENDING_COUNT,
       (err, char) => {
-        if (err || !char?.value) return;
+        if (err) {
+          console.log('[deviceBle] pending monitor error', err.message);
+          return;
+        }
+        if (!char?.value) return;
         const b = bytesFromBase64(char.value);
         handlers.onPendingCount?.(b[0] ?? 0);
       },
@@ -386,7 +218,11 @@ export async function startCaptureSession(
     device.monitorCharacteristicForService(
       DONNA_SERVICE_UUID, CH_CAPTURE_DATA,
       (err, char) => {
-        if (err || !char?.value) return;
+        if (err) {
+          console.log('[deviceBle] capture monitor error', err.message);
+          return;
+        }
+        if (!char?.value) return;
         const bytes = bytesFromBase64(char.value);
         if (bytes.length < 1) return;
         const marker = bytes[0];
@@ -397,14 +233,19 @@ export async function startCaptureSession(
           const name = decodeNullPaddedName(bytes.subarray(1, 41));
           let totalBytes = 0;
           if (bytes.length >= 45) {
-            totalBytes =
-              (bytes[41] << 24) | (bytes[42] << 16) | (bytes[43] << 8) | bytes[44];
+            const parsed =
+              ((bytes[41] << 24) >>> 0) + (bytes[42] << 16) + (bytes[43] << 8) + bytes[44];
+            const legacyShifted =
+              ((bytes[40] << 24) >>> 0) + (bytes[41] << 16) + (bytes[42] << 8) + bytes[43];
+            totalBytes = parsed === legacyShifted * 256 ? legacyShifted : parsed;
           }
+          console.log('[deviceBle] capture header', name, totalBytes);
           handlers.onCaptureFrame({ kind: 'header', name, totalBytes });
         } else if (marker === 0x02) {
           handlers.onCaptureFrame({ kind: 'data', bytes: bytes.subarray(1) });
         } else if (marker === 0x03) {
           const name = decodeNullPaddedName(bytes.subarray(1, 41));
+          console.log('[deviceBle] capture end', name);
           handlers.onCaptureFrame({ kind: 'end', name });
         }
       },
@@ -436,7 +277,13 @@ export async function startCaptureSession(
     // best-effort
   }
 
+  // Give iOS a moment to finish enabling CCCDs before the device emits the
+  // header indication. Without this, the device can start while the capture
+  // stream subscription is not fully active yet.
+  await delay(500);
+
   // Kick off the first batch (relay_ready may also trigger start when count > 0).
+  console.log('[deviceBle] sending start');
   await device.writeCharacteristicWithResponseForService(
     DONNA_SERVICE_UUID, CH_CAPTURE_CTRL,
     base64FromBytes(stringToBytes('start')),
@@ -460,6 +307,16 @@ export async function sendStartCommand(session: CaptureSession): Promise<void> {
   await d.writeCharacteristicWithResponseForService(
     DONNA_SERVICE_UUID, CH_CAPTURE_CTRL,
     base64FromBytes(stringToBytes('start')),
+  );
+}
+
+export async function sendStopCommand(session: CaptureSession): Promise<void> {
+  const device = await ble.devices([session.deviceId]);
+  const d = device[0];
+  if (!d) throw new Error('No such device in manager');
+  await d.writeCharacteristicWithResponseForService(
+    DONNA_SERVICE_UUID, CH_CAPTURE_CTRL,
+    base64FromBytes(stringToBytes('stop')),
   );
 }
 

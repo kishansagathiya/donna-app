@@ -77,19 +77,26 @@ export async function uploadCapture(wavBytes: Uint8Array): Promise<CaptureUpload
 
   const sessionId = `device:${randomSessionId()}`;
 
+  const pcmBytes = Math.max(0, wavBytes.length - WAV_HEADER_BYTES);
+  const audioDurationMs = (pcmBytes / (AUDIO_SAMPLE_RATE * AUDIO_CHANNELS * 2)) * 1000;
+  const uploadTimeoutMs = Math.min(300000, Math.max(60000, Math.ceil(audioDurationMs * 2)));
+
   return new Promise<CaptureUploadResult>(resolve => {
     let settled = false;
     let seq = 0;
     let transcript = '';
+    let timeout: ReturnType<typeof setTimeout> | null = null;
     const settleOK = () => {
       if (settled) return;
       settled = true;
+      if (timeout) clearTimeout(timeout);
       try { ws.close(); } catch { /* ignore */ }
       resolve({ ok: true, transcript });
     };
     const settleErr = (msg: string) => {
       if (settled) return;
       settled = true;
+      if (timeout) clearTimeout(timeout);
       try { ws.close(); } catch { /* ignore */ }
       resolve({ ok: false, error: msg });
     };
@@ -157,8 +164,9 @@ export async function uploadCapture(wavBytes: Uint8Array): Promise<CaptureUpload
       }
     };
 
-    // Safety: resolve after 30s even if the server never sends turn.done.
-    setTimeout(() => settleErr('Capture upload timed out.'), 30000);
+    // Safety: resolve if the server never sends turn.done. Longer captures need
+    // more transcription time, but this still prevents hours-long stuck syncs.
+    timeout = setTimeout(() => settleErr('Capture upload timed out.'), uploadTimeoutMs);
   });
 }
 

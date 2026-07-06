@@ -38,10 +38,9 @@ function truncate(s: string, n: number): string {
 type ProfileScreenProps = {
   deviceSync: DeviceSyncStatus & { forgetDevice: () => Promise<void> };
   onPairDevicePress: () => void;
-  onAddWifiPress: () => void;
 };
 
-export function ProfileScreen({ deviceSync, onPairDevicePress, onAddWifiPress }: ProfileScreenProps) {
+export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { session } = useAuth();
@@ -304,10 +303,8 @@ export function ProfileScreen({ deviceSync, onPairDevicePress, onAddWifiPress }:
       <Text style={styles.sectionTitle}>Donna device</Text>
       <Text style={styles.sectionDescription}>
         Pair your Donna hardware capture device. Press its REC button to record,
-        and captures are uploaded to your notes (and memory) over Wi-Fi — or
-        relayed through this phone when the device is offline. You can save up
-        to 5 Wi-Fi networks on the device so it connects at home, work, or on
-        a hotspot.
+        and captures are relayed through this phone over Bluetooth when Donna
+        is open.
       </Text>
       <View style={styles.deviceCard}>
         <Text style={styles.deviceHeading}>
@@ -326,11 +323,6 @@ export function ProfileScreen({ deviceSync, onPairDevicePress, onAddWifiPress }:
             {deviceSync.lastMessage ? ` · ${truncate(deviceSync.lastMessage, 60)}` : ''}
           </Text>
         ) : null}
-        {deviceSync.wifiNetworkCount !== null ? (
-          <Text style={styles.deviceRow}>
-            Saved Wi-Fi networks: {deviceSync.wifiNetworkCount}
-          </Text>
-        ) : null}
         <View style={styles.deviceButtonRow}>
           <Pressable
             style={[styles.button, styles.secondaryButton, (forgetting) && styles.buttonDisabled]}
@@ -344,14 +336,6 @@ export function ProfileScreen({ deviceSync, onPairDevicePress, onAddWifiPress }:
           </Pressable>
           {deviceSync.pairedDeviceId ? (
             <>
-              <Pressable
-                style={[styles.button, styles.secondaryButton, (forgetting) && styles.buttonDisabled]}
-                onPress={onAddWifiPress}
-                disabled={forgetting}
-                accessibilityRole="button"
-              >
-                <Text style={styles.secondaryButtonText}>Add Wi-Fi</Text>
-              </Pressable>
               <Pressable
                 style={[styles.button, styles.destructiveButton, (forgetting) && styles.buttonDisabled]}
                 onPress={async () => {
