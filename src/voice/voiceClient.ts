@@ -45,10 +45,15 @@ export class VoiceClient {
       };
 
       const url = accessToken
-        ? `${this.url}${this.url.includes('?') ? '&' : '?'}token=${encodeURIComponent(accessToken)}`
+        ? `${this.url}${
+            this.url.includes('?') ? '&' : '?'
+          }token=${encodeURIComponent(accessToken)}`
         : this.url;
 
-      console.log('[donna-app] connecting to', url.replace(/token=[^&]+/, 'token=***'));
+      console.log(
+        '[donna-app] connecting to',
+        url.replace(/token=[^&]+/, 'token=***'),
+      );
       const ws = new WebSocket(url);
       this.ws = ws;
 
@@ -64,8 +69,8 @@ export class VoiceClient {
         fail(connectionErrorMessage(this.url));
       };
 
-      ws.onclose = (event) => {
-        const reason = event.reason?.trim();
+      ws.onclose = event => {
+        const reason = event.reason?.trim() ?? '';
         let message: string | null = null;
         if (event.code === 4401) {
           const authMessages: Record<string, string> = {
@@ -75,7 +80,9 @@ export class VoiceClient {
           };
           message =
             authMessages[reason] ??
-            (reason || 'Authentication failed. Please sign in again.');
+            (reason.length > 0
+              ? reason
+              : 'Authentication failed. Please sign in again.');
         } else if (!settled) {
           message = __DEV__
             ? `Voice socket closed before connect (${this.url}, code ${event.code}). Is the voice server running?`
@@ -95,7 +102,7 @@ export class VoiceClient {
         this.ws = null;
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = event => {
         try {
           const message = parseServerMessage(String(event.data));
           this.handlers.onMessage?.(message);

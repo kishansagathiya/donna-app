@@ -1,4 +1,9 @@
-import { AudioContext, AudioManager } from 'react-native-audio-api';
+import {
+  AudioBuffer,
+  AudioBufferSourceNode,
+  AudioContext,
+  AudioManager,
+} from 'react-native-audio-api';
 import { base64ToBytes } from './pcm';
 
 let audioContext: AudioContext | null = null;
@@ -8,6 +13,8 @@ let activeSession: StreamingPlayback | null = null;
 const MIN_PCM_SCHEDULE_BYTES = 4_800;
 const PCM_FADE_SAMPLES = 128;
 const PCM_GAP_FADE_SECONDS = 0.003;
+
+type OwnedBytes = Uint8Array<ArrayBuffer>;
 
 async function getAudioContext(): Promise<AudioContext> {
   if (!audioContext) {
@@ -24,9 +31,22 @@ export type EncodedChunk = {
   channels?: number;
 };
 
-function appendBytes(existing: Uint8Array, chunk: Uint8Array): Uint8Array {
+function copyBytes(bytes: Uint8Array<ArrayBufferLike>): OwnedBytes {
+  const out = new Uint8Array(bytes.length);
+  out.set(bytes);
+  return out;
+}
+
+function emptyBytes(): OwnedBytes {
+  return new Uint8Array(0);
+}
+
+function appendBytes(
+  existing: OwnedBytes,
+  chunk: Uint8Array<ArrayBufferLike>,
+): OwnedBytes {
   if (existing.length === 0) {
-    return chunk;
+    return copyBytes(chunk);
   }
   const out = new Uint8Array(existing.length + chunk.length);
   out.set(existing);
@@ -42,8 +62,8 @@ function applyFadeIn(samples: Float32Array, fadeSamples: number): void {
 }
 
 class StreamingPlayback {
-  private encodedChunks: Uint8Array[] = [];
-  private pendingPcm = new Uint8Array(0);
+  private encodedChunks: OwnedBytes[] = [];
+  private pendingPcm = emptyBytes();
   private format: EncodedChunk['format'] | null = null;
   private pcmSampleRate = 24_000;
   private pcmChannels = 1;
@@ -81,7 +101,7 @@ class StreamingPlayback {
       return;
     }
 
-    this.encodedChunks.push(bytes);
+    this.encodedChunks.push(copyBytes(bytes));
     void this.pumpEncoded();
   }
 
@@ -120,7 +140,7 @@ class StreamingPlayback {
     this.doneResolve = null;
     this.doneReject = null;
     this.encodedChunks = [];
-    this.pendingPcm = new Uint8Array(0);
+    this.pendingPcm = emptyBytes();
   }
 
   private markPlaybackStarted(): void {
@@ -139,8 +159,11 @@ class StreamingPlayback {
     this.resolveDone();
   }
 
-  private concatEncoded(): Uint8Array {
-    const total = this.encodedChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  private concatEncoded(): OwnedBytes {
+    const total = this.encodedChunks.reduce(
+      (sum, chunk) => sum + chunk.length,
+      0,
+    );
     const out = new Uint8Array(total);
     let offset = 0;
     for (const chunk of this.encodedChunks) {
@@ -154,27 +177,31 @@ class StreamingPlayback {
     return 2 * this.pcmChannels;
   }
 
-  private schedulePcmBuffer(ctx: AudioContext, pcm: Uint8Array): void {
+  private schedulePcmBuffer(ctx: AudioContext, pcm: OwnedBytes): void {
     const frameBytes = this.pcmFrameBytes();
     const alignedLength = pcm.length - (pcm.length % frameBytes);
     if (alignedLength === 0) {
       return;
     }
 
-    const aligned = alignedLength === pcm.length ? pcm : pcm.slice(0, alignedLength);
+    const aligned =
+      alignedLength === pcm.length ? pcm : pcm.slice(0, alignedLength);
     const frameSamples = alignedLength / frameBytes;
     const duration = frameSamples / this.pcmSampleRate;
     const startTime = Math.max(ctx.currentTime, this.scheduledEndTime);
     const gap = startTime - this.scheduledEndTime;
-    const needsFadeIn =
-      this.startedPlayback && gap > PCM_GAP_FADE_SECONDS;
+    const needsFadeIn = this.startedPlayback && gap > PCM_GAP_FADE_SECONDS;
 
     const buffer = ctx.createBuffer(
       this.pcmChannels,
       frameSamples,
       this.pcmSampleRate,
     );
-    const view = new DataView(aligned.buffer, aligned.byteOffset, aligned.byteLength);
+    const view = new DataView(
+      aligned.buffer,
+      aligned.byteOffset,
+      aligned.byteLength,
+    );
     for (let ch = 0; ch < this.pcmChannels; ch++) {
       const channel = buffer.getChannelData(ch);
       for (let i = 0; i < frameSamples; i++) {
@@ -217,8 +244,7 @@ class StreamingPlayback {
 
       while (this.pendingPcm.length >= frameBytes) {
         const canFlushAll =
-          this.finished ||
-          this.pendingPcm.length >= MIN_PCM_SCHEDULE_BYTES;
+          this.finished || this.pendingPcm.length >= MIN_PCM_SCHEDULE_BYTES;
         if (!canFlushAll) {
           break;
         }
@@ -229,8 +255,8 @@ class StreamingPlayback {
           break;
         }
 
-        const pcm = this.pendingPcm.slice(0, scheduleBytes);
-        this.pendingPcm = this.pendingPcm.slice(scheduleBytes);
+        const pcm = copyBytes(this.pendingPcm.slice(0, scheduleBytes));
+        this.pendingPcm = copyBytes(this.pendingPcm.slice(scheduleBytes));
         this.schedulePcmBuffer(ctx, pcm);
       }
 

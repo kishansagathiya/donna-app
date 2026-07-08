@@ -26,6 +26,13 @@ import {
   type Note,
   type NoteSummary,
 } from '../services/notesApi';
+import {
+  deleteLocalDeviceCapture,
+  getLocalDeviceCapture,
+  isLocalDeviceNoteId,
+  localCaptureToDetail,
+  parseLocalDeviceNoteId,
+} from '../services/localDeviceCaptures';
 import type { ThemeColors } from '../theme/colors';
 
 type Props = {
@@ -67,11 +74,23 @@ export function NoteDetailScreen({
   const [saving, setSaving] = useState(false);
   const [savingTags, setSavingTags] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isLocalDeviceNote = isLocalDeviceNoteId(noteId);
 
   const loadNote = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      if (isLocalDeviceNote) {
+        const localId = parseLocalDeviceNoteId(noteId);
+        if (!localId) throw new Error('Note not found');
+        const capture = await getLocalDeviceCapture(localId);
+        if (!capture) throw new Error('Note not found');
+        const loaded = localCaptureToDetail(capture);
+        setItem(loaded);
+        setContent(loaded.content);
+        setTags([]);
+        return;
+      }
       const [loaded, tagRes] = await Promise.all([
         getNote(noteId),
         getNoteTags(noteId),
@@ -85,7 +104,7 @@ export function NoteDetailScreen({
     } finally {
       setLoading(false);
     }
-  }, [noteId]);
+  }, [isLocalDeviceNote, noteId]);
 
   useEffect(() => {
     void loadNote();
@@ -133,7 +152,12 @@ export function NoteDetailScreen({
         onPress: () => {
           void (async () => {
             try {
-              await deleteNote(noteId);
+              if (isLocalDeviceNote) {
+                const localId = parseLocalDeviceNoteId(noteId);
+                if (localId) await deleteLocalDeviceCapture(localId);
+              } else {
+                await deleteNote(noteId);
+              }
               onDeleted?.(noteId);
               onClose();
             } catch (err: unknown) {
@@ -218,6 +242,8 @@ export function NoteDetailScreen({
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.flagRow}>
+              {!isLocalDeviceNote ? (
+                <>
               <Pressable
                 style={[
                   styles.flagChip,
@@ -250,6 +276,8 @@ export function NoteDetailScreen({
                   {item.is_important ? 'Important' : 'Not important'}
                 </Text>
               </Pressable>
+                </>
+              ) : null}
             </View>
 
             <Text style={styles.meta}>
@@ -263,6 +291,8 @@ export function NoteDetailScreen({
               <NoteAudioPlayer url={item.audio_url} />
             ) : null}
 
+            {!isLocalDeviceNote ? (
+              <>
             <Text style={styles.sectionLabel}>Tags</Text>
             <View style={styles.tagRow}>
               {tags.map(tag => (
@@ -310,6 +340,8 @@ export function NoteDetailScreen({
                 {extractHashtags(content).length} #tag(s) in note
               </Text>
             ) : null}
+              </>
+            ) : null}
 
             <TextInput
               style={styles.contentInput}
@@ -319,6 +351,7 @@ export function NoteDetailScreen({
               placeholderTextColor={colors.muted}
               multiline
               textAlignVertical="top"
+              editable={!isLocalDeviceNote}
             />
 
             {error ? (
@@ -346,6 +379,7 @@ export function NoteDetailScreen({
             >
               <Text style={styles.deleteButtonText}>Delete</Text>
             </Pressable>
+            {!isLocalDeviceNote ? (
             <Pressable
               style={[styles.saveButton, saving && styles.buttonDisabled]}
               onPress={() => void handleSave()}
@@ -359,6 +393,7 @@ export function NoteDetailScreen({
                 <Text style={styles.saveButtonText}>Save</Text>
               )}
             </Pressable>
+            ) : null}
           </View>
         </KeyboardAvoidingView>
       )}

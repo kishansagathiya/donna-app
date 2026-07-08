@@ -160,13 +160,13 @@ export async function uploadCapture(wavBytes: Uint8Array): Promise<CaptureUpload
         } else if (message.type === 'turn.done') {
           if (message.skipped) {
             settleErr(
-              'Capture was too quiet or unclear to save as a note. It was kept on Donna for retry.',
+              'Capture was too quiet or unclear to save as a cloud note.',
             );
             return;
           }
           if (!transcript.trim()) {
             settleErr(
-              'No speech detected in this capture. It was kept on Donna for retry.',
+              'No speech detected in this capture.',
             );
             return;
           }

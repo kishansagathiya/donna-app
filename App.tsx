@@ -209,9 +209,12 @@ function AppContent() {
           />
         ) : null}
 
-        {tab === 'notes' ? (
-          <NotesScreen notesRefreshToken={deviceSync.notesRefreshToken} />
-        ) : null}
+        <View style={{ flex: 1, display: tab === 'notes' ? 'flex' : 'none' }}>
+          <NotesScreen
+            isVisible={tab === 'notes'}
+            notesRefreshToken={deviceSync.notesRefreshToken}
+          />
+        </View>
 
         {tab === 'memory' ? (
           <MemoryScreen onAddSourcePress={() => setSheetOpen(true)} />

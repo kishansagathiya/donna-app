@@ -22,6 +22,7 @@ import {
   type NoteSummary,
   type TagCount,
 } from '../services/notesApi';
+import { isLocalDeviceNoteId, listLocalDeviceNoteSummaries } from '../services/localDeviceCaptures';
 import type { ThemeColors } from '../theme/colors';
 import { ArrowUpIcon } from '../components/icons';
 import { NoteDetailScreen } from './NoteDetailScreen';
@@ -56,6 +57,8 @@ function NoteCard({
           {note.title}
         </Text>
         <View style={styles.flagActions}>
+          {note.source_type !== 'device' ? (
+            <>
           <Pressable
             onPress={onToggleUrgent}
             hitSlop={8}
@@ -86,6 +89,8 @@ function NoteCard({
               ★
             </Text>
           </Pressable>
+            </>
+          ) : null}
         </View>
       </View>
       {note.preview ? (
@@ -110,7 +115,13 @@ function NoteCard({
   );
 }
 
-export function NotesScreen({ notesRefreshToken = 0 }: { notesRefreshToken?: number }) {
+export function NotesScreen({
+  notesRefreshToken = 0,
+  isVisible = true,
+}: {
+  notesRefreshToken?: number;
+  isVisible?: boolean;
+}) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -134,10 +145,30 @@ export function NotesScreen({ notesRefreshToken = 0 }: { notesRefreshToken?: num
     }
     setError(null);
     try {
-      const batch = await listRecentNotes(PAGE_SIZE, offset);
-      setNotes(prev => (append ? [...prev, ...batch] : batch));
+      const [batch, localSummaries] = await Promise.all([
+        listRecentNotes(PAGE_SIZE, offset),
+        offset === 0 ? listLocalDeviceNoteSummaries() : Promise.resolve([]),
+      ]);
+      const merged = offset === 0
+        ? [...localSummaries, ...batch].sort(
+            (a, b) => new Date(b.note_date).getTime() - new Date(a.note_date).getTime(),
+          )
+        : batch;
+      setNotes(prev => (append ? [...prev, ...merged] : merged));
       setHasMore(batch.length === PAGE_SIZE);
     } catch (err: unknown) {
+      if (offset === 0) {
+        try {
+          const localSummaries = await listLocalDeviceNoteSummaries();
+          if (localSummaries.length > 0) {
+            setNotes(localSummaries);
+            setError(null);
+            return;
+          }
+        } catch {
+          // fall through to server error
+        }
+      }
       setError(err instanceof Error ? err.message : 'Failed to load notes');
       if (!append) {
         setNotes([]);
@@ -163,14 +194,14 @@ export function NotesScreen({ notesRefreshToken = 0 }: { notesRefreshToken?: num
   }, []);
 
   useEffect(() => {
-    if (view !== 'all') {
+    if (!isVisible || view !== 'all' || activeTag) {
       return;
     }
     void loadNotes();
     void listTags(30)
       .then(setTags)
       .catch(() => setTags([]));
-  }, [view, loadNotes, notesRefreshToken]);
+  }, [isVisible, view, activeTag, loadNotes, notesRefreshToken]);
 
   const selectTag = (tag: string | null) => {
     setActiveTag(tag);
@@ -185,6 +216,7 @@ export function NotesScreen({ notesRefreshToken = 0 }: { notesRefreshToken?: num
     note: NoteSummary,
     field: 'is_urgent' | 'is_important',
   ) => {
+    if (isLocalDeviceNoteId(note.id)) return;
     const next = !note[field];
     setNotes(prev =>
       prev.map(item => (item.id === note.id ? { ...item, [field]: next } : item)),

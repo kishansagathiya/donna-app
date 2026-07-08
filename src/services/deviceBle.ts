@@ -10,42 +10,65 @@
  *   - driving the capture control characteristic with start/stop/ack/delete commands
  *
  * The reassembled WAV bytes are delivered to the caller via a callback. The
- * caller is responsible for uploading them (see src/services/capturesApi.ts).
+ * caller saves them on-phone and acks the device; cloud upload is separate
+ * (see localDeviceCaptures.ts and captureUploadQueue.ts).
  */
 
 import { BleManager, Device, Subscription } from 'react-native-ble-plx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const DONNA_SERVICE_UUID        = '6e7c1c00-0000-1000-8000-00805f9b34fb';
-const CH_PENDING_COUNT                 = '6e7c1c00-0005-1000-8000-00805f9b34fb';
-const CH_CAPTURE_DATA                  = '6e7c1c00-0006-1000-8000-00805f9b34fb';
-const CH_CAPTURE_CTRL                  = '6e7c1c00-0007-1000-8000-00805f9b34fb';
-const CH_STATUS                        = '6e7c1c00-0008-1000-8000-00805f9b34fb';
+declare const atob: (data: string) => string;
+declare const btoa: (data: string) => string;
 
-const PAIRED_DEVICE_ID_KEY             = 'donna.pairedDeviceId.v1';
+export const DONNA_SERVICE_UUID = '6e7c1c00-0000-1000-8000-00805f9b34fb';
+const CH_PENDING_COUNT = '6e7c1c00-0005-1000-8000-00805f9b34fb';
+const CH_CAPTURE_DATA = '6e7c1c00-0006-1000-8000-00805f9b34fb';
+const CH_CAPTURE_CTRL = '6e7c1c00-0007-1000-8000-00805f9b34fb';
+const CH_STATUS = '6e7c1c00-0008-1000-8000-00805f9b34fb';
+const CH_SYNC_AP = '6e7c1c00-0009-1000-8000-00805f9b34fb';
 
-const ble = new BleManager({ restoreStateIdentifier: 'donna-ble-central-v1' });
+const PAIRED_DEVICE_ID_KEY = 'donna.pairedDeviceId.v1';
+const CAPTURE_REQUEST_MTU = 185; // 182-byte ATT payload; firmware caps at 180.
+const CAPTURE_CCCD_SETTLE_MS = 750;
+
+const ble = new BleManager({
+  restoreStateIdentifier: 'donna-ble-central-v1',
+  restoreStateFunction: restoredState => {
+    // iOS relaunched us in the background to hand back BLE peripherals.
+    // useDeviceSync re-establishes the session on init; just log here.
+    console.log(
+      '[deviceBle] state restored, peripherals:',
+      restoredState?.connectedPeripherals?.map(p => p.id) ?? [],
+    );
+  },
+});
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
 export type DeviceScan = {
-  id: string;            // iOS-facing peripheral identifier (UUID or MAC)
-  name: string;          // advertisement local name
+  id: string; // iOS-facing peripheral identifier (UUID or MAC)
+  name: string; // advertisement local name
   rssi: number;
 };
 
 export type DeviceStatus = {
   connectionState: 'disconnected' | 'connecting' | 'connected';
   pendingCount: number;
-  status: string;          // raw status string from the device
+  status: string; // raw status string from the device
   pairedDeviceId: string | null;
 };
 
 export type CaptureFrame =
-  | { kind: 'idle' }                                                 // 0x04 — no pending captures
-  | { kind: 'header'; name: string; totalBytes: number }             // 0x01
-  | { kind: 'data'; bytes: Uint8Array }                              // 0x02
-  | { kind: 'end'; name: string };                                   // 0x03
+  | { kind: 'idle' } // 0x04 — no pending captures
+  | { kind: 'header'; name: string; totalBytes: number; format: number } // 0x01
+  | { kind: 'data'; bytes: Uint8Array } // 0x02
+  | { kind: 'end'; name: string }; // 0x03
+
+export type SyncApCredentials = {
+  version: number;
+  ssid: string;
+  psk: string;
+};
 
 export type CaptureFrameHandler = (frame: CaptureFrame) => void;
 export type StatusHandler = (status: string) => void;
@@ -59,7 +82,7 @@ export async function getPairedDeviceId(): Promise<string | null> {
 
 export async function setPairedDeviceId(id: string | null): Promise<void> {
   if (id) await AsyncStorage.setItem(PAIRED_DEVICE_ID_KEY, id);
-  else    await AsyncStorage.removeItem(PAIRED_DEVICE_ID_KEY);
+  else await AsyncStorage.removeItem(PAIRED_DEVICE_ID_KEY);
 }
 
 // ─── Scanning ──────────────────────────────────────────────────────────────
@@ -109,13 +132,57 @@ export function parseRelayProgress(
   if (!match) return null;
   const sent = parseInt(match[2], 10);
   const total = parseInt(match[3], 10);
-  if (!Number.isFinite(sent) || !Number.isFinite(total) || total <= 0) return null;
+  if (!Number.isFinite(sent) || !Number.isFinite(total) || total <= 0)
+    return null;
   return {
     name: match[1],
     sent,
     total,
     percent: Math.max(0, Math.min(100, Math.floor((sent * 100) / total))),
   };
+}
+
+/** Parse `wifi_ap_ready:<ip>:<port>` from device status. */
+export function parseWifiApReady(
+  status: string,
+): { ip: string; port: number } | null {
+  const match = /^wifi_ap_ready:([^:]+):(\d+)$/.exec(status.trim());
+  if (!match) return null;
+  const port = parseInt(match[2], 10);
+  if (!Number.isFinite(port) || port <= 0) return null;
+  return { ip: match[1], port };
+}
+
+/** Firmware protocol statuses — consumed internally, not shown in the UI. */
+export function isInternalDeviceStatus(status: string): boolean {
+  const msg = status.trim();
+  if (!msg) return true;
+  if (msg === 'booting' || msg === 'wifi_ap_stopped') return true;
+  if (msg.startsWith('wifi_ap_ready:')) return true;
+  if (msg.startsWith('wifi_sync_fail:')) return true;
+  if (msg.startsWith('relay_ready:') || msg.startsWith('relay_idle:'))
+    return true;
+  if (msg.startsWith('relay_progress:')) return true;
+  if (msg.startsWith('pending:')) return true;
+  return false;
+}
+
+export function parseSyncApJson(raw: string): SyncApCredentials | null {
+  try {
+    const parsed = JSON.parse(raw.trim()) as {
+      v?: number;
+      ssid?: string;
+      psk?: string;
+    };
+    if (!parsed.ssid || !parsed.psk) return null;
+    return {
+      version: parsed.v ?? 1,
+      ssid: parsed.ssid,
+      psk: parsed.psk,
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function connectForProvisioning(deviceId: string): Promise<Device> {
@@ -125,10 +192,15 @@ async function connectForProvisioning(deviceId: string): Promise<Device> {
 
   const connectMs = 15000;
   const device = await Promise.race([
-    ble.connectToDevice(deviceId, { requestMTU: 247 }),
+    ble.connectToDevice(deviceId, { requestMTU: CAPTURE_REQUEST_MTU }),
     new Promise<never>((_, reject) =>
       setTimeout(
-        () => reject(new Error('Timed out connecting to the device. Move closer and try again.')),
+        () =>
+          reject(
+            new Error(
+              'Timed out connecting to the device. Move closer and try again.',
+            ),
+          ),
         connectMs,
       ),
     ),
@@ -141,22 +213,56 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/** Pair over BLE. Captures are relayed through this phone; no device Wi-Fi setup. */
+/** Pair over BLE and fetch Donna SoftAP credentials for tiered Wi-Fi sync. */
 export async function connectAndPairBleOnly(
   deviceId: string,
   onStatus?: StatusHandler,
-): Promise<void> {
+): Promise<SyncApCredentials | null> {
   const device = await connectForProvisioning(deviceId);
+  let syncAp: SyncApCredentials | null = null;
   try {
     const statusChar = await device.readCharacteristicForService(
-      DONNA_SERVICE_UUID, CH_STATUS,
+      DONNA_SERVICE_UUID,
+      CH_STATUS,
     );
     onStatus?.(base64ToString(statusChar.value ?? ''));
+
+    try {
+      const apChar = await device.readCharacteristicForService(
+        DONNA_SERVICE_UUID,
+        CH_SYNC_AP,
+      );
+      if (apChar.value) {
+        syncAp = parseSyncApJson(base64ToString(apChar.value));
+      }
+    } catch {
+      // Older firmware without CH_SYNC_AP — Wi-Fi fast path unavailable.
+    }
   } catch {
     // status read is best-effort
   }
   await device.cancelConnection();
   await setPairedDeviceId(deviceId);
+  return syncAp;
+}
+
+/** Read Donna SoftAP credentials from a connected peripheral (refreshes after firmware updates). */
+export async function readSyncApCredentialsFromDevice(
+  deviceId: string,
+): Promise<SyncApCredentials | null> {
+  const devices = await ble.devices([deviceId]);
+  const device = devices[0];
+  if (!device) return null;
+  try {
+    const apChar = await device.readCharacteristicForService(
+      DONNA_SERVICE_UUID,
+      CH_SYNC_AP,
+    );
+    if (!apChar.value) return null;
+    return parseSyncApJson(base64ToString(apChar.value));
+  } catch {
+    return null;
+  }
 }
 
 // ─── Telemetry session ──────────────────────────────────────────────────────
@@ -173,19 +279,42 @@ export async function startCaptureSession(
     onCaptureFrame: CaptureFrameHandler;
     onStatus?: StatusHandler;
     onPendingCount?: PendingCountHandler;
+    /**
+     * Fired when the BLE link drops unexpectedly (out of range, device reset,
+     * phone locked long enough for supervision timeout). Not fired for
+     * intentional disconnects via `session.disconnect()`.
+     */
+    onDisconnected?: () => void;
   },
 ): Promise<CaptureSession> {
-  const device = await ble.connectToDevice(deviceId, { requestMTU: 247 });
-  console.log('[deviceBle] connected', deviceId);
+  const device = await ble.connectToDevice(deviceId, {
+    requestMTU: CAPTURE_REQUEST_MTU,
+  });
+  console.log(
+    '[deviceBle] connected',
+    deviceId,
+    'mtu',
+    device.mtu,
+    'requested',
+    CAPTURE_REQUEST_MTU,
+  );
   await device.discoverAllServicesAndCharacteristics();
   console.log('[deviceBle] discovered services');
 
   const subs: Subscription[] = [];
 
+  subs.push(
+    device.onDisconnected(err => {
+      console.log('[deviceBle] disconnected', deviceId, err?.message ?? '');
+      handlers.onDisconnected?.();
+    }),
+  );
+
   // Status notifications
   subs.push(
     device.monitorCharacteristicForService(
-      DONNA_SERVICE_UUID, CH_STATUS,
+      DONNA_SERVICE_UUID,
+      CH_STATUS,
       (err, char) => {
         if (err) {
           console.log('[deviceBle] status monitor error', err.message);
@@ -200,7 +329,8 @@ export async function startCaptureSession(
   // Pending-count notifications
   subs.push(
     device.monitorCharacteristicForService(
-      DONNA_SERVICE_UUID, CH_PENDING_COUNT,
+      DONNA_SERVICE_UUID,
+      CH_PENDING_COUNT,
       (err, char) => {
         if (err) {
           console.log('[deviceBle] pending monitor error', err.message);
@@ -216,7 +346,8 @@ export async function startCaptureSession(
   // Capture-data indications (framed)
   subs.push(
     device.monitorCharacteristicForService(
-      DONNA_SERVICE_UUID, CH_CAPTURE_DATA,
+      DONNA_SERVICE_UUID,
+      CH_CAPTURE_DATA,
       (err, char) => {
         if (err) {
           console.log('[deviceBle] capture monitor error', err.message);
@@ -229,18 +360,33 @@ export async function startCaptureSession(
         if (marker === 0x04) {
           handlers.onCaptureFrame({ kind: 'idle' });
         } else if (marker === 0x01) {
-          // header: bytes 1..40 = name (null-padded), bytes 41..44 = uint32 BE total bytes
+          // header: bytes 1..40 = name, 41..44 = total BE, 45 = format (optional)
           const name = decodeNullPaddedName(bytes.subarray(1, 41));
           let totalBytes = 0;
+          let format = 0;
           if (bytes.length >= 45) {
             const parsed =
-              ((bytes[41] << 24) >>> 0) + (bytes[42] << 16) + (bytes[43] << 8) + bytes[44];
+              ((bytes[41] << 24) >>> 0) +
+              (bytes[42] << 16) +
+              (bytes[43] << 8) +
+              bytes[44];
             const legacyShifted =
-              ((bytes[40] << 24) >>> 0) + (bytes[41] << 16) + (bytes[42] << 8) + bytes[43];
-            totalBytes = parsed === legacyShifted * 256 ? legacyShifted : parsed;
+              ((bytes[40] << 24) >>> 0) +
+              (bytes[41] << 16) +
+              (bytes[42] << 8) +
+              bytes[43];
+            totalBytes =
+              parsed === legacyShifted * 256 ? legacyShifted : parsed;
           }
-          console.log('[deviceBle] capture header', name, totalBytes);
-          handlers.onCaptureFrame({ kind: 'header', name, totalBytes });
+          if (bytes.length >= 46) format = bytes[45];
+          console.log(
+            '[deviceBle] capture header',
+            name,
+            totalBytes,
+            'fmt',
+            format,
+          );
+          handlers.onCaptureFrame({ kind: 'header', name, totalBytes, format });
         } else if (marker === 0x02) {
           handlers.onCaptureFrame({ kind: 'data', bytes: bytes.subarray(1) });
         } else if (marker === 0x03) {
@@ -256,7 +402,8 @@ export async function startCaptureSession(
   // before the subscription registered).
   try {
     const statusChar = await device.readCharacteristicForService(
-      DONNA_SERVICE_UUID, CH_STATUS,
+      DONNA_SERVICE_UUID,
+      CH_STATUS,
     );
     if (statusChar.value) {
       handlers.onStatus?.(base64ToString(statusChar.value));
@@ -267,7 +414,8 @@ export async function startCaptureSession(
 
   try {
     const pendingChar = await device.readCharacteristicForService(
-      DONNA_SERVICE_UUID, CH_PENDING_COUNT,
+      DONNA_SERVICE_UUID,
+      CH_PENDING_COUNT,
     );
     if (pendingChar.value) {
       const b = bytesFromBase64(pendingChar.value);
@@ -277,24 +425,22 @@ export async function startCaptureSession(
     // best-effort
   }
 
-  // Give iOS a moment to finish enabling CCCDs before the device emits the
-  // header indication. Without this, the device can start while the capture
-  // stream subscription is not fully active yet.
-  await delay(500);
-
-  // Kick off the first batch (relay_ready may also trigger start when count > 0).
-  console.log('[deviceBle] sending start');
-  await device.writeCharacteristicWithResponseForService(
-    DONNA_SERVICE_UUID, CH_CAPTURE_CTRL,
-    base64FromBytes(stringToBytes('start')),
-  );
+  // iOS can return the monitor subscription before the peripheral has fully
+  // processed the capture-data CCCD write. If we send `start` too soon, the
+  // device can indicate the header before the app receives indications, which
+  // leaves sync sitting at 0 until retry.
+  await delay(CAPTURE_CCCD_SETTLE_MS);
 
   return {
     deviceId,
     deviceName: device.name ?? 'Donna Device',
     disconnect: async () => {
       subs.forEach(s => s.remove());
-      try { await device.cancelConnection(); } catch { /* ignore */ }
+      try {
+        await device.cancelConnection();
+      } catch {
+        /* ignore */
+      }
     },
   };
 }
@@ -305,7 +451,8 @@ export async function sendStartCommand(session: CaptureSession): Promise<void> {
   const d = device[0];
   if (!d) throw new Error('No such device in manager');
   await d.writeCharacteristicWithResponseForService(
-    DONNA_SERVICE_UUID, CH_CAPTURE_CTRL,
+    DONNA_SERVICE_UUID,
+    CH_CAPTURE_CTRL,
     base64FromBytes(stringToBytes('start')),
   );
 }
@@ -315,28 +462,63 @@ export async function sendStopCommand(session: CaptureSession): Promise<void> {
   const d = device[0];
   if (!d) throw new Error('No such device in manager');
   await d.writeCharacteristicWithResponseForService(
-    DONNA_SERVICE_UUID, CH_CAPTURE_CTRL,
+    DONNA_SERVICE_UUID,
+    CH_CAPTURE_CTRL,
     base64FromBytes(stringToBytes('stop')),
   );
 }
 
-export async function acknowledgeCapture(session: CaptureSession, name: string): Promise<void> {
+export async function acknowledgeCapture(
+  session: CaptureSession,
+  name: string,
+): Promise<void> {
   const device = await ble.devices([session.deviceId]);
   const d = device[0];
   if (!d) throw new Error('No such device in manager');
   await d.writeCharacteristicWithResponseForService(
-    DONNA_SERVICE_UUID, CH_CAPTURE_CTRL,
+    DONNA_SERVICE_UUID,
+    CH_CAPTURE_CTRL,
     base64FromBytes(stringToBytes(`ack ${name}`)),
   );
 }
 
-export async function deleteCapture(session: CaptureSession, name: string): Promise<void> {
+export async function deleteCapture(
+  session: CaptureSession,
+  name: string,
+): Promise<void> {
   const device = await ble.devices([session.deviceId]);
   const d = device[0];
   if (!d) throw new Error('No such device in manager');
   await d.writeCharacteristicWithResponseForService(
-    DONNA_SERVICE_UUID, CH_CAPTURE_CTRL,
+    DONNA_SERVICE_UUID,
+    CH_CAPTURE_CTRL,
     base64FromBytes(stringToBytes(`delete ${name}`)),
+  );
+}
+
+export async function sendWifiSyncCommand(
+  session: CaptureSession,
+): Promise<void> {
+  const device = await ble.devices([session.deviceId]);
+  const d = device[0];
+  if (!d) throw new Error('No such device in manager');
+  await d.writeCharacteristicWithResponseForService(
+    DONNA_SERVICE_UUID,
+    CH_CAPTURE_CTRL,
+    base64FromBytes(stringToBytes('wifi_sync')),
+  );
+}
+
+export async function sendWifiStopCommand(
+  session: CaptureSession,
+): Promise<void> {
+  const device = await ble.devices([session.deviceId]);
+  const d = device[0];
+  if (!d) throw new Error('No such device in manager');
+  await d.writeCharacteristicWithResponseForService(
+    DONNA_SERVICE_UUID,
+    CH_CAPTURE_CTRL,
+    base64FromBytes(stringToBytes('wifi_stop')),
   );
 }
 
@@ -374,7 +556,10 @@ function stringToBytes(s: string): Uint8Array {
 function decodeNullPaddedName(bytes: Uint8Array): string {
   let len = bytes.length;
   for (let i = 0; i < bytes.length; i++) {
-    if (bytes[i] === 0) { len = i; break; }
+    if (bytes[i] === 0) {
+      len = i;
+      break;
+    }
   }
   let s = '';
   for (let i = 0; i < len; i++) s += String.fromCharCode(bytes[i]);

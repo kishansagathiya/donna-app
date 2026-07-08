@@ -302,9 +302,10 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
 
       <Text style={styles.sectionTitle}>Donna device</Text>
       <Text style={styles.sectionDescription}>
-        Pair your Donna hardware capture device. Press its REC button to record,
-        and captures are relayed through this phone over Bluetooth when Donna
-        is open.
+        Pair your Donna hardware capture device once. Press REC to record — notes
+        sync automatically when your phone is nearby. Fast Wi-Fi sync runs when
+        the app is open; Bluetooth relay continues in the background when your
+        phone is locked.
       </Text>
       <View style={styles.deviceCard}>
         <Text style={styles.deviceHeading}>
@@ -317,10 +318,20 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
         <Text style={styles.deviceRow}>
           Pending captures: {deviceSync.pendingCount}
         </Text>
-        {deviceSync.uploadState !== 'idle' ? (
+        {deviceSync.syncProgress ? (
           <Text style={styles.deviceRow}>
-            Upload: {deviceSync.uploadState}
-            {deviceSync.lastMessage ? ` · ${truncate(deviceSync.lastMessage, 60)}` : ''}
+            Syncing {deviceSync.syncProgress.synced}/{deviceSync.syncProgress.total} from Donna
+            {deviceSync.syncPath !== 'idle' ? ` (${deviceSync.syncPath})` : ''}
+          </Text>
+        ) : null}
+        {deviceSync.lastMessage ? (
+          <Text style={styles.deviceRow}>
+            {truncate(deviceSync.lastMessage, 80)}
+          </Text>
+        ) : null}
+        {deviceSync.uploadState === 'failed' && !deviceSync.syncProgress ? (
+          <Text style={[styles.deviceRow, { color: colors.destructive }]}>
+            Sync issue — will retry automatically
           </Text>
         ) : null}
         <View style={styles.deviceButtonRow}>
