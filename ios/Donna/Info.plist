@@ -26,29 +26,6 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<false/>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>192.168.4.1</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-			</dict>
-		</dict>
-	</dict>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Donna connects to your capture device over the local network to sync voice notes quickly over Wi-Fi.</string>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_donna-sync._tcp</string>
-	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Donna uses your microphone to record your voice when you tap the mic button. For example, when you ask "What's on my mind about that project?", your speech is sent to our servers and third-party AI services to transcribe your question and generate a spoken reply.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

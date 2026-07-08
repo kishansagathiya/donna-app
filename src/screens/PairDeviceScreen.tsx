@@ -28,7 +28,6 @@ import {
   scanForDonnaDevices,
   connectAndPairBleOnly,
 } from '../services/deviceBle';
-import { saveSyncApCredentials } from '../services/deviceSyncCredentials';
 
 type Phase = 'scanning' | 'ready' | 'pairing' | 'done';
 
@@ -73,10 +72,7 @@ export function PairDeviceScreen({
     setStatus('Pairing…');
     try {
       await onBeforeBleProvision?.();
-      const syncAp = await connectAndPairBleOnly(selected.id, s => setStatus(s || ''));
-      if (syncAp) {
-        await saveSyncApCredentials(selected.id, syncAp);
-      }
+      await connectAndPairBleOnly(selected.id, s => setStatus(s || ''));
       setStatus('Paired.');
       setPhase('done');
     } catch (err) {
@@ -208,8 +204,7 @@ export function PairDeviceScreen({
               <Text style={styles.doneTitle}>All set</Text>
               <Text style={styles.hint}>
                 Your Donna device is paired. Record a capture anytime — notes
-                sync automatically when your phone is nearby. Fast Wi-Fi sync runs
-                when Donna is open; Bluetooth relay continues in the background.
+                sync automatically over Bluetooth when your phone is nearby.
               </Text>
               <Pressable style={styles.primaryButton} onPress={onClose}>
                 <Text style={styles.primaryButtonText}>Done</Text>

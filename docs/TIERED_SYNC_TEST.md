@@ -1,50 +1,53 @@
-# Tiered Donna Sync — manual test matrix
+# Donna Device Sync — manual test matrix
 
-Flash updated firmware from `donna-hardware` before testing Wi-Fi / Opus paths.
+Flash updated firmware from `donna-hardware` before testing the BLE capture path.
+The app sync path is Bluetooth-only; the old Wi-Fi SoftAP path is no longer part
+of normal app sync.
 
 ## Prerequisites
 
-- iPhone with Donna app build 42+
-- Donna device with tiered-sync firmware
+- iPhone with the latest Donna app build
+- Donna device with the BLE notification relay firmware
 - Bluetooth on, signed into Donna
 - Do **not** force-quit the app between tests
 
-## 1. Pairing (no Wi-Fi password)
+## 1. Pairing
 
 1. Profile → Pair device → select Donna Device
-2. Confirm success screen mentions automatic sync
+2. Confirm success screen mentions automatic Bluetooth sync
 3. Re-open Profile — device shows paired
 
-**Pass:** No SSID/password fields; pairing completes.
+**Pass:** Pairing completes without SSID/password prompts.
 
-## 2. Foreground Wi-Fi fast sync
+## 2. Foreground BLE sync
 
 1. Record ~30s on Donna (REC → release)
-2. Keep Donna app **open** in foreground
+2. Keep Donna app open in foreground
 3. Wait for sync
 
-**Pass:** Profile shows `wifi` sync path; note appears in &lt;15s.
+**Pass:** Profile shows `ble` sync path; note appears quickly.
 
-## 3. Locked-phone BLE fallback
+## 3. Locked-phone BLE reconnect
 
 1. Record on Donna
-2. **Lock iPhone** (app in background)
+2. Lock iPhone with the app in the background
 3. Wait 1–3 min
 
-**Pass:** Note appears without unlocking; may show `ble` path when app reopened.
+**Pass:** Note appears without unlocking, or sync resumes automatically when the
+phone and device reconnect.
 
-## 4. Wi-Fi join dismissed
+## 4. Multiple pending notes
 
-1. Record on Donna with app open
-2. If iOS shows “Join network” / “No internet”, tap **Cancel**
-3. Wait
+1. Record three notes while the phone is away or locked
+2. Bring the phone near Donna and open the app
+3. Wait for all pending notes to drain
 
-**Pass:** Sync still completes via BLE (slower).
+**Pass:** All notes sync once, pending count reaches zero, no duplicates appear.
 
 ## 5. Out of range mid-sync
 
 1. Start sync with a long recording
-2. Walk out of Bluetooth range briefly, return
+2. Walk out of Bluetooth range briefly, then return
 
 **Pass:** Capture stays on device; sync retries; no duplicate notes.
 
@@ -53,12 +56,11 @@ Flash updated firmware from `donna-hardware` before testing Wi-Fi / Opus paths.
 1. Profile → Forget device
 2. Pair again
 
-**Pass:** Old Wi-Fi creds cleared; re-pair fetches new SoftAP password.
+**Pass:** The app reconnects to the new paired peripheral and BLE sync resumes.
 
 ## 7. Opus BLE path (firmware with libopus)
 
-1. Record on device; wait for encode (few seconds on device)
-2. Lock phone or dismiss Wi-Fi join
-3. Sync over BLE
+1. Record on device; wait for encode if enabled
+2. Sync over Bluetooth
 
-**Pass:** Shorter BLE transfer vs raw WAV on same-length clip.
+**Pass:** Shorter BLE transfer vs raw WAV on the same-length clip.

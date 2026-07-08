@@ -40,7 +40,10 @@ type ProfileScreenProps = {
   onPairDevicePress: () => void;
 };
 
-export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenProps) {
+export function ProfileScreen({
+  deviceSync,
+  onPairDevicePress,
+}: ProfileScreenProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const { session } = useAuth();
@@ -56,7 +59,8 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
   const [persona, setPersona] = useState('companion');
   const [personaCustom, setPersonaCustom] = useState('');
   const [savingPersona, setSavingPersona] = useState(false);
-  const busy = signingOut || deleting || savingModel || savingPersona || exporting;
+  const busy =
+    signingOut || deleting || savingModel || savingPersona || exporting;
 
   const email = session?.user.email ?? '';
   const name =
@@ -146,7 +150,9 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
     } catch (error) {
       Alert.alert(
         'Download Failed',
-        error instanceof Error ? error.message : 'Could not download your data.',
+        error instanceof Error
+          ? error.message
+          : 'Could not download your data.',
       );
     } finally {
       setExporting(false);
@@ -227,7 +233,10 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
             return (
               <Pressable
                 key={model}
-                style={[styles.modelOption, selected && styles.modelOptionSelected]}
+                style={[
+                  styles.modelOption,
+                  selected && styles.modelOptionSelected,
+                ]}
                 onPress={() => void handleModelChange(model)}
                 disabled={busy}
                 accessibilityRole="radio"
@@ -251,7 +260,10 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
           return (
             <Pressable
               key={p}
-              style={[styles.modelOption, selected && styles.modelOptionSelected]}
+              style={[
+                styles.modelOption,
+                selected && styles.modelOptionSelected,
+              ]}
               onPress={() => void handlePersonaChange(p)}
               disabled={busy}
               accessibilityRole="radio"
@@ -281,10 +293,7 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
             editable={!busy}
           />
           <Pressable
-            style={[
-              styles.primaryButton,
-              busy && styles.buttonDisabled,
-            ]}
+            style={[styles.primaryButton, busy && styles.buttonDisabled]}
             onPress={() => void handlePersonaCustomSave()}
             disabled={busy || savingPersona}
             accessibilityRole="button"
@@ -302,10 +311,9 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
 
       <Text style={styles.sectionTitle}>Donna device</Text>
       <Text style={styles.sectionDescription}>
-        Pair your Donna hardware capture device once. Press REC to record — notes
-        sync automatically when your phone is nearby. Fast Wi-Fi sync runs when
-        the app is open; Bluetooth relay continues in the background when your
-        phone is locked.
+        Pair your Donna hardware capture device once. Press REC to record —
+        notes sync automatically over Bluetooth when your phone is nearby,
+        including reconnects and batches of pending notes.
       </Text>
       <View style={styles.deviceCard}>
         <Text style={styles.deviceHeading}>
@@ -313,14 +321,17 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
         </Text>
         <Text style={styles.deviceRow}>
           State: {deviceSync.connectionState}
-          {deviceSync.pairedDeviceId ? ` · ${shortenId(deviceSync.pairedDeviceId)}` : ''}
+          {deviceSync.pairedDeviceId
+            ? ` · ${shortenId(deviceSync.pairedDeviceId)}`
+            : ''}
         </Text>
         <Text style={styles.deviceRow}>
           Pending captures: {deviceSync.pendingCount}
         </Text>
         {deviceSync.syncProgress ? (
           <Text style={styles.deviceRow}>
-            Syncing {deviceSync.syncProgress.synced}/{deviceSync.syncProgress.total} from Donna
+            Syncing {deviceSync.syncProgress.synced}/
+            {deviceSync.syncProgress.total} from Donna
             {deviceSync.syncPath !== 'idle' ? ` (${deviceSync.syncPath})` : ''}
           </Text>
         ) : null}
@@ -336,19 +347,29 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
         ) : null}
         <View style={styles.deviceButtonRow}>
           <Pressable
-            style={[styles.button, styles.secondaryButton, (forgetting) && styles.buttonDisabled]}
+            style={[
+              styles.button,
+              styles.secondaryButton,
+              forgetting && styles.buttonDisabled,
+            ]}
             onPress={onPairDevicePress}
             disabled={forgetting}
             accessibilityRole="button"
           >
             <Text style={styles.secondaryButtonText}>
-              {deviceSync.pairedDeviceId ? 'Pair different device' : 'Pair device'}
+              {deviceSync.pairedDeviceId
+                ? 'Pair different device'
+                : 'Pair device'}
             </Text>
           </Pressable>
           {deviceSync.pairedDeviceId ? (
             <>
               <Pressable
-                style={[styles.button, styles.destructiveButton, (forgetting) && styles.buttonDisabled]}
+                style={[
+                  styles.button,
+                  styles.destructiveButton,
+                  forgetting && styles.buttonDisabled,
+                ]}
                 onPress={async () => {
                   Alert.alert(
                     'Forget this device?',
@@ -365,7 +386,9 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
                           } catch (err) {
                             Alert.alert(
                               'Could not forget',
-                              err instanceof Error ? err.message : 'Please try again.',
+                              err instanceof Error
+                                ? err.message
+                                : 'Please try again.',
                             );
                           } finally {
                             setForgetting(false);
@@ -394,7 +417,11 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
         Download a ZIP of your conversations, notes, and uploaded files.
       </Text>
       <Pressable
-        style={[styles.button, styles.secondaryButton, busy && styles.buttonDisabled]}
+        style={[
+          styles.button,
+          styles.secondaryButton,
+          busy && styles.buttonDisabled,
+        ]}
         onPress={() => void handleExport()}
         disabled={busy}
         accessibilityRole="button"
@@ -407,7 +434,11 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
       </Pressable>
 
       <Pressable
-        style={[styles.button, styles.secondaryButton, busy && styles.buttonDisabled]}
+        style={[
+          styles.button,
+          styles.secondaryButton,
+          busy && styles.buttonDisabled,
+        ]}
         onPress={() => void handleSignOut()}
         disabled={busy}
         accessibilityRole="button"
@@ -420,7 +451,11 @@ export function ProfileScreen({ deviceSync, onPairDevicePress }: ProfileScreenPr
       </Pressable>
 
       <Pressable
-        style={[styles.button, styles.destructiveButton, busy && styles.buttonDisabled]}
+        style={[
+          styles.button,
+          styles.destructiveButton,
+          busy && styles.buttonDisabled,
+        ]}
         onPress={confirmDelete}
         disabled={busy}
         accessibilityRole="button"

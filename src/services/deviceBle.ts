@@ -25,7 +25,6 @@ const CH_PENDING_COUNT = '6e7c1c00-0005-1000-8000-00805f9b34fb';
 const CH_CAPTURE_DATA = '6e7c1c00-0006-1000-8000-00805f9b34fb';
 const CH_CAPTURE_CTRL = '6e7c1c00-0007-1000-8000-00805f9b34fb';
 const CH_STATUS = '6e7c1c00-0008-1000-8000-00805f9b34fb';
-const CH_SYNC_AP = '6e7c1c00-0009-1000-8000-00805f9b34fb';
 
 const PAIRED_DEVICE_ID_KEY = 'donna.pairedDeviceId.v1';
 const CAPTURE_REQUEST_MTU = 185; // 182-byte ATT payload; firmware caps at 180.
@@ -63,12 +62,6 @@ export type CaptureFrame =
   | { kind: 'header'; name: string; totalBytes: number; format: number } // 0x01
   | { kind: 'data'; bytes: Uint8Array } // 0x02
   | { kind: 'end'; name: string }; // 0x03
-
-export type SyncApCredentials = {
-  version: number;
-  ssid: string;
-  psk: string;
-};
 
 export type CaptureFrameHandler = (frame: CaptureFrame) => void;
 export type StatusHandler = (status: string) => void;
@@ -142,47 +135,16 @@ export function parseRelayProgress(
   };
 }
 
-/** Parse `wifi_ap_ready:<ip>:<port>` from device status. */
-export function parseWifiApReady(
-  status: string,
-): { ip: string; port: number } | null {
-  const match = /^wifi_ap_ready:([^:]+):(\d+)$/.exec(status.trim());
-  if (!match) return null;
-  const port = parseInt(match[2], 10);
-  if (!Number.isFinite(port) || port <= 0) return null;
-  return { ip: match[1], port };
-}
-
 /** Firmware protocol statuses — consumed internally, not shown in the UI. */
 export function isInternalDeviceStatus(status: string): boolean {
   const msg = status.trim();
   if (!msg) return true;
-  if (msg === 'booting' || msg === 'wifi_ap_stopped') return true;
-  if (msg.startsWith('wifi_ap_ready:')) return true;
-  if (msg.startsWith('wifi_sync_fail:')) return true;
+  if (msg === 'booting') return true;
   if (msg.startsWith('relay_ready:') || msg.startsWith('relay_idle:'))
     return true;
   if (msg.startsWith('relay_progress:')) return true;
   if (msg.startsWith('pending:')) return true;
   return false;
-}
-
-export function parseSyncApJson(raw: string): SyncApCredentials | null {
-  try {
-    const parsed = JSON.parse(raw.trim()) as {
-      v?: number;
-      ssid?: string;
-      psk?: string;
-    };
-    if (!parsed.ssid || !parsed.psk) return null;
-    return {
-      version: parsed.v ?? 1,
-      ssid: parsed.ssid,
-      psk: parsed.psk,
-    };
-  } catch {
-    return null;
-  }
 }
 
 async function connectForProvisioning(deviceId: string): Promise<Device> {
@@ -213,56 +175,23 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/** Pair over BLE and fetch Donna SoftAP credentials for tiered Wi-Fi sync. */
+/** Pair over BLE and store the selected Donna peripheral id. */
 export async function connectAndPairBleOnly(
   deviceId: string,
   onStatus?: StatusHandler,
-): Promise<SyncApCredentials | null> {
+): Promise<void> {
   const device = await connectForProvisioning(deviceId);
-  let syncAp: SyncApCredentials | null = null;
   try {
     const statusChar = await device.readCharacteristicForService(
       DONNA_SERVICE_UUID,
       CH_STATUS,
     );
     onStatus?.(base64ToString(statusChar.value ?? ''));
-
-    try {
-      const apChar = await device.readCharacteristicForService(
-        DONNA_SERVICE_UUID,
-        CH_SYNC_AP,
-      );
-      if (apChar.value) {
-        syncAp = parseSyncApJson(base64ToString(apChar.value));
-      }
-    } catch {
-      // Older firmware without CH_SYNC_AP — Wi-Fi fast path unavailable.
-    }
   } catch {
     // status read is best-effort
   }
   await device.cancelConnection();
   await setPairedDeviceId(deviceId);
-  return syncAp;
-}
-
-/** Read Donna SoftAP credentials from a connected peripheral (refreshes after firmware updates). */
-export async function readSyncApCredentialsFromDevice(
-  deviceId: string,
-): Promise<SyncApCredentials | null> {
-  const devices = await ble.devices([deviceId]);
-  const device = devices[0];
-  if (!device) return null;
-  try {
-    const apChar = await device.readCharacteristicForService(
-      DONNA_SERVICE_UUID,
-      CH_SYNC_AP,
-    );
-    if (!apChar.value) return null;
-    return parseSyncApJson(base64ToString(apChar.value));
-  } catch {
-    return null;
-  }
 }
 
 // ─── Telemetry session ──────────────────────────────────────────────────────
@@ -493,32 +422,6 @@ export async function deleteCapture(
     DONNA_SERVICE_UUID,
     CH_CAPTURE_CTRL,
     base64FromBytes(stringToBytes(`delete ${name}`)),
-  );
-}
-
-export async function sendWifiSyncCommand(
-  session: CaptureSession,
-): Promise<void> {
-  const device = await ble.devices([session.deviceId]);
-  const d = device[0];
-  if (!d) throw new Error('No such device in manager');
-  await d.writeCharacteristicWithResponseForService(
-    DONNA_SERVICE_UUID,
-    CH_CAPTURE_CTRL,
-    base64FromBytes(stringToBytes('wifi_sync')),
-  );
-}
-
-export async function sendWifiStopCommand(
-  session: CaptureSession,
-): Promise<void> {
-  const device = await ble.devices([session.deviceId]);
-  const d = device[0];
-  if (!d) throw new Error('No such device in manager');
-  await d.writeCharacteristicWithResponseForService(
-    DONNA_SERVICE_UUID,
-    CH_CAPTURE_CTRL,
-    base64FromBytes(stringToBytes('wifi_stop')),
   );
 }
 

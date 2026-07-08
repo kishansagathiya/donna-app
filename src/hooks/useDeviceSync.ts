@@ -1,6 +1,6 @@
 /**
  * useDeviceSync — auto-connects to the user's paired Donna Device and drains
- * pending captures over Wi-Fi or BLE into on-phone storage. Hardware sync
+ * pending captures over Bluetooth into on-phone storage. Hardware sync
  * completes when the WAV is saved locally and the device is acked. Cloud
  * upload runs separately via captureUploadQueue.ts.
  *
@@ -32,14 +32,12 @@ import {
   startCaptureSession,
   sendStartCommand,
   sendStopCommand,
-  sendWifiStopCommand,
   acknowledgeCapture,
   getPairedDeviceId,
   setPairedDeviceId,
   scanForDonnaDevices,
   parseRelayReady,
   parseRelayProgress,
-  readSyncApCredentialsFromDevice,
   isInternalDeviceStatus,
 } from '../services/deviceBle';
 import { captureBytesToWav } from '../services/captureAudio';
@@ -48,14 +46,8 @@ import {
   onCaptureUploadComplete,
 } from '../services/captureUploadQueue';
 import { saveDeviceCapture } from '../services/localDeviceCaptures';
-import {
-  clearSyncApCredentials,
-  getSyncApCredentials,
-  saveSyncApCredentials,
-} from '../services/deviceSyncCredentials';
-import { runWifiCaptureSync } from '../services/deviceWifiSync';
 
-export type SyncPath = 'idle' | 'wifi' | 'ble';
+export type SyncPath = 'idle' | 'ble';
 
 export type DeviceConnectionState =
   | 'disconnected'
@@ -92,12 +84,6 @@ const initial: DeviceSyncStatus = {
   syncProgress: null,
   lastMessage: null,
   notesRefreshToken: 0,
-};
-
-type StatusWaiter = {
-  predicate: (msg: string) => boolean;
-  resolve: (msg: string | null) => void;
-  timer: ReturnType<typeof setTimeout>;
 };
 
 type InflightCapture = {
@@ -150,10 +136,6 @@ export function useDeviceSync(): DeviceSyncStatus & {
   const inflightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bleStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const statusWaitersRef = useRef<StatusWaiter[]>([]);
-  const wifiBusyRef = useRef(false);
-  /** After Wi-Fi transport fails, stick to BLE until the next device connect. */
-  const blePreferredRef = useRef(false);
   const drainLockRef = useRef(false);
   const bleStartPendingRef = useRef(false);
   const statusClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -169,12 +151,10 @@ export function useDeviceSync(): DeviceSyncStatus & {
       reconnectTimerRef.current = null;
     }
     if (sessionRef.current) {
-      await sendWifiStopCommand(sessionRef.current).catch(() => {});
       await sessionRef.current.disconnect().catch(() => {});
       sessionRef.current = null;
     }
     await setPairedDeviceId(null);
-    await clearSyncApCredentials();
     setStatus(s => ({
       ...s,
       pairedDeviceId: null,
@@ -241,36 +221,6 @@ export function useDeviceSync(): DeviceSyncStatus & {
       }, INFLIGHT_STALL_MS);
     }
 
-    function notifyStatusWaiters(msg: string) {
-      const waiters = statusWaitersRef.current;
-      if (waiters.length === 0) return;
-      const remaining: StatusWaiter[] = [];
-      for (const w of waiters) {
-        if (w.predicate(msg)) {
-          clearTimeout(w.timer);
-          w.resolve(msg);
-        } else {
-          remaining.push(w);
-        }
-      }
-      statusWaitersRef.current = remaining;
-    }
-
-    function waitForStatus(
-      predicate: (msg: string) => boolean,
-      timeoutMs: number,
-    ): Promise<string | null> {
-      return new Promise(resolve => {
-        const timer = setTimeout(() => {
-          statusWaitersRef.current = statusWaitersRef.current.filter(
-            w => w.timer !== timer,
-          );
-          resolve(null);
-        }, timeoutMs);
-        statusWaitersRef.current.push({ predicate, resolve, timer });
-      });
-    }
-
     function clearStatusLater() {
       if (statusClearTimerRef.current)
         clearTimeout(statusClearTimerRef.current);
@@ -318,7 +268,6 @@ export function useDeviceSync(): DeviceSyncStatus & {
       if (
         !session ||
         inflightRef.current ||
-        wifiBusyRef.current ||
         drainLockRef.current ||
         bleStartPendingRef.current
       ) {
@@ -326,130 +275,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
       }
       drainLockRef.current = true;
       try {
-        const creds = await getSyncApCredentials(session.deviceId);
-        const preferWifi =
-          AppState.currentState === 'active' &&
-          creds !== null &&
-          !blePreferredRef.current;
-
-        if (!preferWifi) {
-          const reason =
-            AppState.currentState !== 'active'
-              ? 'app backgrounded'
-              : 'no Wi-Fi credentials — open Pair device to refresh';
-          console.log('[useDeviceSync] using BLE:', reason);
-        }
-
-        if (preferWifi) {
-          wifiBusyRef.current = true;
-          let scheduleAnother = false;
-          let fallbackToBle = false;
-          setStatus(s => {
-            const total = Math.max(1, s.pendingCount || 1);
-            return {
-              ...s,
-              syncPath: 'wifi',
-              uploadState: 'uploading',
-              syncProgress: { synced: 0, total },
-              lastMessage: `Syncing 0/${total} from Donna…`,
-            };
-          });
-          try {
-            const outcome = await runWifiCaptureSync(session, {
-              waitStatus: waitForStatus,
-              onProgress: p => {
-                if (cancelled) return;
-                const label =
-                  p.phase === 'joining'
-                    ? 'Joining Donna Wi-Fi…'
-                    : p.phase === 'downloading'
-                    ? `Downloading ${p.captureName ?? 'capture'}${
-                        p.index && p.total ? ` (${p.index}/${p.total})` : ''
-                      }…`
-                    : `Saving ${p.captureName ?? 'capture'}${
-                        p.index && p.total ? ` (${p.index}/${p.total})` : ''
-                      }…`;
-                setStatus(s => ({
-                  ...s,
-                  syncPath: 'wifi',
-                  uploadState: 'uploading',
-                  lastMessage: label,
-                }));
-              },
-              onCaptureSaved: () => {
-                onHardwareCaptureSaved();
-              },
-            });
-            if (outcome !== null) {
-              blePreferredRef.current = false;
-              if (outcome.synced > 0) {
-                scheduleAnother = true;
-                finishHardwareSync(
-                  `${outcome.synced} note${
-                    outcome.synced === 1 ? '' : 's'
-                  } synced from Donna`,
-                );
-                scheduleCaptureUploads();
-              } else {
-                setStatus(s => ({
-                  ...s,
-                  syncPath: 'idle',
-                  uploadState: 'idle',
-                  syncProgress: null,
-                  lastMessage: null,
-                }));
-              }
-            }
-          } catch (err) {
-            const message =
-              err instanceof Error ? err.message : 'Wi-Fi sync failed.';
-            console.log(
-              '[useDeviceSync] Wi-Fi sync failed, falling back to BLE',
-              err,
-            );
-            const isTransportFailure =
-              /join|hotspot|could not reach|local network|timed out|device list|download failed|probe/i.test(
-                message,
-              );
-            if (isTransportFailure) {
-              blePreferredRef.current = true;
-              fallbackToBle = true;
-              setStatus(s => ({
-                ...s,
-                syncPath: 'ble',
-                uploadState: 'uploading',
-                syncProgress: null,
-                lastMessage:
-                  'Wi-Fi unavailable — syncing over Bluetooth instead…',
-              }));
-            } else {
-              setStatus(s => ({
-                ...s,
-                syncPath: 'idle',
-                uploadState: 'failed',
-                syncProgress: null,
-                lastMessage: message,
-              }));
-            }
-          } finally {
-            wifiBusyRef.current = false;
-            if (scheduleAnother && !cancelled) {
-              setTimeout(() => drainPending(), 200);
-            } else if (fallbackToBle && !cancelled) {
-              markBleStartPending();
-              sendStartCommand(session).catch(startErr => {
-                clearBleStartPending();
-                console.log(
-                  '[useDeviceSync] BLE fallback start failed',
-                  startErr,
-                );
-              });
-              setTimeout(() => maybeStartDrain(), 200);
-            }
-          }
-          return;
-        }
-
+        console.log('[useDeviceSync] using BLE sync');
         setStatus(s => {
           const total = Math.max(1, s.pendingCount || 1);
           return {
@@ -471,13 +297,11 @@ export function useDeviceSync(): DeviceSyncStatus & {
     }
 
     function maybeStartDrain() {
-      if (wifiBusyRef.current) return;
       void drainPending();
     }
 
     const handleStatus: StatusHandler = msg => {
       if (cancelled) return;
-      notifyStatusWaiters(msg);
       const relayReady = parseRelayReady(msg);
       if (relayReady !== null) {
         setStatus(s => ({ ...s, pendingCount: relayReady.count }));
@@ -701,7 +525,6 @@ export function useDeviceSync(): DeviceSyncStatus & {
       connectingRef.current = true;
       setStatus(s => ({ ...s, connectionState: 'connecting' }));
       try {
-        blePreferredRef.current = false;
         clearBleStartPending();
         const session = await startCaptureSession(deviceId, {
           onCaptureFrame: handleFrame,
@@ -717,18 +540,6 @@ export function useDeviceSync(): DeviceSyncStatus & {
           return;
         }
         sessionRef.current = session;
-
-        // Refresh SoftAP creds from the device on every connect — firmware flash
-        // or NVS reset can rotate them without a full re-pair.
-        const syncAp = await readSyncApCredentialsFromDevice(deviceId);
-        if (syncAp) {
-          await saveSyncApCredentials(deviceId, syncAp);
-          console.log('[useDeviceSync] refreshed Wi-Fi sync credentials');
-        } else {
-          console.log(
-            '[useDeviceSync] no CH_SYNC_AP on device — Wi-Fi sync unavailable',
-          );
-        }
 
         setStatus(s => ({
           ...s,
@@ -820,8 +631,6 @@ export function useDeviceSync(): DeviceSyncStatus & {
         clearTimeout(statusClearTimerRef.current);
         statusClearTimerRef.current = null;
       }
-      for (const w of statusWaitersRef.current) clearTimeout(w.timer);
-      statusWaitersRef.current = [];
       sub.remove();
       uploadSub();
       authSub.data.subscription.unsubscribe();
