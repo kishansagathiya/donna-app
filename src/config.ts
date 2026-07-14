@@ -21,6 +21,20 @@ export const DEV_EMAIL: string | null = null;
 export const DEV_PASSWORD: string | null = null;
 
 /**
+ * Google Sign-In (native ID token → Supabase).
+ *
+ * Create OAuth clients in Google Cloud Console:
+ * - Web application → paste Client ID here as GOOGLE_WEB_CLIENT_ID (also used in Supabase Google provider)
+ * - iOS (bundle ID com.kishansagathiya.donna) → GOOGLE_IOS_CLIENT_ID
+ *
+ * Then add the iOS client's REVERSED_CLIENT_ID as a CFBundleURLSchemes entry in
+ * ios/Donna/Info.plist (see README). Enable Skip nonce check under
+ * Supabase → Authentication → Providers → Google when using native iOS tokens.
+ */
+export const GOOGLE_WEB_CLIENT_ID: string | null = null;
+export const GOOGLE_IOS_CLIENT_ID: string | null = null;
+
+/**
  * App Store screenshot capture — set to a screen name, run in Simulator, Cmd+S.
  * Set back to null before release builds.
  */

@@ -1,13 +1,41 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import appleAuth from '@invertase/react-native-apple-authentication';
+import {
+  GoogleSignin,
+  isErrorWithCode,
+  isSuccessResponse,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
 import { createClient, type Session } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import {
   DEV_EMAIL,
   DEV_PASSWORD,
+  GOOGLE_IOS_CLIENT_ID,
+  GOOGLE_WEB_CLIENT_ID,
   SUPABASE_ANON_KEY,
   SUPABASE_URL,
 } from '../config';
+
+let googleConfigured = false;
+
+function ensureGoogleConfigured(): void {
+  if (googleConfigured) {
+    return;
+  }
+
+  if (!GOOGLE_WEB_CLIENT_ID) {
+    throw new Error(
+      'Google Sign In is not configured. Set GOOGLE_WEB_CLIENT_ID in src/config.ts to your Google Web OAuth Client ID.',
+    );
+  }
+
+  GoogleSignin.configure({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    ...(GOOGLE_IOS_CLIENT_ID ? { iosClientId: GOOGLE_IOS_CLIENT_ID } : {}),
+  });
+  googleConfigured = true;
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -92,6 +120,69 @@ export async function signInWithApple(): Promise<void> {
         },
       });
     }
+  }
+}
+
+export async function signInWithGoogle(): Promise<void> {
+  ensureGoogleConfigured();
+
+  try {
+    if (Platform.OS === 'android') {
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
+    }
+
+    const response = await GoogleSignin.signIn();
+    if (!isSuccessResponse(response)) {
+      return;
+    }
+
+    const idToken = response.data.idToken;
+    if (!idToken) {
+      throw new Error('No identity token received from Google.');
+    }
+
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: 'google',
+      token: idToken,
+    });
+
+    if (error) {
+      if (error.message.toLowerCase().includes('not enabled')) {
+        throw new Error(
+          'Google Sign In is not enabled in Supabase. Go to Authentication → Providers → Google, turn it on, add your Web Client ID (and iOS Client ID), and save.',
+        );
+      }
+      throw new Error(error.message);
+    }
+
+    const { user } = response.data;
+    if (user?.name || user?.givenName || user?.familyName) {
+      await supabase.auth.updateUser({
+        data: {
+          full_name: user.name ?? undefined,
+          given_name: user.givenName ?? undefined,
+          family_name: user.familyName ?? undefined,
+        },
+      });
+    }
+  } catch (error) {
+    if (isErrorWithCode(error) && error.code === statusCodes.SIGN_IN_CANCELLED) {
+      return;
+    }
+    if (isErrorWithCode(error) && error.code === statusCodes.IN_PROGRESS) {
+      throw new Error('Google Sign In is already in progress.');
+    }
+    if (
+      isErrorWithCode(error) &&
+      error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE
+    ) {
+      throw new Error('Google Play Services are not available on this device.');
+    }
+    throw error instanceof Error
+      ? error
+      : new Error('Sign in with Google failed.');
   }
 }
 

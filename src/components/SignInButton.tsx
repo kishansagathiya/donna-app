@@ -4,7 +4,6 @@ import {
   Platform,
   StyleSheet,
   TouchableOpacity,
-  View,
 } from 'react-native';
 import { Text } from './ThemedText';
 import appleAuth from '@invertase/react-native-apple-authentication';
@@ -15,6 +14,7 @@ type Props = {
   onError?: (message: string) => void;
 };
 
+/** Native Sign in with Apple — iOS only. Returns null on other platforms. */
 export function SignInButton({ onSuccess, onError }: Props) {
   const [loading, setLoading] = useState(false);
 
@@ -42,13 +42,7 @@ export function SignInButton({ onSuccess, onError }: Props) {
   }
 
   if (Platform.OS !== 'ios') {
-    return (
-      <View style={styles.unavailable}>
-        <Text style={styles.unavailableText}>
-          Sign in with Apple is available on iOS.
-        </Text>
-      </View>
-    );
+    return null;
   }
 
   return (
@@ -80,13 +74,5 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#ffffff',
-  },
-  unavailable: {
-    paddingVertical: 16,
-  },
-  unavailableText: {
-    fontSize: 15,
-    color: '#666666',
-    textAlign: 'center',
   },
 });

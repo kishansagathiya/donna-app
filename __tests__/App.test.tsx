@@ -48,9 +48,25 @@ jest.mock('../src/hooks/useAiDataConsent', () => ({
 jest.mock('../src/services/auth', () => ({
   getAccessToken: jest.fn(async () => 'token'),
   signInWithApple: jest.fn(),
+  signInWithGoogle: jest.fn(),
   signOut: jest.fn(),
   getSession: jest.fn(async () => ({ user: { id: 'user-1' } })),
   onAuthStateChange: jest.fn(() => jest.fn()),
+}));
+
+jest.mock('@react-native-google-signin/google-signin', () => ({
+  GoogleSignin: {
+    configure: jest.fn(),
+    hasPlayServices: jest.fn(async () => true),
+    signIn: jest.fn(async () => ({ type: 'cancelled', data: null })),
+  },
+  isErrorWithCode: jest.fn(() => false),
+  isSuccessResponse: jest.fn(() => false),
+  statusCodes: {
+    SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED',
+    IN_PROGRESS: 'IN_PROGRESS',
+    PLAY_SERVICES_NOT_AVAILABLE: 'PLAY_SERVICES_NOT_AVAILABLE',
+  },
 }));
 
 jest.mock('../src/screens/LoginScreen', () => ({

@@ -9,12 +9,18 @@ npm install
 cd ios && pod install && cd ..
 ```
 
-### Supabase + Sign in with Apple
+### Supabase + Sign in with Apple / Google
 
 1. Create a [Supabase](https://supabase.com) project.
 2. In Supabase → **Authentication → Providers → Apple**, enable Apple and set Client ID to `com.kishansagathiya.donna`.
 3. In Apple Developer → Identifiers → `com.kishansagathiya.donna`, enable **Sign in with Apple**.
-4. Copy your Supabase URL and publishable key into [`src/config.ts`](src/config.ts).
+4. For Google:
+   1. In Google Cloud Console, create a **Web application** OAuth client and an **iOS** OAuth client (bundle ID `com.kishansagathiya.donna`).
+   2. Paste both Client IDs into Supabase → **Authentication → Providers → Google** (comma-separated; Web ID first). Paste the Web Client Secret.
+   3. Enable **Skip nonce check** (required for native iOS Google ID tokens).
+   4. Set `GOOGLE_WEB_CLIENT_ID` and `GOOGLE_IOS_CLIENT_ID` in [`src/config.ts`](src/config.ts).
+   5. Add the iOS client's **REVERSED_CLIENT_ID** (from GoogleService-Info / Console) as a URL scheme in `ios/Donna/Info.plist` under `CFBundleURLTypes`.
+5. Copy your Supabase URL and publishable key into [`src/config.ts`](src/config.ts).
 
 Optional dev sign-in (simulator): create an email/password user in Supabase Auth and set `DEV_EMAIL` / `DEV_PASSWORD` in `src/config.ts`.
 
