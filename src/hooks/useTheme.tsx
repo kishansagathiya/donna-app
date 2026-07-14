@@ -25,7 +25,7 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<AppTheme>('indigo');
+  const [theme, setThemeState] = useState<AppTheme>('eink');
 
   useEffect(() => {
     void getStoredTheme().then(setThemeState);

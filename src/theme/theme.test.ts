@@ -80,19 +80,19 @@ describe('getStoredTheme', () => {
     },
   );
 
-  it('falls back to indigo for legacy cream storage', async () => {
+  it('falls back to eink for legacy cream storage', async () => {
     mockedStorage.getItem.mockResolvedValue('cream');
-    await expect(getStoredTheme()).resolves.toBe('indigo');
+    await expect(getStoredTheme()).resolves.toBe('eink');
   });
 
-  it('falls back to indigo for invalid stored values', async () => {
+  it('falls back to eink for invalid stored values', async () => {
     mockedStorage.getItem.mockResolvedValue('neon');
-    await expect(getStoredTheme()).resolves.toBe('indigo');
+    await expect(getStoredTheme()).resolves.toBe('eink');
   });
 
-  it('falls back to indigo when nothing is stored', async () => {
+  it('falls back to eink when nothing is stored', async () => {
     mockedStorage.getItem.mockResolvedValue(null);
-    await expect(getStoredTheme()).resolves.toBe('indigo');
+    await expect(getStoredTheme()).resolves.toBe('eink');
   });
 });
 

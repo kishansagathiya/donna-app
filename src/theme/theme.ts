@@ -30,7 +30,7 @@ export function isAppTheme(value: string | null): value is AppTheme {
 
 export async function getStoredTheme(): Promise<AppTheme> {
   const stored = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-  return isAppTheme(stored) ? stored : 'indigo';
+  return isAppTheme(stored) ? stored : 'eink';
 }
 
 export async function storeTheme(theme: AppTheme): Promise<void> {
