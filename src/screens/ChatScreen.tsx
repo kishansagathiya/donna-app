@@ -3,9 +3,9 @@ import {
   Keyboard,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '../components/ThemedText';
 import { AppHeader } from '../components/AppHeader';
 import { ChatHero } from '../components/ChatHero';
 import { ChatHistorySheet } from '../components/ChatHistorySheet';

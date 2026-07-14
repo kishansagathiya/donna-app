@@ -45,10 +45,6 @@ jest.mock('../src/hooks/useAiDataConsent', () => ({
   }),
 }));
 
-jest.mock('../src/components/SearchContextModal', () => ({
-  SearchContextModal: () => null,
-}));
-
 jest.mock('../src/services/auth', () => ({
   getAccessToken: jest.fn(async () => 'token'),
   signInWithApple: jest.fn(),

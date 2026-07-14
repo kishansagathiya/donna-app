@@ -2835,6 +2835,11 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
+  - RNNotifee (9.1.8):
+    - React-Core
+    - RNNotifee/NotifeeCore (= 9.1.8)
+  - RNNotifee/NotifeeCore (9.1.8):
+    - React-Core
   - RNPermissions (5.5.2):
     - boost
     - DoubleConversion
@@ -3012,6 +3017,7 @@ DEPENDENCIES:
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - "RNAppleAuthentication (from `../node_modules/@invertase/react-native-apple-authentication`)"
   - RNAudioAPI (from `../node_modules/react-native-audio-api`)
+  - "RNNotifee (from `../node_modules/@notifee/react-native`)"
   - RNPermissions (from `../node_modules/react-native-permissions`)
   - RNShareMenu (from `../node_modules/react-native-share-menu`)
   - RNSVG (from `../node_modules/react-native-svg`)
@@ -3195,6 +3201,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/@invertase/react-native-apple-authentication"
   RNAudioAPI:
     :path: "../node_modules/react-native-audio-api"
+  RNNotifee:
+    :path: "../node_modules/@notifee/react-native"
   RNPermissions:
     :path: "../node_modules/react-native-permissions"
   RNShareMenu:
@@ -3291,6 +3299,7 @@ SPEC CHECKSUMS:
   ReactCommon: 7121294d2f9b2aef0d458ba6d230d18d6ee4cba2
   RNAppleAuthentication: d6fe579e5f43cf8db54bdc48518bccea61c592a4
   RNAudioAPI: dc3ba98cf3f02b478fde0af25f79daa6979ccc21
+  RNNotifee: 4a6ee5c7deaf00e005050052d73ee6315dff7ec9
   RNPermissions: 17196b9a164f6727fdf3508ab2bc71b3e22504fa
   RNShareMenu: cb9dac548c8bf147d06f0bf07296ad51ea9f5fc3
   RNSVG: a93856a60bcd766b4d5d20f96a7b4a2978462ca4

@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from './ThemedText';
 import type { IngestToast as ToastState } from '../hooks/useAssetIngest';
 
 type Props = {

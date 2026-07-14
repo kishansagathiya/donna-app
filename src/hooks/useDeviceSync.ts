@@ -16,7 +16,7 @@
  * The hook exposes:
  *   - connection state ('disconnected' | 'connecting' | 'connected' | 'idle')
  *   - the connected device name
- *   - number of pending captures on the device
+ *   - number of pending captures on the device (device-reported only)
  *   - last upload status (idle | uploading | uploaded | failed)
  *   - any user-visible status message from the device
  */
@@ -138,6 +138,8 @@ export function useDeviceSync(): DeviceSyncStatus & {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const drainLockRef = useRef(false);
   const bleStartPendingRef = useRef(false);
+  /** Authoritative pending count from the device (not locally guessed). */
+  const pendingCountRef = useRef(0);
   const statusClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -155,16 +157,29 @@ export function useDeviceSync(): DeviceSyncStatus & {
       sessionRef.current = null;
     }
     await setPairedDeviceId(null);
+    pendingCountRef.current = 0;
     setStatus(s => ({
       ...s,
       pairedDeviceId: null,
       connectionState: 'disconnected',
       syncPath: 'idle',
+      pendingCount: 0,
+      syncProgress: null,
+      lastMessage: null,
     }));
   }
 
   useEffect(() => {
     let cancelled = false;
+
+    function setPendingCount(n: number) {
+      pendingCountRef.current = Math.max(0, n);
+      setStatus(s =>
+        s.pendingCount === pendingCountRef.current
+          ? s
+          : { ...s, pendingCount: pendingCountRef.current },
+      );
+    }
 
     function clearBleStartPending() {
       bleStartPendingRef.current = false;
@@ -216,7 +231,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
         const session = sessionRef.current;
         if (session) sendStopCommand(session).catch(() => {});
         setTimeout(() => {
-          if (!cancelled) maybeStartDrain();
+          if (!cancelled) maybeStartDrain({ force: true });
         }, 1500);
       }, INFLIGHT_STALL_MS);
     }
@@ -227,6 +242,10 @@ export function useDeviceSync(): DeviceSyncStatus & {
       statusClearTimerRef.current = setTimeout(() => {
         statusClearTimerRef.current = null;
         if (cancelled) return;
+        // Don't wipe UI while another capture is still transferring.
+        if (inflightRef.current || bleStartPendingRef.current) {
+          return;
+        }
         setStatus(s => ({
           ...s,
           uploadState: 'idle',
@@ -237,15 +256,22 @@ export function useDeviceSync(): DeviceSyncStatus & {
       }, SYNC_STATUS_CLEAR_MS);
     }
 
+    function cancelStatusClear() {
+      if (statusClearTimerRef.current) {
+        clearTimeout(statusClearTimerRef.current);
+        statusClearTimerRef.current = null;
+      }
+    }
+
     function onHardwareCaptureSaved() {
       if (cancelled) return;
       setStatus(s => {
-        const total = s.syncProgress?.total ?? Math.max(1, s.pendingCount);
+        const total = s.syncProgress?.total ?? Math.max(1, pendingCountRef.current);
         const synced = Math.min(total, (s.syncProgress?.synced ?? 0) + 1);
         return {
           ...s,
           notesRefreshToken: s.notesRefreshToken + 1,
-          pendingCount: Math.max(0, s.pendingCount - 1),
+          // pendingCount comes only from the device after ack — do not guess it down here.
           syncProgress: { synced, total },
           lastMessage: `Synced ${synced}/${total} from Donna`,
         };
@@ -263,7 +289,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
       clearStatusLater();
     }
 
-    async function drainPending() {
+    async function drainPending(opts?: { force?: boolean }) {
       const session = sessionRef.current;
       if (
         !session ||
@@ -273,11 +299,20 @@ export function useDeviceSync(): DeviceSyncStatus & {
       ) {
         return;
       }
+      // Never request a capture when the device has reported nothing left —
+      // unless this is an explicit retry after a failed/incomplete transfer.
+      if (!opts?.force && pendingCountRef.current <= 0) {
+        return;
+      }
       drainLockRef.current = true;
       try {
+        cancelStatusClear();
         console.log('[useDeviceSync] using BLE sync');
         setStatus(s => {
-          const total = Math.max(1, s.pendingCount || 1);
+          const total = Math.max(
+            1,
+            pendingCountRef.current || s.pendingCount || 1,
+          );
           return {
             ...s,
             syncPath: 'ble',
@@ -296,15 +331,15 @@ export function useDeviceSync(): DeviceSyncStatus & {
       }
     }
 
-    function maybeStartDrain() {
-      void drainPending();
+    function maybeStartDrain(opts?: { force?: boolean }) {
+      void drainPending(opts);
     }
 
     const handleStatus: StatusHandler = msg => {
       if (cancelled) return;
       const relayReady = parseRelayReady(msg);
       if (relayReady !== null) {
-        setStatus(s => ({ ...s, pendingCount: relayReady.count }));
+        setPendingCount(relayReady.count);
         if (relayReady.count > 0) {
           maybeStartDrain();
         }
@@ -321,7 +356,11 @@ export function useDeviceSync(): DeviceSyncStatus & {
       }
       if (msg.startsWith('pending:')) {
         const n = parseInt(msg.slice('pending:'.length), 10) || 0;
-        setStatus(s => ({ ...s, pendingCount: n }));
+        setPendingCount(n);
+        return;
+      }
+      if (msg.startsWith('relay_idle:')) {
+        setPendingCount(0);
         return;
       }
       if (isInternalDeviceStatus(msg)) return;
@@ -333,11 +372,14 @@ export function useDeviceSync(): DeviceSyncStatus & {
       if (frame.kind === 'idle') {
         clearBleStartPending();
         clearInflight();
+        pendingCountRef.current = 0;
         setStatus(s => ({
           ...s,
           pendingCount: 0,
           uploadState: 'idle',
           syncPath: 'idle',
+          syncProgress: null,
+          lastMessage: null,
         }));
         return;
       }
@@ -354,8 +396,13 @@ export function useDeviceSync(): DeviceSyncStatus & {
           lastProgressPercent: -1,
         };
         armInflightWatchdog();
+        // A live transfer means at least one capture remains — never show 0 here.
+        if (pendingCountRef.current <= 0) {
+          pendingCountRef.current = 1;
+        }
         setStatus(s => ({
           ...s,
+          pendingCount: Math.max(s.pendingCount, 1),
           syncPath: 'ble',
           uploadState: 'uploading',
           lastMessage: `Receiving ${frame.name} from device…`,
@@ -396,6 +443,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
                 : '';
             setStatus(s => ({
               ...s,
+              pendingCount: Math.max(s.pendingCount, 1),
               syncPath: 'ble',
               uploadState: 'uploading',
               lastMessage:
@@ -434,7 +482,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
             lastMessage: `Incomplete transfer: received ${raw.length} of ${inflight.totalBytes} bytes. Retrying…`,
           }));
           setTimeout(() => {
-            if (!cancelled) maybeStartDrain();
+            if (!cancelled) maybeStartDrain({ force: true });
           }, 2000);
           return;
         }
@@ -457,7 +505,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
                 : 'Could not decode capture audio.',
           }));
           setTimeout(() => {
-            if (!cancelled) maybeStartDrain();
+            if (!cancelled) maybeStartDrain({ force: true });
           }, 2000);
           return;
         }
@@ -465,7 +513,15 @@ export function useDeviceSync(): DeviceSyncStatus & {
           await saveDeviceCapture({ deviceName: inflight.name, wav });
           await acknowledgeCapture(session, inflight.name);
           onHardwareCaptureSaved();
+          // Prefer device relay_ready / pending notify to start the next
+          // capture. A short backup covers a missed notify without the old
+          // bug of START-ing when pending is already 0.
           finishHardwareSync('Capture synced from Donna.');
+          setTimeout(() => {
+            if (!cancelled && pendingCountRef.current > 0) {
+              maybeStartDrain();
+            }
+          }, 750);
         } catch (err) {
           await sendStopCommand(session).catch(() => {});
           setStatus(s => ({
@@ -477,12 +533,11 @@ export function useDeviceSync(): DeviceSyncStatus & {
                 : 'Could not save capture on phone.',
           }));
           setTimeout(() => {
-            if (!cancelled) maybeStartDrain();
+            if (!cancelled) maybeStartDrain({ force: true });
           }, 2000);
           return;
         }
         scheduleCaptureUploads();
-        if (!cancelled) maybeStartDrain();
         return;
       }
     };
@@ -530,7 +585,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
           onCaptureFrame: handleFrame,
           onStatus: handleStatus,
           onPendingCount: n => {
-            setStatus(s => ({ ...s, pendingCount: n }));
+            setPendingCount(n);
             if (n > 0) maybeStartDrain();
           },
           onDisconnected: () => handleUnexpectedDisconnect(deviceId),
@@ -608,6 +663,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
           await sessionRef.current.disconnect().catch(() => {});
           sessionRef.current = null;
         }
+        pendingCountRef.current = 0;
         setStatus({ ...initial, pairedDeviceId: await getPairedDeviceId() });
         return;
       }

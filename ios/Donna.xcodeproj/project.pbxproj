@@ -9,15 +9,16 @@
 /* Begin PBXBuildFile section */
 		0C80B921A6F3F58F76C31292 /* libPods-Donna.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-Donna.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		44D2D411198F429D9CAA5062 /* Literata-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 13135D7EB9CA410C92C63177 /* Literata-SemiBold.ttf */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		A4B4C234E77F41B08704B3E2 /* Literata-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 758B0BA8706B4EA5A988DB6B /* Literata-Regular.ttf */; };
 		CA1535EE40BB2FD9D456E98D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		D0NN4SH01HANDLER01 /* ShareURLHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = D0NN4SH01HANDLER02 /* ShareURLHandler.m */; };
-		A4B4C234E77F41B08704B3E2 /* Literata-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 758B0BA8706B4EA5A988DB6B /* Literata-Regular.ttf */; };
-		44D2D411198F429D9CAA5062 /* Literata-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 13135D7EB9CA410C92C63177 /* Literata-SemiBold.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		13135D7EB9CA410C92C63177 /* Literata-SemiBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Literata-SemiBold.ttf"; path = "../assets/fonts/Literata-SemiBold.ttf"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* Donna.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Donna.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Donna/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Donna/Info.plist; sourceTree = "<group>"; };
@@ -25,14 +26,13 @@
 		3B4392A12AC88292D35C810B /* Pods-Donna.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Donna.debug.xcconfig"; path = "Target Support Files/Pods-Donna/Pods-Donna.debug.xcconfig"; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-Donna.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Donna.release.xcconfig"; path = "Target Support Files/Pods-Donna/Pods-Donna.release.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-Donna.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Donna.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		758B0BA8706B4EA5A988DB6B /* Literata-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Literata-Regular.ttf"; path = "../assets/fonts/Literata-Regular.ttf"; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Donna/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Donna/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		A1B2C3D41E680F5B00A75B9A /* Donna.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = Donna.entitlements; path = Donna/Donna.entitlements; sourceTree = "<group>"; };
 		D0NN4SH01HANDLER02 /* ShareURLHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = ShareURLHandler.m; path = Donna/ShareURLHandler.m; sourceTree = "<group>"; };
 		D0NN4SH01HANDLER03 /* ShareURLHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ShareURLHandler.h; path = Donna/ShareURLHandler.h; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
-		758B0BA8706B4EA5A988DB6B /* Literata-Regular.ttf */ = {isa = PBXFileReference; name = "Literata-Regular.ttf"; path = "../assets/fonts/Literata-Regular.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		13135D7EB9CA410C92C63177 /* Literata-SemiBold.ttf */ = {isa = PBXFileReference; name = "Literata-SemiBold.ttf"; path = "../assets/fonts/Literata-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +101,16 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		AF06C9320B1746E8A0ADD152 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				758B0BA8706B4EA5A988DB6B /* Literata-Regular.ttf */,
+				13135D7EB9CA410C92C63177 /* Literata-SemiBold.ttf */,
+			);
+			name = Resources;
+			path = "";
+			sourceTree = "<group>";
+		};
 		BBD78D7AC51CEA395F1C20DB /* Pods */ = {
 			isa = PBXGroup;
 			children = (
@@ -109,16 +119,6 @@
 			);
 			path = Pods;
 			sourceTree = "<group>";
-		};
-		AF06C9320B1746E8A0ADD152 /* Resources */ = {
-			isa = "PBXGroup";
-			children = (
-				758B0BA8706B4EA5A988DB6B /* Literata-Regular.ttf */,
-				13135D7EB9CA410C92C63177 /* Literata-SemiBold.ttf */,
-			);
-			name = Resources;
-			sourceTree = "<group>";
-			path = "";
 		};
 /* End PBXGroup section */
 

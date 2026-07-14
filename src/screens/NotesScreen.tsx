@@ -5,10 +5,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
+import { Text, TextInput } from '../components/ThemedText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
@@ -24,7 +23,8 @@ import {
 } from '../services/notesApi';
 import { isLocalDeviceNoteId, listLocalDeviceNoteSummaries } from '../services/localDeviceCaptures';
 import type { ThemeColors } from '../theme/colors';
-import { ArrowUpIcon } from '../components/icons';
+import { ArrowUpIcon, SearchIcon } from '../components/icons';
+import { SearchNotesModal } from '../components/SearchContextModal';
 import { NoteDetailScreen } from './NoteDetailScreen';
 import { TodayScreen } from './TodayScreen';
 
@@ -136,6 +136,7 @@ export function NotesScreen({
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const loadNotes = useCallback(async (offset = 0, append = false) => {
     if (offset === 0) {
@@ -287,29 +288,44 @@ export function NotesScreen({
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Notes</Text>
-        <View style={styles.segmented} accessibilityRole="tablist">
-          <Pressable
-            style={[styles.segment, view === 'all' && styles.segmentActive]}
-            onPress={() => setView('all')}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: view === 'all' }}
-          >
-            <Text style={[styles.segmentLabel, view === 'all' && styles.segmentLabelActive]}>
-              All
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.segment, view === 'today' && styles.segmentActive]}
-            onPress={() => setView('today')}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: view === 'today' }}
-          >
-            <Text
-              style={[styles.segmentLabel, view === 'today' && styles.segmentLabelActive]}
+        <View style={styles.headerActions}>
+          {view === 'all' ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.iconButton,
+                pressed && styles.iconButtonPressed,
+              ]}
+              onPress={() => setSearchOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Search notes"
             >
-              Today
-            </Text>
-          </Pressable>
+              <SearchIcon size={20} color={colors.muted} />
+            </Pressable>
+          ) : null}
+          <View style={styles.segmented} accessibilityRole="tablist">
+            <Pressable
+              style={[styles.segment, view === 'all' && styles.segmentActive]}
+              onPress={() => setView('all')}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: view === 'all' }}
+            >
+              <Text style={[styles.segmentLabel, view === 'all' && styles.segmentLabelActive]}>
+                All
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.segment, view === 'today' && styles.segmentActive]}
+              onPress={() => setView('today')}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: view === 'today' }}
+            >
+              <Text
+                style={[styles.segmentLabel, view === 'today' && styles.segmentLabelActive]}
+              >
+                Today
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -444,6 +460,12 @@ export function NotesScreen({
           )}
         </>
       )}
+
+      <SearchNotesModal
+        visible={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onSelect={setSelectedNoteId}
+      />
     </View>
   );
 }
@@ -467,6 +489,21 @@ function createStyles(colors: ThemeColors) {
       fontSize: 22,
       fontWeight: '700',
       color: colors.text,
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    iconButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconButtonPressed: {
+      backgroundColor: colors.surface,
     },
     segmented: {
       flexDirection: 'row',

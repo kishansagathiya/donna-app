@@ -3,16 +3,15 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Linking,
   Pressable,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Text } from '../components/ThemedText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SignInButton } from '../components/SignInButton';
-import { DEV_EMAIL, DEV_PASSWORD, PRIVACY_POLICY_URL } from '../config';
+import { DEV_EMAIL, DEV_PASSWORD } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { logoForTheme } from '../lib/logo';
@@ -21,9 +20,10 @@ import type { ThemeColors } from '../theme/colors';
 
 type Props = {
   onSuccess: () => void;
+  onOpenPrivacy?: () => void;
 };
 
-export function LoginScreen({ onSuccess }: Props) {
+export function LoginScreen({ onSuccess, onOpenPrivacy }: Props) {
   const insets = useSafeAreaInsets();
   const { theme, colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -90,8 +90,9 @@ export function LoginScreen({ onSuccess }: Props) {
 
         <Pressable
           style={styles.privacyLink}
-          onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+          onPress={onOpenPrivacy}
           accessibilityRole="link"
+          disabled={!onOpenPrivacy}
         >
           <Text style={styles.privacyLinkText}>Privacy Policy</Text>
         </Pressable>

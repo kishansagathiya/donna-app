@@ -1,5 +1,12 @@
 import React from 'react';
-import Svg, { Ellipse, Line, Path, Polyline, Rect } from 'react-native-svg';
+import Svg, {
+  Circle,
+  Ellipse,
+  Line,
+  Path,
+  Polyline,
+  Rect,
+} from 'react-native-svg';
 
 type IconProps = {
   size?: number;
@@ -325,6 +332,33 @@ export function PlusIcon({
         y1="12"
         x2="19"
         y2="12"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+      />
+    </IconFrame>
+  );
+}
+
+export function SearchIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Circle
+        cx="11"
+        cy="11"
+        r="7"
+        stroke={color}
+        strokeWidth={strokeWidth}
+      />
+      <Line
+        x1="16.5"
+        y1="16.5"
+        x2="21"
+        y2="21"
         stroke={color}
         strokeWidth={strokeWidth}
         strokeLinecap="round"

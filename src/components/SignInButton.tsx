@@ -3,10 +3,10 @@ import {
   ActivityIndicator,
   Platform,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Text } from './ThemedText';
 import appleAuth from '@invertase/react-native-apple-authentication';
 import { signInWithApple } from '../services/auth';
 

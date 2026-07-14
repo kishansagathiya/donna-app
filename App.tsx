@@ -15,9 +15,9 @@ import {
   Platform,
   StatusBar,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from './src/components/ThemedText';
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
@@ -37,12 +37,16 @@ import { ChatScreen } from './src/screens/ChatScreen';
 import { NotesScreen } from './src/screens/NotesScreen';
 import { MemoryScreen } from './src/screens/MemoryScreen';
 import { PairDeviceScreen } from './src/screens/PairDeviceScreen';
+import { PrivacyScreen } from './src/screens/PrivacyScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
+import { SupportScreen } from './src/screens/SupportScreen';
 import { SCREENSHOT_MODE } from './src/config';
 import { useAiDataConsent } from './src/hooks/useAiDataConsent';
 import { ThemeProvider, useTheme } from './src/hooks/useTheme';
 import { useThemedStyles } from './src/hooks/useThemedStyles';
 import type { ThemeColors } from './src/theme/colors';
+
+type LegalDoc = 'privacy' | 'support' | null;
 
 function App() {
   return (
@@ -97,6 +101,7 @@ function ScreenshotShell() {
 function AppShell() {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const [legalDoc, setLegalDoc] = useState<LegalDoc>(null);
 
   if (SCREENSHOT_MODE) {
     return <ScreenshotShell />;
@@ -115,17 +120,53 @@ function AppShell() {
   }
 
   if (!isAuthenticated) {
-    return <LoginScreen onSuccess={() => {}} />;
+    return (
+      <>
+        <LoginScreen
+          onSuccess={() => {}}
+          onOpenPrivacy={() => setLegalDoc('privacy')}
+        />
+        <PrivacyScreen
+          visible={legalDoc === 'privacy'}
+          onClose={() => setLegalDoc(null)}
+        />
+      </>
+    );
   }
 
   if (!consentAccepted) {
-    return <AIDataConsentScreen onAccepted={() => void refreshConsent()} />;
+    return (
+      <>
+        <AIDataConsentScreen
+          onAccepted={() => void refreshConsent()}
+          onOpenPrivacy={() => setLegalDoc('privacy')}
+        />
+        <PrivacyScreen
+          visible={legalDoc === 'privacy'}
+          onClose={() => setLegalDoc(null)}
+        />
+      </>
+    );
   }
 
-  return <AppContent />;
+  return (
+    <AppContent
+      legalDoc={legalDoc}
+      onOpenLegal={setLegalDoc}
+      onCloseLegal={() => setLegalDoc(null)}
+    />
+  );
 }
 
-function AppContent() {
+function AppContent({
+  legalDoc,
+  onOpenLegal,
+  onCloseLegal,
+}: {
+  legalDoc: LegalDoc;
+  onOpenLegal: (doc: LegalDoc) => void;
+  onCloseLegal: () => void;
+}) {
   const styles = useThemedStyles(createStyles);
   const safeAreaInsets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -230,6 +271,8 @@ function AppContent() {
           <ProfileScreen
             deviceSync={deviceSync}
             onPairDevicePress={() => setPairSheetOpen(true)}
+            onOpenPrivacy={() => onOpenLegal('privacy')}
+            onOpenSupport={() => onOpenLegal('support')}
           />
         ) : null}
 
@@ -259,6 +302,14 @@ function AppContent() {
         onPickPhoto={() => {
           void pickPhoto();
         }}
+      />
+      <PrivacyScreen
+        visible={legalDoc === 'privacy'}
+        onClose={onCloseLegal}
+      />
+      <SupportScreen
+        visible={legalDoc === 'support'}
+        onClose={onCloseLegal}
       />
       <IngestToast toast={toast} />
     </View>

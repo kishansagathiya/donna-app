@@ -5,9 +5,10 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '../components/ThemedText';
+import { EnableBriefingAlertsButton } from '../components/DailyBriefingAlertsToggle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
@@ -18,6 +19,10 @@ import {
   type DailyTask,
   type OutdatedNote,
 } from '../services/notesApi';
+import {
+  getDailyBriefingNotificationsEnabled,
+  showDailyBriefingNotification,
+} from '../services/dailyBriefingNotifications';
 import type { ThemeColors } from '../theme/colors';
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -108,6 +113,11 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [alertsEnabled, setAlertsEnabled] = useState(false);
+
+  useEffect(() => {
+    void getDailyBriefingNotificationsEnabled().then(setAlertsEnabled);
+  }, []);
 
   const openTask = (task: DailyTask) => {
     onOpenNote?.(task.note_id);
@@ -117,15 +127,19 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
     onOpenNote?.(note.note_id);
   };
 
-  const runCheck = useCallback(async (isRefresh = false) => {
-    if (isRefresh) {
+  const runCheck = useCallback(async (withNotification = false) => {
+    if (withNotification) {
       setRefreshing(true);
     } else {
       setLoading(true);
     }
     setError(null);
     try {
-      setBriefing(await checkDailyNotes());
+      const result = await checkDailyNotes();
+      setBriefing(result);
+      if (withNotification) {
+        await showDailyBriefingNotification(result);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to check notes');
     } finally {
@@ -135,7 +149,7 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
   }, []);
 
   useEffect(() => {
-    void runCheck();
+    void runCheck(false);
   }, [runCheck]);
 
   const todayLabel = new Date().toLocaleDateString(undefined, {
@@ -191,32 +205,62 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
             <Text style={styles.title}>Today</Text>
             <Text style={styles.subtitle}>{todayLabel}</Text>
           </View>
-          <Pressable
-            style={({ pressed }) => [styles.checkButton, pressed && styles.checkButtonPressed]}
-            onPress={() => void runCheck(true)}
-            disabled={loading || refreshing}
-          >
-            {loading || refreshing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.checkButtonText}>Check notes</Text>
-            )}
-          </Pressable>
+          <View style={styles.headerActions}>
+            {!alertsEnabled ? (
+              <EnableBriefingAlertsButton
+                onEnabled={() => {
+                  setAlertsEnabled(true);
+                  if (briefing) {
+                    void showDailyBriefingNotification(briefing);
+                  }
+                }}
+              />
+            ) : null}
+            <Pressable
+              style={({ pressed }) => [
+                styles.checkButton,
+                pressed && styles.checkButtonPressed,
+              ]}
+              onPress={() => void runCheck(true)}
+              disabled={loading || refreshing}
+            >
+              {loading || refreshing ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <Text style={styles.checkButtonText}>Check notes</Text>
+              )}
+            </Pressable>
+          </View>
         </View>
       ) : (
         <View style={styles.embeddedHeader}>
           <Text style={styles.subtitle}>{todayLabel}</Text>
-          <Pressable
-            style={({ pressed }) => [styles.checkButton, pressed && styles.checkButtonPressed]}
-            onPress={() => void runCheck(true)}
-            disabled={loading || refreshing}
-          >
-            {loading || refreshing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.checkButtonText}>Check notes</Text>
-            )}
-          </Pressable>
+          <View style={styles.headerActions}>
+            {!alertsEnabled ? (
+              <EnableBriefingAlertsButton
+                onEnabled={() => {
+                  setAlertsEnabled(true);
+                  if (briefing) {
+                    void showDailyBriefingNotification(briefing);
+                  }
+                }}
+              />
+            ) : null}
+            <Pressable
+              style={({ pressed }) => [
+                styles.checkButton,
+                pressed && styles.checkButtonPressed,
+              ]}
+              onPress={() => void runCheck(true)}
+              disabled={loading || refreshing}
+            >
+              {loading || refreshing ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <Text style={styles.checkButtonText}>Check notes</Text>
+              )}
+            </Pressable>
+          </View>
         </View>
       )}
 
@@ -308,6 +352,14 @@ function createStyles(colors: ThemeColors) {
     headerText: {
       flex: 1,
       marginRight: 12,
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flexShrink: 1,
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
     },
     embeddedHeader: {
       flexDirection: 'row',

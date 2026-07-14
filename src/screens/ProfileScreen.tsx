@@ -5,11 +5,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
+import { Text, TextInput } from '../components/ThemedText';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { DailyBriefingAlertsToggle } from '../components/DailyBriefingAlertsToggle';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
@@ -38,11 +38,15 @@ function truncate(s: string, n: number): string {
 type ProfileScreenProps = {
   deviceSync: DeviceSyncStatus & { forgetDevice: () => Promise<void> };
   onPairDevicePress: () => void;
+  onOpenPrivacy?: () => void;
+  onOpenSupport?: () => void;
 };
 
 export function ProfileScreen({
   deviceSync,
   onPairDevicePress,
+  onOpenPrivacy,
+  onOpenSupport,
 }: ProfileScreenProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -308,6 +312,24 @@ export function ProfileScreen({
       ) : null}
 
       <ThemeToggle />
+
+      <DailyBriefingAlertsToggle />
+
+      <Text style={styles.sectionTitle}>Help & legal</Text>
+      <Pressable
+        style={[styles.button, styles.secondaryButton]}
+        onPress={onOpenPrivacy}
+        accessibilityRole="button"
+      >
+        <Text style={styles.secondaryButtonText}>Privacy Policy</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.button, styles.secondaryButton]}
+        onPress={onOpenSupport}
+        accessibilityRole="button"
+      >
+        <Text style={styles.secondaryButtonText}>Support</Text>
+      </Pressable>
 
       <Text style={styles.sectionTitle}>Donna device</Text>
       <Text style={styles.sectionDescription}>

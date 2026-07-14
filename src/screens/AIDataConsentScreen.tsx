@@ -1,15 +1,13 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '../components/ThemedText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PRIVACY_POLICY_URL } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { grantAiDataConsent } from '../services/privacyConsent';
@@ -17,9 +15,10 @@ import type { ThemeColors } from '../theme/colors';
 
 type Props = {
   onAccepted: () => void;
+  onOpenPrivacy?: () => void;
 };
 
-export function AIDataConsentScreen({ onAccepted }: Props) {
+export function AIDataConsentScreen({ onAccepted, onOpenPrivacy }: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -33,10 +32,6 @@ export function AIDataConsentScreen({ onAccepted }: Props) {
     } finally {
       setSaving(false);
     }
-  }
-
-  function openPrivacyPolicy() {
-    void Linking.openURL(PRIVACY_POLICY_URL);
   }
 
   return (
@@ -97,8 +92,9 @@ export function AIDataConsentScreen({ onAccepted }: Props) {
 
         <Pressable
           style={styles.linkButton}
-          onPress={openPrivacyPolicy}
+          onPress={onOpenPrivacy}
           accessibilityRole="link"
+          disabled={!onOpenPrivacy}
         >
           <Text style={styles.linkText}>Read full Privacy Policy</Text>
         </Pressable>

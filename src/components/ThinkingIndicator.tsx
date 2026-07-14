@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
+import { Text } from './ThemedText';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import {
   DONNA_THINKING_VERBS,

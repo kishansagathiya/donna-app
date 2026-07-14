@@ -2,9 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import {
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from './ThemedText';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
