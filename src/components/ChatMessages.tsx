@@ -5,6 +5,7 @@ import {
   View,
 } from 'react-native';
 import { Text } from './ThemedText';
+import { MessageContent } from './MessageContent';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
@@ -44,6 +45,8 @@ export function ChatMessages({ turns, phaseLabel }: Props) {
       style={styles.scroll}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      nestedScrollEnabled
     >
       {turns.map(turn => {
         const showWaitingBubble =
@@ -53,12 +56,20 @@ export function ChatMessages({ turns, phaseLabel }: Props) {
           <View key={turn.id} style={styles.turn}>
             {turn.user ? (
               <View style={[styles.bubble, styles.userBubble]}>
-                <Text style={styles.userText}>{turn.user}</Text>
+                <MessageContent
+                  content={turn.user}
+                  variant="user"
+                  textStyle={styles.userText}
+                />
               </View>
             ) : null}
             {turn.assistant ? (
               <View style={[styles.bubble, styles.assistantBubble]}>
-                <Text style={styles.assistantText}>{turn.assistant}</Text>
+                <MessageContent
+                  content={turn.assistant}
+                  variant="assistant"
+                  textStyle={styles.assistantText}
+                />
               </View>
             ) : showWaitingBubble ? (
               <AssistantThinkingBlock colors={colors} />
