@@ -4,11 +4,12 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
 import type { ThemeColors } from '../theme/colors';
-import { HistoryIcon } from './icons';
+import { HistoryIcon, PlusIcon } from './icons';
 
 type Props = {
   onAvatarPress?: () => void;
   onHistoryPress?: () => void;
+  onNewChatPress?: () => void;
 };
 
 export function UserAvatar({
@@ -54,7 +55,11 @@ export function UserAvatar({
   );
 }
 
-export function AppHeader({ onAvatarPress, onHistoryPress }: Props) {
+export function AppHeader({
+  onAvatarPress,
+  onHistoryPress,
+  onNewChatPress,
+}: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
 
@@ -63,6 +68,19 @@ export function AppHeader({ onAvatarPress, onHistoryPress }: Props) {
       <Text style={styles.title}>Chat</Text>
 
       <View style={styles.actions}>
+        {onNewChatPress ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.iconButton,
+              pressed && styles.iconButtonPressed,
+            ]}
+            onPress={onNewChatPress}
+            accessibilityRole="button"
+            accessibilityLabel="New chat"
+          >
+            <PlusIcon size={20} color={colors.muted} />
+          </Pressable>
+        ) : null}
         {onHistoryPress ? (
           <Pressable
             style={({ pressed }) => [
@@ -111,6 +129,7 @@ function createStyles(colors: ThemeColors) {
       fontSize: 18,
       fontWeight: '600',
       color: colors.text,
+      fontFamily: colors.fontFamily,
     },
     actions: {
       flexDirection: 'row',

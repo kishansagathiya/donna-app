@@ -3,9 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeColors } from '../theme/colors';
-import { APP_THEMES, type AppTheme } from '../theme/theme';
-
-const THEMES: AppTheme[] = ['cream', 'indigo'];
+import { APP_THEMES, THEME_ORDER, type AppTheme } from '../theme/theme';
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -15,14 +13,14 @@ export function ThemeToggle() {
     <View style={styles.container}>
       <Text style={styles.title}>Color theme</Text>
       <Text style={styles.description}>
-        Switch between the warm cream palette and the earlier indigo look.
+        Switch between the indigo accent or a black-and-white e-ink reader.
       </Text>
       <View
         style={styles.toggle}
         accessibilityRole="radiogroup"
         accessibilityLabel="Color theme"
       >
-        {THEMES.map(value => {
+        {THEME_ORDER.map((value: AppTheme) => {
           const selected = theme === value;
           return (
             <Pressable
@@ -55,12 +53,14 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '700',
       color: colors.text,
       marginBottom: 4,
+      fontFamily: colors.fontFamily,
     },
     description: {
       fontSize: 14,
       lineHeight: 20,
       color: colors.muted,
       marginBottom: 12,
+      fontFamily: colors.fontFamily,
     },
     toggle: {
       flexDirection: 'row',
@@ -75,16 +75,17 @@ function createStyles(colors: ThemeColors) {
       flex: 1,
       borderRadius: 8,
       paddingVertical: 10,
-      paddingHorizontal: 12,
+      paddingHorizontal: 8,
       alignItems: 'center',
     },
     optionActive: {
       backgroundColor: colors.primary,
     },
     optionLabel: {
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: '600',
       color: colors.muted,
+      fontFamily: colors.fontFamily,
     },
     optionLabelActive: {
       color: colors.white,

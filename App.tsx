@@ -133,6 +133,7 @@ function AppContent() {
   const {
     state,
     toggleTalk,
+    clearChat,
     turns,
     transcript,
     reply,
@@ -205,7 +206,12 @@ function AppContent() {
             sessionLabel={sessionLabel}
             errorMsg={errorMsg}
             onOpenProfile={() => setTab('profile')}
-            onAttachPress={() => setSheetOpen(true)}
+            onAttachPress={() => {
+              void pickDocument();
+            }}
+            onClearVoiceChat={() => {
+              void clearChat();
+            }}
           />
         ) : null}
 

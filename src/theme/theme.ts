@@ -1,11 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  creamPalette,
+  einkPalette,
   indigoPalette,
   type ThemeColors,
 } from './colors';
 
-export type AppTheme = 'cream' | 'indigo';
+export type AppTheme = 'indigo' | 'eink';
 
 export const THEME_STORAGE_KEY = 'donna.app_theme.v1';
 
@@ -13,17 +13,19 @@ export const APP_THEMES: Record<
   AppTheme,
   { label: string; description: string }
 > = {
-  cream: { label: 'Cream & gold', description: 'Warm, calm palette' },
   indigo: { label: 'Indigo', description: 'Classic blue accent' },
+  eink: { label: 'E-ink', description: 'Black & white reader' },
 };
 
 export const THEME_PALETTES: Record<AppTheme, ThemeColors> = {
-  cream: creamPalette,
   indigo: indigoPalette,
+  eink: einkPalette,
 };
 
+export const THEME_ORDER: AppTheme[] = ['indigo', 'eink'];
+
 export function isAppTheme(value: string | null): value is AppTheme {
-  return value === 'cream' || value === 'indigo';
+  return value === 'indigo' || value === 'eink';
 }
 
 export async function getStoredTheme(): Promise<AppTheme> {
@@ -33,4 +35,9 @@ export async function getStoredTheme(): Promise<AppTheme> {
 
 export async function storeTheme(theme: AppTheme): Promise<void> {
   await AsyncStorage.setItem(THEME_STORAGE_KEY, theme);
+}
+
+export function nextTheme(current: AppTheme): AppTheme {
+  const nextIndex = (THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length;
+  return THEME_ORDER[nextIndex];
 }

@@ -74,5 +74,10 @@
 	<false/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Literata-Regular.ttf</string>
+		<string>Literata-SemiBold.ttf</string>
+	</array>
 </dict>
 </plist>

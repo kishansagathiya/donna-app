@@ -13,6 +13,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import type { ThemeColors } from '../theme/colors';
 
 const INPUT_ACCESSORY_ID = 'add-memory-link-accessory';
 
@@ -34,6 +36,7 @@ export function AddMemorySheet({
   onPickPhoto,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const styles = useThemedStyles(createStyles);
   const [url, setUrl] = useState('');
 
   const handleAddLink = () => {
@@ -106,7 +109,7 @@ export function AddMemorySheet({
                 value={url}
                 onChangeText={setUrl}
                 placeholder="https://…"
-                placeholderTextColor="#999"
+                placeholderTextColor={styles.placeholder.color}
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="url"
@@ -154,107 +157,127 @@ export function AddMemorySheet({
   );
 }
 
-const styles = StyleSheet.create({
-  avoiding: {
-    flex: 1,
-  },
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  sheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    maxHeight: '90%',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1a1a1a',
-  },
-  cancelHeaderText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#9A7B2F',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#444',
-    marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#111',
-    marginBottom: 12,
-  },
-  primaryButton: {
-    backgroundColor: '#9A7B2F',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  secondaryButtonText: {
-    color: '#1a1a1a',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#eee',
-    marginVertical: 16,
-  },
-  accessory: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-    backgroundColor: '#f8f8f8',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  accessoryDone: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#9A7B2F',
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    avoiding: {
+      flex: 1,
+    },
+    backdrop: {
+      flex: 1,
+      justifyContent: 'flex-end',
+      backgroundColor: 'rgba(0,0,0,0.35)',
+    },
+    sheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingHorizontal: 20,
+      paddingTop: 20,
+      maxHeight: '90%',
+      ...(colors.shadowEnabled
+        ? {}
+        : {
+            borderWidth: 1,
+            borderColor: colors.border,
+          }),
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 6,
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: '600',
+      color: colors.text,
+      fontFamily: colors.fontFamily,
+    },
+    cancelHeaderText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.primary,
+      fontFamily: colors.fontFamily,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: colors.muted,
+      lineHeight: 20,
+      marginBottom: 20,
+      fontFamily: colors.fontFamily,
+    },
+    label: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: colors.muted,
+      marginBottom: 8,
+      fontFamily: colors.fontFamily,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 16,
+      color: colors.text,
+      marginBottom: 12,
+      fontFamily: colors.fontFamily,
+      backgroundColor: colors.background,
+    },
+    placeholder: {
+      color: colors.muted,
+    },
+    primaryButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 10,
+      paddingVertical: 12,
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    primaryButtonText: {
+      color: colors.white,
+      fontSize: 16,
+      fontWeight: '600',
+      fontFamily: colors.fontFamily,
+    },
+    secondaryButton: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingVertical: 12,
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    secondaryButtonText: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: '500',
+      fontFamily: colors.fontFamily,
+    },
+    buttonDisabled: {
+      opacity: 0.5,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 16,
+    },
+    accessory: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    accessoryDone: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.primary,
+      fontFamily: colors.fontFamily,
+    },
+  });
+}

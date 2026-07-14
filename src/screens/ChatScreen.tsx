@@ -20,6 +20,12 @@ import {
   type ChatTurnMessage,
 } from '../services/chatApi';
 
+const QUICK_ACTIONS = [
+  { label: 'Summarize PDF', prompt: 'Summarize the PDF I shared' },
+  { label: 'Debug code', prompt: 'Help me debug this code' },
+  { label: 'Draft email', prompt: 'Help me draft an email' },
+] as const;
+
 type Props = {
   micState: MicState;
   onMicPress: () => void;
@@ -32,6 +38,7 @@ type Props = {
   errorMsg?: string | null;
   onOpenProfile: () => void;
   onAttachPress: () => void;
+  onClearVoiceChat?: () => void;
 };
 
 export function ChatScreen({
@@ -46,6 +53,7 @@ export function ChatScreen({
   errorMsg,
   onOpenProfile,
   onAttachPress,
+  onClearVoiceChat,
 }: Props) {
   const styles = useThemedStyles(createStyles);
   const [textMessages, setTextMessages] = useState<ChatTurn[]>([]);
@@ -66,6 +74,10 @@ export function ChatScreen({
   }
 
   const hasMessages = messages.length > 0;
+  const sessionActive =
+    micState === 'listening' ||
+    micState === 'processing' ||
+    micState === 'requesting';
 
   async function handleSend(text: string) {
     const trimmed = text.trim();
@@ -138,13 +150,22 @@ export function ChatScreen({
 
   function handleResumeConversation(
     sessionId: string | undefined,
-    messages: ChatTurn[],
+    resumedMessages: ChatTurn[],
   ) {
-    setTextMessages(messages);
+    setTextMessages(resumedMessages);
     setTextSessionId(sessionId ?? null);
     setTextError(null);
     setIsSending(false);
     setStreamHasText(false);
+  }
+
+  function handleNewChat() {
+    setTextMessages([]);
+    setTextSessionId(null);
+    setTextError(null);
+    setIsSending(false);
+    setStreamHasText(false);
+    onClearVoiceChat?.();
   }
 
   return (
@@ -152,6 +173,7 @@ export function ChatScreen({
       <AppHeader
         onAvatarPress={onOpenProfile}
         onHistoryPress={() => setHistoryOpen(true)}
+        onNewChatPress={handleNewChat}
       />
 
       <Pressable
@@ -193,6 +215,14 @@ export function ChatScreen({
         onMicPress={onMicPress}
         micDisabled={micDisabled}
         sessionLabel={hasMessages ? sessionLabel : null}
+        quickActions={
+          !hasMessages && !isSending && !sessionActive
+            ? QUICK_ACTIONS.map(action => ({
+                label: action.label,
+                onPress: () => void handleSend(action.prompt),
+              }))
+            : undefined
+        }
       />
 
       <ChatHistorySheet
@@ -221,6 +251,7 @@ function createStyles(colors: ThemeColors) {
       fontSize: 14,
       textAlign: 'center',
       lineHeight: 20,
+      fontFamily: colors.fontFamily,
     },
   });
 }

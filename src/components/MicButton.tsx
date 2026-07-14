@@ -269,13 +269,15 @@ function createStyles(colors: ThemeColors) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    coreHero: {
-      shadowColor: colors.primary,
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.25,
-      shadowRadius: 15,
-      elevation: 8,
-    },
+    coreHero: colors.shadowEnabled
+      ? {
+          shadowColor: colors.primary,
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.25,
+          shadowRadius: 15,
+          elevation: 8,
+        }
+      : {},
     coreInlineActive: {
       borderWidth: 2,
       borderColor: colors.primaryRing,

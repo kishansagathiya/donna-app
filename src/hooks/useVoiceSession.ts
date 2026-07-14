@@ -429,6 +429,16 @@ export function useVoiceSession() {
     await startSession();
   }, [startSession, state, stopSession]);
 
+  const clearChat = useCallback(async () => {
+    if (state === 'listening' || state === 'processing' || state === 'requesting') {
+      await stopSession();
+    }
+    setTurns([]);
+    setStatus({ transcript: null, reply: null, phase: null });
+    setErrorMsg(null);
+    turnSeqRef.current = 0;
+  }, [state, stopSession]);
+
   useEffect(() => {
     return () => {
       void stopSession();
@@ -452,6 +462,7 @@ export function useVoiceSession() {
   return {
     state,
     toggleTalk,
+    clearChat,
     turns,
     transcript: status.transcript,
     reply: status.reply,

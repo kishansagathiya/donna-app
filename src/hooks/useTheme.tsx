@@ -9,6 +9,7 @@ import {
 import type { ThemeColors } from '../theme/colors';
 import {
   getStoredTheme,
+  nextTheme,
   storeTheme,
   THEME_PALETTES,
   type AppTheme,
@@ -39,8 +40,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       theme,
       colors: THEME_PALETTES[theme],
       setTheme: setThemeState,
-      toggleTheme: () =>
-        setThemeState(current => (current === 'cream' ? 'indigo' : 'cream')),
+      toggleTheme: () => setThemeState(current => nextTheme(current)),
     }),
     [theme],
   );

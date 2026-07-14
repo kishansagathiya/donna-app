@@ -22,9 +22,6 @@ import type { ThemeColors } from '../theme/colors';
 import type { ChatTurn } from './ChatMessages';
 import { HistoryIcon, MessageSquareIcon, MicIcon } from './icons';
 
-const VOICE_ICON_BG = '#FAF5FF';
-const VOICE_ICON_COLOR = '#9333EA';
-
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -174,7 +171,7 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
                         ]}
                       >
                         {isVoice ? (
-                          <MicIcon size={16} color={VOICE_ICON_COLOR} />
+                          <MicIcon size={16} color={colors.primary} />
                         ) : (
                           <MessageSquareIcon size={16} color={colors.primary} />
                         )}
@@ -226,11 +223,18 @@ function createStyles(colors: ThemeColors) {
       borderTopLeftRadius: 16,
       borderTopRightRadius: 16,
       maxHeight: '85%',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -4 },
-      shadowOpacity: 0.12,
-      shadowRadius: 16,
-      elevation: 8,
+      ...(colors.shadowEnabled
+        ? {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.12,
+            shadowRadius: 16,
+            elevation: 8,
+          }
+        : {
+            borderWidth: 1,
+            borderColor: colors.border,
+          }),
     },
     header: {
       flexDirection: 'row',
@@ -352,7 +356,7 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primaryLight,
     },
     itemIconVoice: {
-      backgroundColor: VOICE_ICON_BG,
+      backgroundColor: colors.primaryLight,
     },
     itemBody: {
       flex: 1,

@@ -10,20 +10,9 @@ export type ThemeColors = {
   muted: string;
   destructive: string;
   white: string;
-};
-
-export const creamPalette: ThemeColors = {
-  primary: '#A58B5B',
-  primaryHover: '#8F7649',
-  primaryLight: '#E9E3D6',
-  primaryRing: '#B89446',
-  surface: '#F4F1EA',
-  background: '#FFFFFF',
-  border: '#E0D8C4',
-  text: '#1A1A1A',
-  muted: '#666666',
-  destructive: '#B42318',
-  white: '#FFFFFF',
+  /** Custom face for e-ink; omit for system default. */
+  fontFamily?: string;
+  shadowEnabled: boolean;
 };
 
 export const indigoPalette: ThemeColors = {
@@ -38,4 +27,22 @@ export const indigoPalette: ThemeColors = {
   muted: '#6B7280',
   destructive: '#DC2626',
   white: '#FFFFFF',
+  shadowEnabled: true,
+};
+
+/** Matches donna-web html[data-theme="eink"] tokens in app-shell.css. */
+export const einkPalette: ThemeColors = {
+  primary: '#1A1A1A',
+  primaryHover: '#000000',
+  primaryLight: '#E8E6DF',
+  primaryRing: '#333333',
+  surface: '#F4F1EA',
+  background: '#F4F1EA',
+  border: '#D8D4C8',
+  text: '#1A1A1A',
+  muted: '#5C564E',
+  destructive: '#1A1A1A',
+  white: '#FFFFFF',
+  fontFamily: 'Literata',
+  shadowEnabled: false,
 };

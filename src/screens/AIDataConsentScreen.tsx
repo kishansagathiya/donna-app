@@ -10,7 +10,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PRIVACY_POLICY_URL } from '../config';
+import { useTheme } from '../hooks/useTheme';
+import { useThemedStyles } from '../hooks/useThemedStyles';
 import { grantAiDataConsent } from '../services/privacyConsent';
+import type { ThemeColors } from '../theme/colors';
 
 type Props = {
   onAccepted: () => void;
@@ -18,6 +21,8 @@ type Props = {
 
 export function AIDataConsentScreen({ onAccepted }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [saving, setSaving] = useState(false);
 
   async function handleAccept() {
@@ -106,7 +111,7 @@ export function AIDataConsentScreen({ onAccepted }: Props) {
         accessibilityRole="button"
       >
         {saving ? (
-          <ActivityIndicator color="#ffffff" size="small" />
+          <ActivityIndicator color={colors.white} size="small" />
         ) : (
           <Text style={styles.acceptButtonText}>
             I agree — continue to Donna
@@ -117,75 +122,84 @@ export function AIDataConsentScreen({ onAccepted }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 24,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    letterSpacing: -0.5,
-    marginBottom: 12,
-  },
-  lead: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#444444',
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 10,
-  },
-  bulletList: {
-    gap: 10,
-    marginBottom: 22,
-  },
-  bullet: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#555555',
-  },
-  note: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: '#666666',
-    marginBottom: 12,
-  },
-  linkButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: 4,
-  },
-  linkText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#9A7B2F',
-    textDecorationLine: 'underline',
-  },
-  acceptButton: {
-    backgroundColor: '#9A7B2F',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  acceptButtonDisabled: {
-    opacity: 0.7,
-  },
-  acceptButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingHorizontal: 24,
+    },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingBottom: 16,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: colors.text,
+      letterSpacing: -0.5,
+      marginBottom: 12,
+      fontFamily: colors.fontFamily,
+    },
+    lead: {
+      fontSize: 16,
+      lineHeight: 24,
+      color: colors.muted,
+      marginBottom: 24,
+      fontFamily: colors.fontFamily,
+    },
+    sectionTitle: {
+      fontSize: 17,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 10,
+      fontFamily: colors.fontFamily,
+    },
+    bulletList: {
+      gap: 10,
+      marginBottom: 22,
+    },
+    bullet: {
+      fontSize: 15,
+      lineHeight: 22,
+      color: colors.muted,
+      fontFamily: colors.fontFamily,
+    },
+    note: {
+      fontSize: 14,
+      lineHeight: 21,
+      color: colors.muted,
+      marginBottom: 12,
+      fontFamily: colors.fontFamily,
+    },
+    linkButton: {
+      alignSelf: 'flex-start',
+      paddingVertical: 4,
+    },
+    linkText: {
+      fontSize: 15,
+      fontWeight: '500',
+      color: colors.primary,
+      textDecorationLine: 'underline',
+      fontFamily: colors.fontFamily,
+    },
+    acceptButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: 'center',
+      marginTop: 8,
+    },
+    acceptButtonDisabled: {
+      opacity: 0.7,
+    },
+    acceptButtonText: {
+      color: colors.white,
+      fontSize: 16,
+      fontWeight: '600',
+      fontFamily: colors.fontFamily,
+    },
+  });
+}

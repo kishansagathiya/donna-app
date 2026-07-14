@@ -4,6 +4,7 @@ import {
   Keyboard,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -19,11 +20,17 @@ import { ThinkingIndicator } from './ThinkingIndicator';
 
 const INPUT_ACCESSORY_ID = 'chat-input-accessory';
 
+export type QuickAction = {
+  label: string;
+  onPress: () => void;
+};
+
 type Props = {
   onSend?: (text: string) => void;
   onAttachPress?: () => void;
   disabled?: boolean;
   placeholder?: string;
+  quickActions?: QuickAction[];
   showMic?: boolean;
   micState?: MicState;
   onMicPress?: () => void;
@@ -36,6 +43,7 @@ export function ChatInput({
   onAttachPress,
   disabled,
   placeholder = 'Message Donna...',
+  quickActions,
   showMic = false,
   micState = 'idle',
   onMicPress,
@@ -80,6 +88,31 @@ export function ChatInput({
           {sessionLabel}
         </Text>
       ) : null}
+      {quickActions && quickActions.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickActions}
+          keyboardShouldPersistTaps="handled"
+        >
+          {quickActions.map(action => (
+            <Pressable
+              key={action.label}
+              style={({ pressed }) => [
+                styles.quickAction,
+                pressed && styles.quickActionPressed,
+                disabled && styles.quickActionDisabled,
+              ]}
+              onPress={action.onPress}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel={action.label}
+            >
+              <Text style={styles.quickActionLabel}>{action.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
       <View style={styles.row}>
         <View style={styles.bar}>
           {onAttachPress ? (
@@ -88,7 +121,7 @@ export function ChatInput({
               onPress={onAttachPress}
               disabled={disabled}
               accessibilityRole="button"
-              accessibilityLabel="Attach file or link"
+              accessibilityLabel="Attach file"
             >
               <PaperclipIcon size={20} color={colors.muted} />
             </Pressable>
@@ -158,6 +191,7 @@ function createStyles(colors: ThemeColors) {
       fontSize: 16,
       fontWeight: '600',
       color: colors.primary,
+      fontFamily: colors.fontFamily,
     },
     sessionLabel: {
       fontSize: 13,
@@ -166,6 +200,32 @@ function createStyles(colors: ThemeColors) {
       textAlign: 'center',
       marginBottom: 8,
       lineHeight: 18,
+      fontFamily: colors.fontFamily,
+    },
+    quickActions: {
+      gap: 8,
+      paddingBottom: 10,
+      paddingRight: 8,
+    },
+    quickAction: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 999,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      backgroundColor: colors.surface,
+    },
+    quickActionPressed: {
+      backgroundColor: colors.primaryLight,
+    },
+    quickActionDisabled: {
+      opacity: 0.5,
+    },
+    quickActionLabel: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: colors.text,
+      fontFamily: colors.fontFamily,
     },
     row: {
       flexDirection: 'row',
@@ -198,6 +258,7 @@ function createStyles(colors: ThemeColors) {
       maxHeight: 100,
       paddingVertical: 8,
       paddingHorizontal: 4,
+      fontFamily: colors.fontFamily,
     },
     sendButton: {
       width: 44,
