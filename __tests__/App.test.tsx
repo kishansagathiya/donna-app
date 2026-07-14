@@ -81,6 +81,30 @@ jest.mock('../src/screens/ProfileScreen', () => ({
   ProfileScreen: () => null,
 }));
 
+jest.mock('../src/screens/NotesScreen', () => ({
+  NotesScreen: () => null,
+}));
+
+jest.mock('../src/screens/MemoryScreen', () => ({
+  MemoryScreen: () => null,
+}));
+
+jest.mock('../src/screens/PairDeviceScreen', () => ({
+  PairDeviceScreen: () => null,
+}));
+
+jest.mock('../src/screens/PrivacyScreen', () => ({
+  PrivacyScreen: () => null,
+}));
+
+jest.mock('../src/screens/SupportScreen', () => ({
+  SupportScreen: () => null,
+}));
+
+jest.mock('../src/components/AddMemorySheet', () => ({
+  AddMemorySheet: () => null,
+}));
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(async () => null),
   setItem: jest.fn(async () => undefined),
@@ -103,6 +127,23 @@ jest.mock('../src/hooks/useIncomingShare', () => ({
     pendingShare: null,
     clearPendingShare: jest.fn(),
   }),
+}));
+
+jest.mock('../src/hooks/useDeviceSync', () => ({
+  useDeviceSync: () => ({
+    connected: false,
+    deviceName: null,
+    uploadState: 'idle',
+    syncPath: 'idle',
+    syncProgress: null,
+    pendingCount: 0,
+    notesRefreshToken: 0,
+    lastMessage: null,
+    forgetDevice: jest.fn(async () => {}),
+    disconnectForProvisioning: jest.fn(async () => {}),
+    reconnectDevice: jest.fn(async () => {}),
+  }),
+  listPairedDevices: jest.fn(async () => []),
 }));
 
 import React from 'react';
