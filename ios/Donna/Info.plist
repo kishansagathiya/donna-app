@@ -50,9 +50,16 @@
 				<string>donna</string>
 			</array>
 		</dict>
-		<!-- Google Sign-In: add a second dict with CFBundleURLSchemes =
-		     the iOS OAuth client's REVERSED_CLIENT_ID
-		     (com.googleusercontent.apps.…). See README. -->
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>Google Sign-In</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.649652106727-anj5lq5cbq0683p122j69jqenurh56m5</string>
+			</array>
+		</dict>
 	</array>
 	<key>RCTNewArchEnabled</key>
 	<true/>
