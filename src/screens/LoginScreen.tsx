@@ -11,6 +11,7 @@ import {
 import { Text } from '../components/ThemedText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SignInButton } from '../components/SignInButton';
+import { SignInWithGoogleButton } from '../components/SignInWithGoogleButton';
 import { DEV_EMAIL, DEV_PASSWORD } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
@@ -72,6 +73,7 @@ export function LoginScreen({ onSuccess, onOpenPrivacy }: Props) {
       <View style={styles.actions}>
         <Text style={styles.signInLabel}>Sign in to continue</Text>
         <SignInButton onSuccess={onSuccess} onError={handleError} />
+        <SignInWithGoogleButton onSuccess={onSuccess} onError={handleError} />
 
         {hasDevCredentials && (
           <TouchableOpacity

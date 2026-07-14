@@ -21,6 +21,18 @@ export const DEV_EMAIL: string | null = null;
 export const DEV_PASSWORD: string | null = null;
 
 /**
+ * Google Sign-In (native ID token → Supabase).
+ *
+ * Both Client IDs go in Supabase → Authentication → Providers → Google
+ * (comma-separated, Web ID first). Enable Skip nonce check for native iOS.
+ * iOS REVERSED_CLIENT_ID is in ios/Donna/Info.plist CFBundleURLSchemes.
+ */
+export const GOOGLE_WEB_CLIENT_ID =
+  '649652106727-mohbcdb0r5ahrtg8qbnan566tvorv164.apps.googleusercontent.com';
+export const GOOGLE_IOS_CLIENT_ID =
+  '649652106727-anj5lq5cbq0683p122j69jqenurh56m5.apps.googleusercontent.com';
+
+/**
  * App Store screenshot capture — set to a screen name, run in Simulator, Cmd+S.
  * Set back to null before release builds.
  */

@@ -64,9 +64,9 @@ export function PrivacyScreen({ visible, onClose }: Props) {
           <Text style={styles.sectionTitle}>Information we collect</Text>
           <Text style={styles.paragraph}>
             <Text style={styles.bold}>Account information.</Text> When you sign
-            in with Apple, we receive an account identifier and, if you choose to
-            share it, your email address and name. This is used to keep your data
-            separate from other users and to maintain your session.
+            in with Apple or Google, we receive an account identifier and, if you
+            choose to share it, your email address and name. This is used to keep
+            your data separate from other users and to maintain your session.
           </Text>
           <Text style={styles.paragraph}>
             <Text style={styles.bold}>Voice audio.</Text> When you tap the
