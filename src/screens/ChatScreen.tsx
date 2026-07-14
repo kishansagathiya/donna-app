@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Keyboard,
-  Pressable,
   StyleSheet,
   View,
 } from 'react-native';
@@ -176,11 +174,7 @@ export function ChatScreen({
         onNewChatPress={handleNewChat}
       />
 
-      <Pressable
-        style={styles.main}
-        onPress={Keyboard.dismiss}
-        accessible={false}
-      >
+      <View style={styles.main}>
         {hasMessages ? (
           <ChatMessages
             turns={messages}
@@ -204,7 +198,7 @@ export function ChatScreen({
             {textError ?? errorMsg}
           </Text>
         ) : null}
-      </Pressable>
+      </View>
 
       <ChatInput
         onSend={handleSend}
