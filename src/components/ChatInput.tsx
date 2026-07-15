@@ -13,7 +13,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
-import { ArrowUpIcon, PaperclipIcon } from './icons';
+import { ArrowUpIcon, PaperclipIcon, StopIcon } from './icons';
 import { MicButton, type MicState } from './MicButton';
 import { ThinkingIndicator } from './ThinkingIndicator';
 
@@ -26,8 +26,10 @@ export type QuickAction = {
 
 type Props = {
   onSend?: (text: string) => void;
+  onStop?: () => void;
   onAttachPress?: () => void;
   disabled?: boolean;
+  busy?: boolean;
   placeholder?: string;
   quickActions?: QuickAction[];
   showMic?: boolean;
@@ -39,8 +41,10 @@ type Props = {
 
 export function ChatInput({
   onSend,
+  onStop,
   onAttachPress,
   disabled,
+  busy = false,
   placeholder = 'Message Donna...',
   quickActions,
   showMic = false,
@@ -53,7 +57,8 @@ export function ChatInput({
   const styles = useThemedStyles(createStyles);
   const [text, setText] = useState('');
   const hasText = text.trim().length > 0;
-  const showInlineMic = showMic && !hasText && onMicPress;
+  const showStop = busy && Boolean(onStop);
+  const showInlineMic = showMic && !hasText && onMicPress && !showStop;
 
   function submit() {
     const trimmed = text.trim();
@@ -149,6 +154,15 @@ export function ChatInput({
             onPress={onMicPress}
             disabled={micDisabled}
           />
+        ) : showStop ? (
+          <Pressable
+            style={styles.sendButton}
+            onPress={onStop}
+            accessibilityRole="button"
+            accessibilityLabel="Stop generating"
+          >
+            <StopIcon size={16} color={colors.white} />
+          </Pressable>
         ) : (
           <Pressable
             style={[

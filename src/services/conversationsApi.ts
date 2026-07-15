@@ -73,6 +73,36 @@ export async function getConversation(id: string): Promise<ConversationDetail> {
   return parseJSON(res);
 }
 
+export async function truncateConversationTurns(
+  clientSessionId: string,
+  fromIndex: number,
+): Promise<void> {
+  const sessionId = encodeURIComponent(clientSessionId);
+  const res = await authorizedFetch(
+    `/conversations/session/${sessionId}/turns?from_index=${fromIndex}`,
+    { method: 'DELETE' },
+  );
+  await parseJSON<{ ok: boolean }>(res);
+}
+
+export async function submitTurnFeedback(
+  clientSessionId: string,
+  turnIndex: number,
+  rating: 'up' | 'down',
+  comment = '',
+): Promise<void> {
+  const sessionId = encodeURIComponent(clientSessionId);
+  const res = await authorizedFetch(
+    `/conversations/session/${sessionId}/turns/${turnIndex}/feedback`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating, comment }),
+    },
+  );
+  await parseJSON<{ ok: boolean }>(res);
+}
+
 export function formatConversationDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
