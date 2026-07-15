@@ -65,6 +65,7 @@ type Props = {
   sessionLabel?: string | null;
   errorMsg?: string | null;
   onOpenProfile: () => void;
+  onOpenNote?: (noteId: string) => void;
   onClearVoiceChat?: () => void;
   onToast?: (message: string, isError?: boolean) => void;
 };
@@ -96,6 +97,7 @@ export function ChatScreen({
   sessionLabel,
   errorMsg,
   onOpenProfile,
+  onOpenNote,
   onClearVoiceChat,
   onToast,
 }: Props) {
@@ -140,6 +142,7 @@ export function ChatScreen({
     turnId: string,
     sessionId: string | null,
     attachments?: ChatAttachmentPayload[],
+    webSearch?: boolean,
   ) {
     setTextError(null);
     setStreamHasText(false);
@@ -153,6 +156,7 @@ export function ChatScreen({
           history,
           sessionId: sessionId ?? undefined,
           attachments,
+          webSearch,
         },
         {
           onSession: nextSessionId => {
@@ -166,6 +170,7 @@ export function ChatScreen({
                   ? {
                       ...t,
                       assistant: replyText,
+                      streaming: true,
                       error: false,
                       cancelled: false,
                     }
@@ -187,6 +192,7 @@ export function ChatScreen({
                       ...t,
                       assistant: result.reply || t.assistant,
                       historyUser: result.groundedUserMessage ?? t.historyUser,
+                      streaming: false,
                       error: false,
                       cancelled: Boolean(result.aborted),
                       citations: result.citations ?? t.citations,
@@ -199,7 +205,9 @@ export function ChatScreen({
             setTextError(message);
             setTextMessages(prev =>
               prev.map(t =>
-                t.id === turnId ? { ...t, error: true, cancelled: false } : t,
+                t.id === turnId
+                  ? { ...t, error: true, cancelled: false, streaming: false }
+                  : t,
               ),
             );
           },
@@ -215,7 +223,9 @@ export function ChatScreen({
       setTextError(message);
       setTextMessages(prev =>
         prev.map(t =>
-          t.id === turnId ? { ...t, error: true, cancelled: false } : t,
+          t.id === turnId
+            ? { ...t, error: true, cancelled: false, streaming: false }
+            : t,
         ),
       );
     } finally {
@@ -227,6 +237,7 @@ export function ChatScreen({
   async function handleSend(
     text: string,
     attachments: PendingAttachment[] = [],
+    options?: { webSearch?: boolean },
   ) {
     const trimmed = text.trim();
     if ((!trimmed && attachments.length === 0) || isSendingRef.current) {
@@ -237,6 +248,12 @@ export function ChatScreen({
     const history = historyFromTurns(textMessagesRef.current);
     const payloads = attachments.map(a => a.payload);
     const labels = attachments.map(a => a.filename);
+    const turnAttachments = attachments.map(a => ({
+      id: a.id,
+      filename: a.filename,
+      previewUri: a.previewUri,
+      mime: a.mime,
+    }));
 
     setTextMessages(prev => [
       ...prev,
@@ -245,6 +262,7 @@ export function ChatScreen({
         user: displayUserContent(trimmed, attachments),
         assistant: null,
         attachmentLabels: labels.length > 0 ? labels : undefined,
+        attachments: turnAttachments.length > 0 ? turnAttachments : undefined,
       },
     ]);
     setPendingAttachments([]);
@@ -255,6 +273,7 @@ export function ChatScreen({
       turnId,
       textSessionIdRef.current,
       payloads.length > 0 ? payloads : undefined,
+      options?.webSearch,
     );
   }
 
@@ -376,7 +395,13 @@ export function ChatScreen({
 
     setTextMessages([
       ...kept,
-      { id: turnId, user: last.user, assistant: null, attachmentLabels: last.attachmentLabels },
+      {
+        id: turnId,
+        user: last.user,
+        assistant: null,
+        attachmentLabels: last.attachmentLabels,
+        attachments: last.attachments,
+      },
     ]);
 
     await runStream(
@@ -442,7 +467,14 @@ export function ChatScreen({
 
     setTextMessages([
       ...kept,
-      { id: turnId, user: last.user, assistant: null, error: false, attachmentLabels: last.attachmentLabels },
+      {
+        id: turnId,
+        user: last.user,
+        assistant: null,
+        error: false,
+        attachmentLabels: last.attachmentLabels,
+        attachments: last.attachments,
+      },
     ]);
     setTextError(null);
 
@@ -510,6 +542,7 @@ export function ChatScreen({
     <View style={styles.container}>
       <AppHeader
         onAvatarPress={onOpenProfile}
+        onSettingsPress={onOpenProfile}
         onHistoryPress={() => setHistoryOpen(true)}
         onNewChatPress={handleNewChat}
       />
@@ -528,6 +561,7 @@ export function ChatScreen({
             onEditMessage={(id, text) => void handleEditAndResend(id, text)}
             onFeedback={(id, rating) => void handleFeedback(id, rating)}
             onRetry={() => void handleRetry()}
+            onOpenNote={onOpenNote}
           />
         ) : null}
 
@@ -559,7 +593,9 @@ export function ChatScreen({
       </View>
 
       <ChatInput
-        onSend={(text, attachments) => void handleSend(text, attachments)}
+        onSend={(text, attachments, options) =>
+          void handleSend(text, attachments, options)
+        }
         onStop={handleStop}
         onAttachPress={handleAttachPress}
         attachments={pendingAttachments}

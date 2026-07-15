@@ -237,9 +237,11 @@ export function MessageContent({ content, variant, textStyle }: Props) {
                   <Text style={[textStyle, styles.listMarker]}>
                     {block.ordered ? `${itemIndex + 1}.` : '•'}
                   </Text>
-                  <Text style={[styles.listItemBody, textStyle]}>
-                    {InlineText(item, textStyle, styles)}
-                  </Text>
+                  <View style={styles.listItemBody}>
+                    <Text style={textStyle}>
+                      {InlineText(item, textStyle, styles)}
+                    </Text>
+                  </View>
                 </View>
               ))}
             </View>
@@ -372,6 +374,7 @@ function createStyles(colors: ThemeColors) {
     listItemBody: {
       flex: 1,
       flexShrink: 1,
+      minWidth: 0,
     },
     blockquote: {
       borderLeftWidth: 2,

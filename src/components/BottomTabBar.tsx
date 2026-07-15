@@ -5,13 +5,14 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeColors } from '../theme/colors';
 import {
+  CalendarCheckIcon,
   DatabaseIcon,
   MessageSquareIcon,
   StickyNoteIcon,
   UserIcon,
 } from './icons';
 
-export type AppTab = 'chat' | 'notes' | 'memory' | 'profile';
+export type AppTab = 'chat' | 'notes' | 'today' | 'memory' | 'profile';
 
 type Props = {
   active: AppTab;
@@ -25,6 +26,7 @@ const tabs: {
 }[] = [
   { id: 'chat', label: 'Chat', Icon: MessageSquareIcon },
   { id: 'notes', label: 'Notes', Icon: StickyNoteIcon },
+  { id: 'today', label: 'Today', Icon: CalendarCheckIcon },
   { id: 'memory', label: 'Memory', Icon: DatabaseIcon },
   { id: 'profile', label: 'Profile', Icon: UserIcon },
 ];
@@ -67,18 +69,18 @@ function createStyles(colors: ThemeColors) {
       borderTopWidth: 1,
       borderTopColor: colors.border,
       backgroundColor: colors.background,
-      paddingTop: 8,
-      paddingBottom: 6,
     },
     tab: {
       flex: 1,
       alignItems: 'center',
       gap: 4,
+      paddingTop: 8,
+      paddingBottom: 6,
     },
     iconWrap: {
       width: 44,
       height: 32,
-      borderRadius: 10,
+      borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -86,9 +88,9 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primaryLight,
     },
     label: {
-      fontSize: 12,
-      fontWeight: '500',
+      fontSize: 11,
       color: colors.muted,
+      fontFamily: colors.fontFamily,
     },
     labelActive: {
       color: colors.primary,

@@ -42,6 +42,7 @@ import { PairDeviceScreen } from './src/screens/PairDeviceScreen';
 import { PrivacyScreen } from './src/screens/PrivacyScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
+import { TodayScreen } from './src/screens/TodayScreen';
 import { SCREENSHOT_MODE } from './src/config';
 import { useAiDataConsent } from './src/hooks/useAiDataConsent';
 import { ThemeProvider, useTheme } from './src/hooks/useTheme';
@@ -173,6 +174,7 @@ function AppContent({
   const safeAreaInsets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [tab, setTab] = useState<AppTab>('chat');
+  const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const {
     state,
     toggleTalk,
@@ -201,6 +203,11 @@ function AppContent({
 
   const bumpNotesRefresh = useCallback(() => {
     setIngestRefreshToken(token => token + 1);
+  }, []);
+
+  const openNote = useCallback((noteId: string) => {
+    setOpenNoteId(noteId);
+    setTab('notes');
   }, []);
 
   const handleAddLink = useCallback(() => {
@@ -323,6 +330,7 @@ function AppContent({
             sessionLabel={sessionLabel}
             errorMsg={errorMsg}
             onOpenProfile={() => setTab('profile')}
+            onOpenNote={openNote}
             onClearVoiceChat={() => {
               void clearChat();
             }}
@@ -336,10 +344,16 @@ function AppContent({
             notesRefreshToken={
               deviceSync.notesRefreshToken + ingestRefreshToken
             }
+            openNoteId={openNoteId}
+            onOpenNoteConsumed={() => setOpenNoteId(null)}
             onAddLink={handleAddLink}
             onSaveToMemory={handleSaveToMemory}
           />
         </View>
+
+        {tab === 'today' ? (
+          <TodayScreen embedded onOpenNote={openNote} />
+        ) : null}
 
         {tab === 'memory' ? <MemoryScreen /> : null}
 

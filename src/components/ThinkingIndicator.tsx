@@ -128,7 +128,7 @@ export function AssistantThinkingBlock({ colors }: BlockProps) {
 
   return (
     <View style={styles.block}>
-      <View style={[styles.bubble, { borderColor: colors.border, backgroundColor: colors.background }]}>
+      <View style={[styles.bubble, { borderColor: colors.border, backgroundColor: colors.surface }]}>
         <BouncingDots size="md" color={colors.muted} />
       </View>
       <ThinkingLabel

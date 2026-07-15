@@ -5,7 +5,6 @@ import {
   Keyboard,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
@@ -15,7 +14,15 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import type { PendingAttachment } from '../lib/chatAttachments';
 import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
-import { ArrowUpIcon, PaperclipIcon, StopIcon } from './icons';
+import {
+  ArrowUpIcon,
+  BookOpenIcon,
+  BrainIcon,
+  GlobeIcon,
+  HistoryIcon,
+  PaperclipIcon,
+  StopIcon,
+} from './icons';
 import { MicButton, type MicState } from './MicButton';
 import { ThinkingIndicator } from './ThinkingIndicator';
 
@@ -27,7 +34,11 @@ export type QuickAction = {
 };
 
 type Props = {
-  onSend?: (text: string, attachments: PendingAttachment[]) => void;
+  onSend?: (
+    text: string,
+    attachments: PendingAttachment[],
+    options?: { webSearch?: boolean },
+  ) => void;
   onStop?: () => void;
   onAttachPress?: () => void;
   attachments?: PendingAttachment[];
@@ -41,6 +52,15 @@ type Props = {
   onMicPress?: () => void;
   micDisabled?: boolean;
   sessionLabel?: string | null;
+};
+
+const quickActionIcons: Record<
+  string,
+  typeof BrainIcon | typeof BookOpenIcon | typeof HistoryIcon
+> = {
+  'What do you remember?': BrainIcon,
+  'Catch me up': BookOpenIcon,
+  'Continue last chat': HistoryIcon,
 };
 
 export function ChatInput({
@@ -62,6 +82,7 @@ export function ChatInput({
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [text, setText] = useState('');
+  const [webSearch, setWebSearch] = useState(false);
   const hasText = text.trim().length > 0;
   const hasAttachments = attachments.length > 0;
   const canSend = hasText || hasAttachments;
@@ -74,7 +95,7 @@ export function ChatInput({
       return;
     }
     const trimmed = text.trim();
-    onSend?.(trimmed, attachments);
+    onSend?.(trimmed, attachments, { webSearch });
     setText('');
   }
 
@@ -101,71 +122,32 @@ export function ChatInput({
           {sessionLabel}
         </Text>
       ) : null}
-      {quickActions && quickActions.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.quickActions}
-          keyboardShouldPersistTaps="handled"
-        >
-          {quickActions.map(action => (
-            <Pressable
-              key={action.label}
-              style={({ pressed }) => [
-                styles.quickAction,
-                pressed && styles.quickActionPressed,
-                disabled && styles.quickActionDisabled,
-              ]}
-              onPress={action.onPress}
-              disabled={disabled}
-              accessibilityRole="button"
-              accessibilityLabel={action.label}
-            >
-              <Text style={styles.quickActionLabel}>{action.label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      ) : null}
-      {attachments.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.attachmentRow}
-          keyboardShouldPersistTaps="handled"
-        >
-          {attachments.map(att => (
-            <View key={att.id} style={styles.attachmentChip}>
-              {att.previewUri ? (
-                <Image source={{ uri: att.previewUri }} style={styles.thumb} />
-              ) : null}
-              <Text style={styles.attachmentName} numberOfLines={1}>
-                {att.filename}
-              </Text>
-              <Pressable
-                onPress={() => onRemoveAttachment?.(att.id)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${att.filename}`}
-              >
-                <Text style={styles.attachmentRemove}>✕</Text>
-              </Pressable>
-            </View>
-          ))}
-        </ScrollView>
-      ) : null}
-      <View style={styles.row}>
-        <View style={styles.bar}>
-          {onAttachPress ? (
-            <Pressable
-              style={styles.attachButton}
-              onPress={onAttachPress}
-              disabled={disabled}
-              accessibilityRole="button"
-              accessibilityLabel="Attach"
-            >
-              <PaperclipIcon size={20} color={colors.muted} />
-            </Pressable>
-          ) : null}
+
+      <View style={styles.card}>
+        {attachments.length > 0 ? (
+          <View style={styles.attachmentRow}>
+            {attachments.map(att => (
+              <View key={att.id} style={styles.attachmentChip}>
+                {att.previewUri ? (
+                  <Image source={{ uri: att.previewUri }} style={styles.thumb} />
+                ) : null}
+                <Text style={styles.attachmentName} numberOfLines={1}>
+                  {att.filename}
+                </Text>
+                <Pressable
+                  onPress={() => onRemoveAttachment?.(att.id)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${att.filename}`}
+                >
+                  <Text style={styles.attachmentRemove}>✕</Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        <View style={styles.inputRow}>
           <TextInput
             style={styles.input}
             value={text}
@@ -183,37 +165,99 @@ export function ChatInput({
             }
           />
         </View>
-        {showInlineMic ? (
-          <MicButton
-            variant="inline"
-            state={micState}
-            onPress={onMicPress}
-            disabled={micDisabled}
-          />
-        ) : showStop ? (
-          <Pressable
-            style={styles.sendButton}
-            onPress={onStop}
-            accessibilityRole="button"
-            accessibilityLabel="Stop generating"
-          >
-            <StopIcon size={16} color={colors.white} />
-          </Pressable>
-        ) : (
+
+        <View style={styles.toolbar}>
           <Pressable
             style={[
-              styles.sendButton,
-              (!canSend || disabled) && styles.sendButtonDisabled,
+              styles.toolButton,
+              webSearch && styles.toolButtonActive,
+              disabled && styles.toolButtonDisabled,
             ]}
-            onPress={submit}
-            disabled={!canSend || disabled}
+            onPress={() => setWebSearch(v => !v)}
+            disabled={disabled}
             accessibilityRole="button"
-            accessibilityLabel="Send message"
+            accessibilityState={{ selected: webSearch }}
+            accessibilityLabel={
+              webSearch ? 'Web search on' : 'Web search off'
+            }
           >
-            <ArrowUpIcon size={18} color={colors.white} />
+            <GlobeIcon
+              size={20}
+              color={webSearch ? colors.primary : colors.muted}
+            />
           </Pressable>
-        )}
+
+          {onAttachPress ? (
+            <Pressable
+              style={[styles.toolButton, disabled && styles.toolButtonDisabled]}
+              onPress={onAttachPress}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel="Attach to message"
+            >
+              <PaperclipIcon size={20} color={colors.muted} />
+            </Pressable>
+          ) : null}
+
+          <View style={styles.toolbarSpacer} />
+
+          {showInlineMic ? (
+            <MicButton
+              variant="inline"
+              state={micState}
+              onPress={onMicPress}
+              disabled={micDisabled}
+            />
+          ) : showStop ? (
+            <Pressable
+              style={styles.sendButton}
+              onPress={onStop}
+              accessibilityRole="button"
+              accessibilityLabel="Stop generating"
+            >
+              <StopIcon size={14} color={colors.white} />
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[
+                styles.sendButton,
+                (!canSend || disabled) && styles.sendButtonDisabled,
+              ]}
+              onPress={submit}
+              disabled={!canSend || disabled}
+              accessibilityRole="button"
+              accessibilityLabel="Send message"
+            >
+              <ArrowUpIcon size={16} color={colors.white} />
+            </Pressable>
+          )}
+        </View>
       </View>
+
+      {quickActions && quickActions.length > 0 ? (
+        <View style={styles.quickActions}>
+          {quickActions.map(action => {
+            const Icon = quickActionIcons[action.label] ?? BookOpenIcon;
+            return (
+              <Pressable
+                key={action.label}
+                style={({ pressed }) => [
+                  styles.quickAction,
+                  pressed && styles.quickActionPressed,
+                  disabled && styles.quickActionDisabled,
+                ]}
+                onPress={action.onPress}
+                disabled={disabled}
+                accessibilityRole="button"
+                accessibilityLabel={action.label}
+              >
+                <Icon size={14} color={colors.muted} />
+                <Text style={styles.quickActionLabel}>{action.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -251,40 +295,26 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 18,
       fontFamily: colors.fontFamily,
     },
-    quickActions: {
-      gap: 8,
-      paddingBottom: 10,
-      paddingRight: 8,
-    },
-    quickAction: {
+    card: {
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 999,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      backgroundColor: colors.surface,
-    },
-    quickActionPressed: {
-      backgroundColor: colors.primaryLight,
-    },
-    quickActionDisabled: {
-      opacity: 0.5,
-    },
-    quickActionLabel: {
-      fontSize: 13,
-      fontWeight: '500',
-      color: colors.text,
-      fontFamily: colors.fontFamily,
+      borderRadius: 16,
+      backgroundColor: colors.background,
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      paddingBottom: 8,
     },
     attachmentRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: 8,
-      paddingBottom: 8,
+      marginBottom: 8,
     },
     attachmentChip: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      maxWidth: 180,
+      maxWidth: 176,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 12,
@@ -300,6 +330,7 @@ function createStyles(colors: ThemeColors) {
     attachmentName: {
       flexShrink: 1,
       fontSize: 12,
+      fontWeight: '500',
       color: colors.text,
       fontFamily: colors.fontFamily,
     },
@@ -308,50 +339,81 @@ function createStyles(colors: ThemeColors) {
       color: colors.muted,
       paddingHorizontal: 2,
     },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      gap: 10,
-    },
-    bar: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 24,
-      backgroundColor: colors.background,
-      paddingLeft: 6,
-      paddingRight: 12,
-      paddingVertical: 6,
-      minHeight: 48,
-    },
-    attachButton: {
-      width: 36,
-      height: 36,
-      alignItems: 'center',
-      justifyContent: 'center',
+    inputRow: {
+      minHeight: 40,
     },
     input: {
-      flex: 1,
-      fontSize: 16,
+      fontSize: 15,
+      lineHeight: 22,
       color: colors.text,
-      maxHeight: 100,
+      maxHeight: 128,
       paddingVertical: 8,
       paddingHorizontal: 4,
       fontFamily: colors.fontFamily,
     },
+    toolbar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 4,
+    },
+    toolButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    toolButtonActive: {
+      backgroundColor: colors.primaryLight,
+    },
+    toolButtonDisabled: {
+      opacity: 0.5,
+    },
+    toolbarSpacer: {
+      flex: 1,
+    },
     sendButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width: 36,
+      height: 36,
+      borderRadius: 8,
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 2,
     },
     sendButtonDisabled: {
       opacity: 0.4,
+    },
+    quickActions: {
+      marginTop: 12,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    quickAction: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: colors.surface,
+    },
+    quickActionPressed: {
+      borderColor: colors.primaryRing,
+      backgroundColor: colors.primaryLight,
+    },
+    quickActionDisabled: {
+      opacity: 0.5,
+    },
+    quickActionLabel: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: colors.muted,
+      fontFamily: colors.fontFamily,
     },
   });
 }

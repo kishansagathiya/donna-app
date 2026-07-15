@@ -26,9 +26,6 @@ import type { ThemeColors } from '../theme/colors';
 import { ArrowUpIcon, SearchIcon } from '../components/icons';
 import { SearchNotesModal } from '../components/SearchContextModal';
 import { NoteDetailScreen } from './NoteDetailScreen';
-import { TodayScreen } from './TodayScreen';
-
-type NotesView = 'all' | 'today';
 
 const PAGE_SIZE = 50;
 
@@ -118,18 +115,21 @@ function NoteCard({
 export function NotesScreen({
   notesRefreshToken = 0,
   isVisible = true,
+  openNoteId = null,
+  onOpenNoteConsumed,
   onAddLink,
   onSaveToMemory,
 }: {
   notesRefreshToken?: number;
   isVisible?: boolean;
+  openNoteId?: string | null;
+  onOpenNoteConsumed?: () => void;
   onAddLink?: () => void;
   onSaveToMemory?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
-  const [view, setView] = useState<NotesView>('all');
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [tags, setTags] = useState<TagCount[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -199,14 +199,22 @@ export function NotesScreen({
   }, []);
 
   useEffect(() => {
-    if (!isVisible || view !== 'all' || activeTag) {
+    if (!isVisible || activeTag) {
       return;
     }
     void loadNotes();
     void listTags(30)
       .then(setTags)
       .catch(() => setTags([]));
-  }, [isVisible, view, activeTag, loadNotes, notesRefreshToken]);
+  }, [isVisible, activeTag, loadNotes, notesRefreshToken]);
+
+  useEffect(() => {
+    if (!openNoteId) {
+      return;
+    }
+    setSelectedNoteId(openNoteId);
+    onOpenNoteConsumed?.();
+  }, [openNoteId, onOpenNoteConsumed]);
 
   const selectTag = (tag: string | null) => {
     setActiveTag(tag);
@@ -293,51 +301,21 @@ export function NotesScreen({
       <View style={styles.header}>
         <Text style={styles.title}>Notes</Text>
         <View style={styles.headerActions}>
-          {view === 'all' ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.iconButton,
-                pressed && styles.iconButtonPressed,
-              ]}
-              onPress={() => setSearchOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Search notes"
-            >
-              <SearchIcon size={20} color={colors.muted} />
-            </Pressable>
-          ) : null}
-          <View style={styles.segmented} accessibilityRole="tablist">
-            <Pressable
-              style={[styles.segment, view === 'all' && styles.segmentActive]}
-              onPress={() => setView('all')}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: view === 'all' }}
-            >
-              <Text style={[styles.segmentLabel, view === 'all' && styles.segmentLabelActive]}>
-                All
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.segment, view === 'today' && styles.segmentActive]}
-              onPress={() => setView('today')}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: view === 'today' }}
-            >
-              <Text
-                style={[styles.segmentLabel, view === 'today' && styles.segmentLabelActive]}
-              >
-                Today
-              </Text>
-            </Pressable>
-          </View>
+          <Pressable
+            style={({ pressed }) => [
+              styles.iconButton,
+              pressed && styles.iconButtonPressed,
+            ]}
+            onPress={() => setSearchOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Search notes"
+          >
+            <SearchIcon size={20} color={colors.muted} />
+          </Pressable>
         </View>
       </View>
 
-      {view === 'today' ? (
-        <TodayScreen embedded onOpenNote={setSelectedNoteId} />
-      ) : (
-        <>
-          <View style={styles.composeRow}>
+      <View style={styles.composeRow}>
             <TextInput
               style={styles.composeInput}
               value={draft}
@@ -493,8 +471,6 @@ export function NotesScreen({
               }
             />
           )}
-        </>
-      )}
 
       <SearchNotesModal
         visible={searchOpen}
@@ -539,30 +515,6 @@ function createStyles(colors: ThemeColors) {
     },
     iconButtonPressed: {
       backgroundColor: colors.surface,
-    },
-    segmented: {
-      flexDirection: 'row',
-      backgroundColor: colors.surface,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 3,
-    },
-    segment: {
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: 16,
-    },
-    segmentActive: {
-      backgroundColor: colors.primary,
-    },
-    segmentLabel: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: colors.muted,
-    },
-    segmentLabelActive: {
-      color: colors.white,
     },
     composeRow: {
       flexDirection: 'row',

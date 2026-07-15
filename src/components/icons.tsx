@@ -682,3 +682,161 @@ export function MoreHorizontalIcon({
     </IconFrame>
   );
 }
+
+export function GlobeIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke={color}
+        strokeWidth={strokeWidth}
+      />
+      <Path
+        d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Line
+        x1="2"
+        y1="12"
+        x2="22"
+        y2="12"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+      />
+    </IconFrame>
+  );
+}
+
+export function BrainIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Path
+        d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M17.599 6.5a3 3 0 0 0 .399-1.375"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M6.003 5.125A3 3 0 0 0 6.401 6.5"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M3.023 10.125A4 4 0 0 0 5.5 9.5"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M18.5 9.5a4 4 0 0 0 2.477.625"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M6 18a4 4 0 0 0 4-4"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M14 18a4 4 0 0 1-4-4"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </IconFrame>
+  );
+}
+
+export function BookOpenIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Path
+        d="M12 7v14"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </IconFrame>
+  );
+}
+
+export function SettingsIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Path
+        d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Circle
+        cx="12"
+        cy="12"
+        r="3"
+        stroke={color}
+        strokeWidth={strokeWidth}
+      />
+    </IconFrame>
+  );
+}

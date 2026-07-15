@@ -3,4 +3,6 @@ export type MemoryCitation = {
   id?: string;
   text: string;
   score?: number;
+  url?: string;
+  title?: string;
 };

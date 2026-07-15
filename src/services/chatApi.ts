@@ -16,6 +16,7 @@ export type SendChatInput = {
   sessionId?: string;
   mode?: DonnaMode;
   attachments?: ChatAttachmentPayload[];
+  webSearch?: boolean;
 };
 
 export type SendChatResult = {
@@ -47,6 +48,7 @@ type ChatRequestBody = {
   session_id?: string;
   mode?: string;
   attachments?: ChatAttachmentPayload[];
+  web_search?: boolean;
 };
 
 type StreamEventName = 'session' | 'phase' | 'chunk' | 'citations' | 'done' | 'error';
@@ -75,6 +77,9 @@ function buildBody(input: SendChatInput): ChatRequestBody {
   if (input.attachments && input.attachments.length > 0) {
     body.attachments = input.attachments;
   }
+  if (input.webSearch) {
+    body.web_search = true;
+  }
 
   return body;
 }
@@ -94,6 +99,8 @@ function parseCitations(raw: unknown): MemoryCitation[] | undefined {
       id: typeof row.id === 'string' ? row.id : undefined,
       text,
       score: typeof row.score === 'number' ? row.score : undefined,
+      url: typeof row.url === 'string' ? row.url : undefined,
+      title: typeof row.title === 'string' ? row.title : undefined,
     });
   }
   return out.length ? out : undefined;

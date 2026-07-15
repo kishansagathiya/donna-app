@@ -157,6 +157,10 @@ export async function pickPhotoForChat(): Promise<PendingAttachment | null> {
   return pendingFromImageAsset(asset);
 }
 
+export function isImageMime(mime?: string): boolean {
+  return Boolean(mime?.startsWith('image/'));
+}
+
 export function displayUserContent(
   text: string,
   attachments: PendingAttachment[],

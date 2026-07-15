@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
@@ -21,6 +22,13 @@ import { AssistantThinkingBlock } from './ThinkingIndicator';
 /** Distance from bottom (px) that still counts as "following" the stream. */
 const NEAR_BOTTOM_PX = 80;
 
+export type ChatTurnAttachment = {
+  id: string;
+  filename: string;
+  previewUri?: string;
+  mime?: string;
+};
+
 export type ChatTurn = {
   id: string;
   user: string;
@@ -28,8 +36,10 @@ export type ChatTurn = {
   historyUser?: string;
   assistant: string | null;
   attachmentLabels?: string[];
+  attachments?: ChatTurnAttachment[];
   error?: boolean;
   cancelled?: boolean;
+  streaming?: boolean;
   feedback?: 'up' | 'down';
   citations?: import('../types/citations').MemoryCitation[];
 };
@@ -44,6 +54,7 @@ type Props = {
   onEditMessage?: (turnId: string, nextText: string) => void;
   onFeedback?: (turnId: string, rating: 'up' | 'down') => void;
   onRetry?: () => void;
+  onOpenNote?: (noteId: string) => void;
 };
 
 export function ChatMessages({
@@ -56,6 +67,7 @@ export function ChatMessages({
   onEditMessage,
   onFeedback,
   onRetry,
+  onOpenNote,
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -142,23 +154,51 @@ export function ChatMessages({
             Boolean(onCopyMessage) &&
             !showWaitingBubble &&
             Boolean(turn.user || turn.assistant);
+          const hasAttachmentChips =
+            (turn.attachments && turn.attachments.length > 0) ||
+            (turn.attachmentLabels && turn.attachmentLabels.length > 0);
+          const isStreaming =
+            Boolean(turn.streaming) ||
+            (busy && turn.id === latestTextTurnId && Boolean(turn.assistant));
 
           return (
             <View key={turn.id} style={styles.turn}>
               {turn.user ? (
                 <View style={[styles.bubble, styles.userBubble]}>
-                  {turn.attachmentLabels && turn.attachmentLabels.length > 0 ? (
-                    <View style={styles.attachmentLabels}>
-                      {turn.attachmentLabels.map(label => (
-                        <Text key={label} style={styles.attachmentLabel}>
-                          📎 {label}
-                        </Text>
-                      ))}
+                  {hasAttachmentChips ? (
+                    <View style={styles.attachmentChips}>
+                      {turn.attachments && turn.attachments.length > 0
+                        ? turn.attachments.map(att => (
+                            <View key={att.id} style={styles.attachmentChip}>
+                              {att.previewUri ? (
+                                <Image
+                                  source={{ uri: att.previewUri }}
+                                  style={styles.attachmentThumb}
+                                />
+                              ) : null}
+                              <Text
+                                style={styles.attachmentChipText}
+                                numberOfLines={1}
+                              >
+                                {att.filename}
+                              </Text>
+                            </View>
+                          ))
+                        : turn.attachmentLabels?.map(label => (
+                            <View key={label} style={styles.attachmentChip}>
+                              <Text
+                                style={styles.attachmentChipText}
+                                numberOfLines={1}
+                              >
+                                {label}
+                              </Text>
+                            </View>
+                          ))}
                     </View>
                   ) : null}
                   <MessageContent
                     content={
-                      turn.attachmentLabels?.length
+                      hasAttachmentChips
                         ? turn.user
                             .replace(/\n\n📎 .+$/s, '')
                             .replace(/^📎 .+$/s, '') || ''
@@ -174,6 +214,7 @@ export function ChatMessages({
                   style={[
                     styles.bubble,
                     styles.assistantBubble,
+                    isStreaming && styles.streamingBubble,
                     turn.error && styles.errorBubble,
                     turn.cancelled && styles.cancelledBubble,
                   ]}
@@ -193,7 +234,10 @@ export function ChatMessages({
               ) : null}
 
               {turn.citations && turn.citations.length > 0 && turn.assistant ? (
-                <MemoryCitations citations={turn.citations} />
+                <MemoryCitations
+                  citations={turn.citations}
+                  onOpenNote={onOpenNote}
+                />
               ) : null}
 
               {canShowActions ? (
@@ -255,7 +299,8 @@ function createStyles(colors: ThemeColors) {
     content: {
       paddingHorizontal: 20,
       paddingTop: 16,
-      paddingBottom: 8,
+      // Extra room so the last lines / actions clear the composer edge.
+      paddingBottom: 24,
       gap: 12,
     },
     jumpFab: {
@@ -294,23 +339,42 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primary,
       borderBottomRightRadius: 4,
     },
-    attachmentLabels: {
-      gap: 4,
-      marginBottom: 6,
+    attachmentChips: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginBottom: 8,
     },
-    attachmentLabel: {
+    attachmentChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      maxWidth: 160,
+      borderRadius: 8,
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    attachmentThumb: {
+      width: 28,
+      height: 28,
+      borderRadius: 4,
+    },
+    attachmentChipText: {
+      flexShrink: 1,
       color: colors.white,
       fontSize: 12,
-      opacity: 0.9,
       fontFamily: colors.fontFamily,
     },
     assistantBubble: {
       alignSelf: 'flex-start',
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
       borderBottomLeftRadius: 4,
-      overflow: 'hidden',
+    },
+    streamingBubble: {
+      opacity: 0.95,
     },
     errorBubble: {
       borderColor: colors.destructive,

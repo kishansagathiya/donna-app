@@ -233,8 +233,11 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
           </View>
         </View>
       ) : (
-        <View style={styles.embeddedHeader}>
-          <Text style={styles.subtitle}>{todayLabel}</Text>
+        <View style={styles.header}>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>Today</Text>
+            <Text style={styles.subtitle}>{todayLabel}</Text>
+          </View>
           <View style={styles.headerActions}>
             {!alertsEnabled ? (
               <EnableBriefingAlertsButton

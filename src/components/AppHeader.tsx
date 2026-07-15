@@ -5,10 +5,11 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
 import type { ThemeColors } from '../theme/colors';
-import { HistoryIcon, PlusIcon } from './icons';
+import { HistoryIcon, PlusIcon, SettingsIcon } from './icons';
 
 type Props = {
   onAvatarPress?: () => void;
+  onSettingsPress?: () => void;
   onHistoryPress?: () => void;
   onNewChatPress?: () => void;
 };
@@ -58,6 +59,7 @@ export function UserAvatar({
 
 export function AppHeader({
   onAvatarPress,
+  onSettingsPress,
   onHistoryPress,
   onNewChatPress,
 }: Props) {
@@ -93,6 +95,19 @@ export function AppHeader({
             accessibilityLabel="Chat history"
           >
             <HistoryIcon size={20} color={colors.muted} />
+          </Pressable>
+        ) : null}
+        {onSettingsPress ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.iconButton,
+              pressed && styles.iconButtonPressed,
+            ]}
+            onPress={onSettingsPress}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+          >
+            <SettingsIcon size={20} color={colors.muted} />
           </Pressable>
         ) : null}
         <UserAvatar onPress={onAvatarPress} />
