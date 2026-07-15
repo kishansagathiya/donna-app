@@ -40,9 +40,18 @@ import {
 } from '../services/conversationsApi';
 
 const QUICK_ACTIONS = [
-  { label: 'Summarize PDF', prompt: 'Summarize the PDF I shared' },
-  { label: 'Debug code', prompt: 'Help me debug this code' },
-  { label: 'Draft email', prompt: 'Help me draft an email' },
+  {
+    label: 'What do you remember?',
+    prompt: 'What do you remember about me?',
+  },
+  {
+    label: 'Catch me up',
+    prompt: 'Catch me up from my notes and recent conversations.',
+  },
+  {
+    label: 'Continue last chat',
+    prompt: 'Continue where we left off.',
+  },
 ] as const;
 
 type Props = {

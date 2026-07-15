@@ -46,7 +46,8 @@ export function ChatHero({
         <>
           <Text style={styles.title}>Ask Donna anything</Text>
           <Text style={styles.subtitle}>
-            Donna remembers what you save — links, files, and past conversations.
+            Your second brain — she remembers notes, past chats, and what you
+            said out loud.
           </Text>
         </>
       )}
