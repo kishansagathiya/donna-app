@@ -149,11 +149,13 @@ export function ChatMessages({
         {turns.map(turn => {
           const showWaitingBubble =
             turn.id === thinkingTurnId && turn.user && !turn.assistant;
-          const canShowActions =
+          const isActionable =
             Boolean(actionableTurnIds?.has(turn.id)) &&
-            Boolean(onCopyMessage) &&
-            !showWaitingBubble &&
-            Boolean(turn.user || turn.assistant);
+            Boolean(onCopyMessage);
+          // Copy/edit sit under the user prompt even while Donna is thinking.
+          const showUserActions = isActionable && Boolean(turn.user);
+          const showAssistantActions =
+            isActionable && Boolean(turn.assistant) && !showWaitingBubble;
           const hasAttachmentChips =
             (turn.attachments && turn.attachments.length > 0) ||
             (turn.attachmentLabels && turn.attachmentLabels.length > 0);
@@ -209,6 +211,18 @@ export function ChatMessages({
                   />
                 </View>
               ) : null}
+
+              {showUserActions ? (
+                <MessageActions
+                  turn={turn}
+                  target="user"
+                  isLatest={turn.id === latestTextTurnId}
+                  busy={busy}
+                  onCopy={onCopyMessage!}
+                  onEdit={onEditMessage}
+                />
+              ) : null}
+
               {turn.assistant ? (
                 <View
                   style={[
@@ -240,16 +254,16 @@ export function ChatMessages({
                 />
               ) : null}
 
-              {canShowActions ? (
+              {showAssistantActions ? (
                 <MessageActions
                   turn={turn}
+                  target="assistant"
                   isLatest={turn.id === latestTextTurnId}
                   busy={busy}
                   onCopy={onCopyMessage!}
                   onRegenerate={
                     turn.id === latestTextTurnId ? onRegenerate : undefined
                   }
-                  onEdit={onEditMessage}
                   onFeedback={onFeedback}
                   onRetry={onRetry}
                 />
