@@ -11,7 +11,10 @@ import { ChatInput } from '../components/ChatInput';
 import { ChatMessages, type ChatTurn } from '../components/ChatMessages';
 import type { MicState } from '../components/MicButton';
 import { useThemedStyles } from '../hooks/useThemedStyles';
-import { DONNA_THINKING_PHASE } from '../lib/thinkingPhrases';
+import {
+  DONNA_THINKING_PHASE,
+  isDonnaThinkingPhase,
+} from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
 import {
   streamChatMessage,
@@ -208,7 +211,13 @@ export function ChatScreen({
         micState={micState}
         onMicPress={onMicPress}
         micDisabled={micDisabled}
-        sessionLabel={hasMessages ? sessionLabel : null}
+        sessionLabel={
+          // Thinking status already renders in ChatMessages; avoid a duplicate
+          // "Donna is …" line above the input.
+          hasMessages && !isDonnaThinkingPhase(sessionLabel)
+            ? sessionLabel
+            : null
+        }
         quickActions={
           !hasMessages && !isSending && !sessionActive
             ? QUICK_ACTIONS.map(action => ({
