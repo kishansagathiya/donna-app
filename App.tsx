@@ -9,7 +9,9 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActionSheetIOS,
   ActivityIndicator,
+  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -186,6 +188,7 @@ function AppContent({
   const deviceSync = useDeviceSync();
   const [pairSheetOpen, setPairSheetOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [ingestRefreshToken, setIngestRefreshToken] = useState(0);
   const {
     toast,
     showToast,
@@ -196,11 +199,83 @@ function AppContent({
     ingestSharedPayload,
   } = useAssetIngest();
 
+  const bumpNotesRefresh = useCallback(() => {
+    setIngestRefreshToken(token => token + 1);
+  }, []);
+
+  const handleAddLink = useCallback(() => {
+    if (typeof Alert.prompt === 'function') {
+      Alert.prompt(
+        'Add link',
+        'Donna will save this URL to your notes and memory.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Save',
+            onPress: (value?: string) => {
+              const trimmed = (value ?? '').trim();
+              if (!trimmed) return;
+              void addLink(trimmed).then(() => bumpNotesRefresh());
+            },
+          },
+        ],
+        'plain-text',
+        'https://',
+      );
+      return;
+    }
+    setSheetOpen(true);
+  }, [addLink, bumpNotesRefresh]);
+
+  const handleSaveToMemory = useCallback(() => {
+    const options = ['Choose file', 'Choose photo', 'Cancel'];
+    const cancelButtonIndex = 2;
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex,
+          title: 'Save to memory',
+          message: 'Choose a file or photo to keep in Donna’s knowledge.',
+        },
+        buttonIndex => {
+          if (buttonIndex === 0) {
+            void pickDocument().then(() => bumpNotesRefresh());
+          } else if (buttonIndex === 1) {
+            void pickPhoto().then(() => bumpNotesRefresh());
+          }
+        },
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Save to memory',
+      'Choose a file or photo to keep in Donna’s knowledge.',
+      [
+        {
+          text: 'Choose file',
+          onPress: () => {
+            void pickDocument().then(() => bumpNotesRefresh());
+          },
+        },
+        {
+          text: 'Choose photo',
+          onPress: () => {
+            void pickPhoto().then(() => bumpNotesRefresh());
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  }, [bumpNotesRefresh, pickDocument, pickPhoto]);
+
   const handleShare = useCallback(
     (payload: Parameters<typeof ingestSharedPayload>[0]) => {
-      void ingestSharedPayload(payload);
+      void ingestSharedPayload(payload).then(() => bumpNotesRefresh());
     },
-    [ingestSharedPayload],
+    [bumpNotesRefresh, ingestSharedPayload],
   );
 
   useIncomingShare(handleShare);
@@ -248,9 +323,6 @@ function AppContent({
             sessionLabel={sessionLabel}
             errorMsg={errorMsg}
             onOpenProfile={() => setTab('profile')}
-            onSaveToMemory={() => {
-              void pickDocument();
-            }}
             onClearVoiceChat={() => {
               void clearChat();
             }}
@@ -261,13 +333,15 @@ function AppContent({
         <View style={{ flex: 1, display: tab === 'notes' ? 'flex' : 'none' }}>
           <NotesScreen
             isVisible={tab === 'notes'}
-            notesRefreshToken={deviceSync.notesRefreshToken}
+            notesRefreshToken={
+              deviceSync.notesRefreshToken + ingestRefreshToken
+            }
+            onAddLink={handleAddLink}
+            onSaveToMemory={handleSaveToMemory}
           />
         </View>
 
-        {tab === 'memory' ? (
-          <MemoryScreen onAddSourcePress={() => setSheetOpen(true)} />
-        ) : null}
+        {tab === 'memory' ? <MemoryScreen /> : null}
 
         {tab === 'profile' ? (
           <ProfileScreen
@@ -296,13 +370,13 @@ function AppContent({
         busy={ingestBusy}
         onClose={() => setSheetOpen(false)}
         onAddLink={url => {
-          void addLink(url);
+          void addLink(url).then(() => bumpNotesRefresh());
         }}
         onPickDocument={() => {
-          void pickDocument();
+          void pickDocument().then(() => bumpNotesRefresh());
         }}
         onPickPhoto={() => {
-          void pickPhoto();
+          void pickPhoto().then(() => bumpNotesRefresh());
         }}
       />
       <PrivacyScreen

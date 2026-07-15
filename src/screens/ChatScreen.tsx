@@ -21,7 +21,6 @@ import {
   displayUserContent,
   pickDocumentForChat,
   pickPhotoForChat,
-  urlToChatAttachment,
   type ChatAttachmentPayload,
   type PendingAttachment,
 } from '../lib/chatAttachments';
@@ -57,8 +56,6 @@ type Props = {
   sessionLabel?: string | null;
   errorMsg?: string | null;
   onOpenProfile: () => void;
-  /** Save picked document/photo to long-term memory (knowledge ingest). */
-  onSaveToMemory?: () => void;
   onClearVoiceChat?: () => void;
   onToast?: (message: string, isError?: boolean) => void;
 };
@@ -90,7 +87,6 @@ export function ChatScreen({
   sessionLabel,
   errorMsg,
   onOpenProfile,
-  onSaveToMemory,
   onClearVoiceChat,
   onToast,
 }: Props) {
@@ -267,49 +263,13 @@ export function ChatScreen({
     }
   }
 
-  function promptForLink() {
-    if (typeof Alert.prompt === 'function') {
-      Alert.prompt(
-        'Add link',
-        'Donna will fetch this URL for this chat turn only (not saved to memory).',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Add',
-            onPress: (value?: string) => {
-              try {
-                const att = urlToChatAttachment(value ?? '');
-                void addPending(att);
-              } catch (err) {
-                onToast?.(
-                  err instanceof Error ? err.message : 'Invalid URL',
-                  true,
-                );
-              }
-            },
-          },
-        ],
-        'plain-text',
-        'https://',
-      );
-      return;
-    }
-    onToast?.(
-      'Paste a lone URL as your message and send — Donna will fetch it for this turn.',
-      false,
-    );
-  }
-
   function handleAttachPress() {
     const options = [
       'Attach file to message',
       'Attach photo to message',
-      'Add link for this turn',
-      ...(onSaveToMemory ? ['Save to memory'] : []),
       'Cancel',
     ];
     const cancelButtonIndex = options.length - 1;
-    const saveIndex = onSaveToMemory ? options.length - 2 : -1;
 
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
@@ -317,8 +277,7 @@ export function ChatScreen({
           options,
           cancelButtonIndex,
           title: 'Attach',
-          message:
-            'Attach for this chat turn, or save permanently to Donna’s memory.',
+          message: 'Attach a file or photo for this chat turn only.',
         },
         buttonIndex => {
           if (buttonIndex === 0) {
@@ -339,10 +298,6 @@ export function ChatScreen({
                   true,
                 ),
               );
-          } else if (buttonIndex === 2) {
-            promptForLink();
-          } else if (buttonIndex === saveIndex) {
-            onSaveToMemory?.();
           }
         },
       );
@@ -351,7 +306,7 @@ export function ChatScreen({
 
     Alert.alert(
       'Attach',
-      'Attach for this chat turn, or save permanently to Donna’s memory.',
+      'Attach a file or photo for this chat turn only.',
       [
         {
           text: 'Attach file to message',
@@ -379,10 +334,6 @@ export function ChatScreen({
               );
           },
         },
-        { text: 'Add link for this turn', onPress: promptForLink },
-        ...(onSaveToMemory
-          ? [{ text: 'Save to memory', onPress: () => onSaveToMemory() }]
-          : []),
         { text: 'Cancel', style: 'cancel' as const },
       ],
     );
@@ -608,7 +559,7 @@ export function ChatScreen({
         }
         disabled={micDisabled || isSending}
         busy={isSending}
-        placeholder="Message Donna… attach for this turn, or save to memory"
+        placeholder="Message Donna…"
         showMic={hasMessages}
         micState={micState}
         onMicPress={onMicPress}

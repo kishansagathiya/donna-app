@@ -118,9 +118,13 @@ function NoteCard({
 export function NotesScreen({
   notesRefreshToken = 0,
   isVisible = true,
+  onAddLink,
+  onSaveToMemory,
 }: {
   notesRefreshToken?: number;
   isVisible?: boolean;
+  onAddLink?: () => void;
+  onSaveToMemory?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -364,6 +368,37 @@ export function NotesScreen({
             </Pressable>
           </View>
 
+          {onAddLink || onSaveToMemory ? (
+            <View style={styles.ingestActions}>
+              {onAddLink ? (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.ingestButton,
+                    pressed && styles.ingestButtonPressed,
+                  ]}
+                  onPress={onAddLink}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add link"
+                >
+                  <Text style={styles.ingestButtonText}>Add link</Text>
+                </Pressable>
+              ) : null}
+              {onSaveToMemory ? (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.ingestButton,
+                    pressed && styles.ingestButtonPressed,
+                  ]}
+                  onPress={onSaveToMemory}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save to memory"
+                >
+                  <Text style={styles.ingestButtonText}>Save to memory</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+
           {tags.length > 0 ? (
             <ScrollView
               horizontal
@@ -565,6 +600,31 @@ function createStyles(colors: ThemeColors) {
     },
     composeSendPressed: {
       opacity: 0.85,
+    },
+    ingestActions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    ingestButton: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    ingestButtonPressed: {
+      opacity: 0.85,
+    },
+    ingestButtonText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.muted,
     },
     tagFilterRow: {
       paddingHorizontal: 16,

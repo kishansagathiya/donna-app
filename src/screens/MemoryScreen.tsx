@@ -27,10 +27,6 @@ import {
 } from '../services/memoryApi';
 import type { ThemeColors } from '../theme/colors';
 
-type Props = {
-  onAddSourcePress: () => void;
-};
-
 type FactModalProps = {
   visible: boolean;
   title: string;
@@ -130,7 +126,7 @@ function FactModal({
   );
 }
 
-export function MemoryScreen({ onAddSourcePress }: Props) {
+export function MemoryScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -427,10 +423,6 @@ export function MemoryScreen({ onAddSourcePress }: Props) {
             </Pressable>
           )}
         />
-
-        <Pressable style={styles.linkButton} onPress={onAddSourcePress}>
-          <Text style={styles.linkButtonText}>Add source material (link/file)</Text>
-        </Pressable>
       </ScrollView>
 
       <FactModal
@@ -640,15 +632,6 @@ function createStyles(colors: ThemeColors) {
       marginTop: 8,
       fontSize: 12,
       color: colors.muted,
-    },
-    linkButton: {
-      marginTop: 16,
-      paddingVertical: 8,
-    },
-    linkButtonText: {
-      fontSize: 14,
-      color: colors.primary,
-      fontWeight: '500',
     },
     modalAvoiding: {
       flex: 1,
