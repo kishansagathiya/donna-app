@@ -154,6 +154,7 @@ export function useAssetIngest() {
   return {
     toast,
     busy,
+    showToast,
     addLink,
     addNote,
     pickDocument,

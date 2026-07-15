@@ -17,7 +17,10 @@ import { AssistantThinkingBlock } from './ThinkingIndicator';
 export type ChatTurn = {
   id: string;
   user: string;
+  /** Grounded content for follow-up history when attachments were used. */
+  historyUser?: string;
   assistant: string | null;
+  attachmentLabels?: string[];
   error?: boolean;
   cancelled?: boolean;
   feedback?: 'up' | 'down';
@@ -87,8 +90,23 @@ export function ChatMessages({
           <View key={turn.id} style={styles.turn}>
             {turn.user ? (
               <View style={[styles.bubble, styles.userBubble]}>
+                {turn.attachmentLabels && turn.attachmentLabels.length > 0 ? (
+                  <View style={styles.attachmentLabels}>
+                    {turn.attachmentLabels.map(label => (
+                      <Text key={label} style={styles.attachmentLabel}>
+                        📎 {label}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
                 <MessageContent
-                  content={turn.user}
+                  content={
+                    turn.attachmentLabels?.length
+                      ? turn.user
+                          .replace(/\n\n📎 .+$/s, '')
+                          .replace(/^📎 .+$/s, '') || ''
+                      : turn.user
+                  }
                   variant="user"
                   textStyle={styles.userText}
                 />
@@ -174,6 +192,16 @@ function createStyles(colors: ThemeColors) {
       alignSelf: 'flex-end',
       backgroundColor: colors.primary,
       borderBottomRightRadius: 4,
+    },
+    attachmentLabels: {
+      gap: 4,
+      marginBottom: 6,
+    },
+    attachmentLabel: {
+      color: colors.white,
+      fontSize: 12,
+      opacity: 0.9,
+      fontFamily: colors.fontFamily,
     },
     assistantBubble: {
       alignSelf: 'flex-start',

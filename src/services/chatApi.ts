@@ -2,6 +2,7 @@ import { getAccessToken } from './auth';
 import { API_BASE_URL } from '../config';
 import type { DonnaMode } from '../types/mode';
 import type { MemoryCitation } from '../types/citations';
+import type { ChatAttachmentPayload } from '../lib/chatAttachments';
 import EventSource from 'react-native-sse';
 
 export type ChatTurnMessage = {
@@ -14,6 +15,7 @@ export type SendChatInput = {
   history?: ChatTurnMessage[];
   sessionId?: string;
   mode?: DonnaMode;
+  attachments?: ChatAttachmentPayload[];
 };
 
 export type SendChatResult = {
@@ -21,6 +23,8 @@ export type SendChatResult = {
   sessionId: string;
   aborted?: boolean;
   citations?: MemoryCitation[];
+  groundedUserMessage?: string;
+  attachmentLabels?: string[];
 };
 
 export type ChatStreamCallbacks = {
@@ -42,6 +46,7 @@ type ChatRequestBody = {
   history?: ChatTurnMessage[];
   session_id?: string;
   mode?: string;
+  attachments?: ChatAttachmentPayload[];
 };
 
 type StreamEventName = 'session' | 'phase' | 'chunk' | 'citations' | 'done' | 'error';
@@ -66,6 +71,9 @@ function buildBody(input: SendChatInput): ChatRequestBody {
   }
   if (input.mode) {
     body.mode = input.mode;
+  }
+  if (input.attachments && input.attachments.length > 0) {
+    body.attachments = input.attachments;
   }
 
   return body;
@@ -112,6 +120,8 @@ export async function sendChatMessage(
     reply?: string;
     session_id?: string;
     citations?: unknown;
+    grounded_user_message?: string;
+    attachment_labels?: string[];
     error?: string;
     message?: string;
   };
@@ -128,6 +138,8 @@ export async function sendChatMessage(
     reply: responseBody.reply ?? '',
     sessionId: responseBody.session_id ?? input.sessionId ?? '',
     citations: parseCitations(responseBody.citations),
+    groundedUserMessage: responseBody.grounded_user_message,
+    attachmentLabels: responseBody.attachment_labels,
   };
 }
 
@@ -276,6 +288,8 @@ export function streamChatMessage(
               reply?: string;
               session_id?: string;
               citations?: unknown;
+              grounded_user_message?: string;
+              attachment_labels?: string[];
             };
             const cites = parseCitations(data.citations) ?? latestCitations;
             if (cites?.length) {
@@ -286,6 +300,8 @@ export function streamChatMessage(
               reply: data.reply ?? latestReply,
               sessionId: data.session_id ?? latestSessionId,
               citations: cites,
+              groundedUserMessage: data.grounded_user_message,
+              attachmentLabels: data.attachment_labels,
             });
           } catch {
             finish({

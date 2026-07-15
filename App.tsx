@@ -248,7 +248,7 @@ function AppContent({
             sessionLabel={sessionLabel}
             errorMsg={errorMsg}
             onOpenProfile={() => setTab('profile')}
-            onAttachPress={() => {
+            onSaveToMemory={() => {
               void pickDocument();
             }}
             onClearVoiceChat={() => {

@@ -1,5 +1,8 @@
 import React, { useRef, useState } from 'react';
 import {
+  ActionSheetIOS,
+  Alert,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -13,6 +16,15 @@ import { ChatInput } from '../components/ChatInput';
 import { ChatMessages, type ChatTurn } from '../components/ChatMessages';
 import type { MicState } from '../components/MicButton';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import {
+  assertAttachmentBudget,
+  displayUserContent,
+  pickDocumentForChat,
+  pickPhotoForChat,
+  urlToChatAttachment,
+  type ChatAttachmentPayload,
+  type PendingAttachment,
+} from '../lib/chatAttachments';
 import {
   DONNA_THINKING_PHASE,
   isDonnaThinkingPhase,
@@ -45,7 +57,8 @@ type Props = {
   sessionLabel?: string | null;
   errorMsg?: string | null;
   onOpenProfile: () => void;
-  onAttachPress: () => void;
+  /** Save picked document/photo to long-term memory (knowledge ingest). */
+  onSaveToMemory?: () => void;
   onClearVoiceChat?: () => void;
   onToast?: (message: string, isError?: boolean) => void;
 };
@@ -54,7 +67,10 @@ function historyFromTurns(turns: ChatTurn[]): ChatTurnMessage[] {
   const history: ChatTurnMessage[] = [];
   for (const turn of turns) {
     if (turn.user) {
-      history.push({ role: 'user', content: turn.user });
+      history.push({
+        role: 'user',
+        content: turn.historyUser ?? turn.user,
+      });
     }
     if (turn.assistant) {
       history.push({ role: 'assistant', content: turn.assistant });
@@ -74,7 +90,7 @@ export function ChatScreen({
   sessionLabel,
   errorMsg,
   onOpenProfile,
-  onAttachPress,
+  onSaveToMemory,
   onClearVoiceChat,
   onToast,
 }: Props) {
@@ -85,6 +101,9 @@ export function ChatScreen({
   const [textError, setTextError] = useState<string | null>(null);
   const [streamHasText, setStreamHasText] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<
+    PendingAttachment[]
+  >([]);
   const streamAbortRef = useRef<(() => void) | null>(null);
   const textMessagesRef = useRef(textMessages);
   const textSessionIdRef = useRef(textSessionId);
@@ -115,6 +134,7 @@ export function ChatScreen({
     history: ChatTurnMessage[],
     turnId: string,
     sessionId: string | null,
+    attachments?: ChatAttachmentPayload[],
   ) {
     setTextError(null);
     setStreamHasText(false);
@@ -127,6 +147,7 @@ export function ChatScreen({
           message: trimmed,
           history,
           sessionId: sessionId ?? undefined,
+          attachments,
         },
         {
           onSession: nextSessionId => {
@@ -160,6 +181,7 @@ export function ChatScreen({
                   ? {
                       ...t,
                       assistant: result.reply || t.assistant,
+                      historyUser: result.groundedUserMessage ?? t.historyUser,
                       error: false,
                       cancelled: Boolean(result.aborted),
                       citations: result.citations ?? t.citations,
@@ -197,30 +219,173 @@ export function ChatScreen({
     }
   }
 
-  async function handleSend(text: string) {
+  async function handleSend(
+    text: string,
+    attachments: PendingAttachment[] = [],
+  ) {
     const trimmed = text.trim();
-    if (!trimmed || isSendingRef.current) {
+    if ((!trimmed && attachments.length === 0) || isSendingRef.current) {
       return;
     }
 
     const turnId = `text-${Date.now()}`;
     const history = historyFromTurns(textMessagesRef.current);
+    const payloads = attachments.map(a => a.payload);
+    const labels = attachments.map(a => a.filename);
 
     setTextMessages(prev => [
       ...prev,
-      { id: turnId, user: trimmed, assistant: null },
+      {
+        id: turnId,
+        user: displayUserContent(trimmed, attachments),
+        assistant: null,
+        attachmentLabels: labels.length > 0 ? labels : undefined,
+      },
     ]);
+    setPendingAttachments([]);
 
     await runStream(
       trimmed,
       history,
       turnId,
       textSessionIdRef.current,
+      payloads.length > 0 ? payloads : undefined,
     );
   }
 
   function handleStop() {
     streamAbortRef.current?.();
+  }
+
+  async function addPending(att: PendingAttachment | null) {
+    if (!att) return;
+    try {
+      assertAttachmentBudget(pendingAttachments.length, 1);
+      setPendingAttachments(prev => [...prev, att]);
+    } catch (err) {
+      onToast?.(err instanceof Error ? err.message : 'Could not attach', true);
+    }
+  }
+
+  function promptForLink() {
+    if (typeof Alert.prompt === 'function') {
+      Alert.prompt(
+        'Add link',
+        'Donna will fetch this URL for this chat turn only (not saved to memory).',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Add',
+            onPress: (value?: string) => {
+              try {
+                const att = urlToChatAttachment(value ?? '');
+                void addPending(att);
+              } catch (err) {
+                onToast?.(
+                  err instanceof Error ? err.message : 'Invalid URL',
+                  true,
+                );
+              }
+            },
+          },
+        ],
+        'plain-text',
+        'https://',
+      );
+      return;
+    }
+    onToast?.(
+      'Paste a lone URL as your message and send — Donna will fetch it for this turn.',
+      false,
+    );
+  }
+
+  function handleAttachPress() {
+    const options = [
+      'Attach file to message',
+      'Attach photo to message',
+      'Add link for this turn',
+      ...(onSaveToMemory ? ['Save to memory'] : []),
+      'Cancel',
+    ];
+    const cancelButtonIndex = options.length - 1;
+    const saveIndex = onSaveToMemory ? options.length - 2 : -1;
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex,
+          title: 'Attach',
+          message:
+            'Attach for this chat turn, or save permanently to Donna’s memory.',
+        },
+        buttonIndex => {
+          if (buttonIndex === 0) {
+            void pickDocumentForChat()
+              .then(addPending)
+              .catch(err =>
+                onToast?.(
+                  err instanceof Error ? err.message : 'Could not attach file',
+                  true,
+                ),
+              );
+          } else if (buttonIndex === 1) {
+            void pickPhotoForChat()
+              .then(addPending)
+              .catch(err =>
+                onToast?.(
+                  err instanceof Error ? err.message : 'Could not attach photo',
+                  true,
+                ),
+              );
+          } else if (buttonIndex === 2) {
+            promptForLink();
+          } else if (buttonIndex === saveIndex) {
+            onSaveToMemory?.();
+          }
+        },
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Attach',
+      'Attach for this chat turn, or save permanently to Donna’s memory.',
+      [
+        {
+          text: 'Attach file to message',
+          onPress: () => {
+            void pickDocumentForChat()
+              .then(addPending)
+              .catch(err =>
+                onToast?.(
+                  err instanceof Error ? err.message : 'Could not attach file',
+                  true,
+                ),
+              );
+          },
+        },
+        {
+          text: 'Attach photo to message',
+          onPress: () => {
+            void pickPhotoForChat()
+              .then(addPending)
+              .catch(err =>
+                onToast?.(
+                  err instanceof Error ? err.message : 'Could not attach photo',
+                  true,
+                ),
+              );
+          },
+        },
+        { text: 'Add link for this turn', onPress: promptForLink },
+        ...(onSaveToMemory
+          ? [{ text: 'Save to memory', onPress: () => onSaveToMemory() }]
+          : []),
+        { text: 'Cancel', style: 'cancel' as const },
+      ],
+    );
   }
 
   async function handleRegenerate() {
@@ -251,10 +416,15 @@ export function ChatScreen({
 
     setTextMessages([
       ...kept,
-      { id: turnId, user: last.user, assistant: null },
+      { id: turnId, user: last.user, assistant: null, attachmentLabels: last.attachmentLabels },
     ]);
 
-    await runStream(last.user, history, turnId, sessionId);
+    await runStream(
+      last.historyUser ?? last.user,
+      history,
+      turnId,
+      sessionId,
+    );
   }
 
   async function handleEditAndResend(turnId: string, nextText: string) {
@@ -312,11 +482,16 @@ export function ChatScreen({
 
     setTextMessages([
       ...kept,
-      { id: turnId, user: last.user, assistant: null, error: false },
+      { id: turnId, user: last.user, assistant: null, error: false, attachmentLabels: last.attachmentLabels },
     ]);
     setTextError(null);
 
-    await runStream(last.user, history, turnId, sessionId);
+    await runStream(
+      last.historyUser ?? last.user,
+      history,
+      turnId,
+      sessionId,
+    );
   }
 
   async function handleFeedback(turnId: string, rating: 'up' | 'down') {
@@ -424,11 +599,16 @@ export function ChatScreen({
       </View>
 
       <ChatInput
-        onSend={handleSend}
+        onSend={(text, attachments) => void handleSend(text, attachments)}
         onStop={handleStop}
-        onAttachPress={onAttachPress}
+        onAttachPress={handleAttachPress}
+        attachments={pendingAttachments}
+        onRemoveAttachment={id =>
+          setPendingAttachments(prev => prev.filter(a => a.id !== id))
+        }
         disabled={micDisabled || isSending}
         busy={isSending}
+        placeholder="Message Donna… attach for this turn, or save to memory"
         showMic={hasMessages}
         micState={micState}
         onMicPress={onMicPress}

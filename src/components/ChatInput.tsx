@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Image,
   InputAccessoryView,
   Keyboard,
   Platform,
@@ -11,6 +12,7 @@ import {
 import { Text, TextInput } from './ThemedText';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import type { PendingAttachment } from '../lib/chatAttachments';
 import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
 import { ArrowUpIcon, PaperclipIcon, StopIcon } from './icons';
@@ -25,9 +27,11 @@ export type QuickAction = {
 };
 
 type Props = {
-  onSend?: (text: string) => void;
+  onSend?: (text: string, attachments: PendingAttachment[]) => void;
   onStop?: () => void;
   onAttachPress?: () => void;
+  attachments?: PendingAttachment[];
+  onRemoveAttachment?: (id: string) => void;
   disabled?: boolean;
   busy?: boolean;
   placeholder?: string;
@@ -43,6 +47,8 @@ export function ChatInput({
   onSend,
   onStop,
   onAttachPress,
+  attachments = [],
+  onRemoveAttachment,
   disabled,
   busy = false,
   placeholder = 'Message Donna...',
@@ -57,15 +63,18 @@ export function ChatInput({
   const styles = useThemedStyles(createStyles);
   const [text, setText] = useState('');
   const hasText = text.trim().length > 0;
+  const hasAttachments = attachments.length > 0;
+  const canSend = hasText || hasAttachments;
   const showStop = busy && Boolean(onStop);
-  const showInlineMic = showMic && !hasText && onMicPress && !showStop;
+  const showInlineMic =
+    showMic && !hasText && !hasAttachments && onMicPress && !showStop;
 
   function submit() {
-    const trimmed = text.trim();
-    if (!trimmed || disabled) {
+    if ((!hasText && !hasAttachments) || disabled) {
       return;
     }
-    onSend?.(trimmed);
+    const trimmed = text.trim();
+    onSend?.(trimmed, attachments);
     setText('');
   }
 
@@ -117,6 +126,33 @@ export function ChatInput({
           ))}
         </ScrollView>
       ) : null}
+      {attachments.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.attachmentRow}
+          keyboardShouldPersistTaps="handled"
+        >
+          {attachments.map(att => (
+            <View key={att.id} style={styles.attachmentChip}>
+              {att.previewUri ? (
+                <Image source={{ uri: att.previewUri }} style={styles.thumb} />
+              ) : null}
+              <Text style={styles.attachmentName} numberOfLines={1}>
+                {att.filename}
+              </Text>
+              <Pressable
+                onPress={() => onRemoveAttachment?.(att.id)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${att.filename}`}
+              >
+                <Text style={styles.attachmentRemove}>✕</Text>
+              </Pressable>
+            </View>
+          ))}
+        </ScrollView>
+      ) : null}
       <View style={styles.row}>
         <View style={styles.bar}>
           {onAttachPress ? (
@@ -125,7 +161,7 @@ export function ChatInput({
               onPress={onAttachPress}
               disabled={disabled}
               accessibilityRole="button"
-              accessibilityLabel="Attach file"
+              accessibilityLabel="Attach"
             >
               <PaperclipIcon size={20} color={colors.muted} />
             </Pressable>
@@ -167,10 +203,10 @@ export function ChatInput({
           <Pressable
             style={[
               styles.sendButton,
-              (!hasText || disabled) && styles.sendButtonDisabled,
+              (!canSend || disabled) && styles.sendButtonDisabled,
             ]}
             onPress={submit}
-            disabled={!hasText || disabled}
+            disabled={!canSend || disabled}
             accessibilityRole="button"
             accessibilityLabel="Send message"
           >
@@ -239,6 +275,38 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '500',
       color: colors.text,
       fontFamily: colors.fontFamily,
+    },
+    attachmentRow: {
+      gap: 8,
+      paddingBottom: 8,
+    },
+    attachmentChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      maxWidth: 180,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      backgroundColor: colors.surface,
+    },
+    thumb: {
+      width: 28,
+      height: 28,
+      borderRadius: 6,
+    },
+    attachmentName: {
+      flexShrink: 1,
+      fontSize: 12,
+      color: colors.text,
+      fontFamily: colors.fontFamily,
+    },
+    attachmentRemove: {
+      fontSize: 12,
+      color: colors.muted,
+      paddingHorizontal: 2,
     },
     row: {
       flexDirection: 'row',
