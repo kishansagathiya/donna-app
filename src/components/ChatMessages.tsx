@@ -5,6 +5,7 @@ import {
   View,
 } from 'react-native';
 import { Text } from './ThemedText';
+import { MessageActions } from './MessageActions';
 import { MessageContent } from './MessageContent';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
@@ -16,14 +17,34 @@ export type ChatTurn = {
   id: string;
   user: string;
   assistant: string | null;
+  error?: boolean;
+  cancelled?: boolean;
+  feedback?: 'up' | 'down';
 };
 
 type Props = {
   turns: ChatTurn[];
   phaseLabel?: string | null;
+  busy?: boolean;
+  actionableTurnIds?: Set<string>;
+  onCopyMessage?: (content: string) => void;
+  onRegenerate?: () => void;
+  onEditMessage?: (turnId: string, nextText: string) => void;
+  onFeedback?: (turnId: string, rating: 'up' | 'down') => void;
+  onRetry?: () => void;
 };
 
-export function ChatMessages({ turns, phaseLabel }: Props) {
+export function ChatMessages({
+  turns,
+  phaseLabel,
+  busy = false,
+  actionableTurnIds,
+  onCopyMessage,
+  onRegenerate,
+  onEditMessage,
+  onFeedback,
+  onRetry,
+}: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const scrollRef = useRef<ScrollView>(null);
@@ -34,6 +55,9 @@ export function ChatMessages({ turns, phaseLabel }: Props) {
     thinkingTurnId &&
       turns.some(turn => turn.id === thinkingTurnId && turn.user && !turn.assistant),
   );
+  const latestTextTurnId = [...turns]
+    .reverse()
+    .find(turn => actionableTurnIds?.has(turn.id))?.id;
 
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
@@ -51,6 +75,11 @@ export function ChatMessages({ turns, phaseLabel }: Props) {
       {turns.map(turn => {
         const showWaitingBubble =
           turn.id === thinkingTurnId && turn.user && !turn.assistant;
+        const canShowActions =
+          Boolean(actionableTurnIds?.has(turn.id)) &&
+          Boolean(onCopyMessage) &&
+          !showWaitingBubble &&
+          Boolean(turn.user || turn.assistant);
 
         return (
           <View key={turn.id} style={styles.turn}>
@@ -64,7 +93,14 @@ export function ChatMessages({ turns, phaseLabel }: Props) {
               </View>
             ) : null}
             {turn.assistant ? (
-              <View style={[styles.bubble, styles.assistantBubble]}>
+              <View
+                style={[
+                  styles.bubble,
+                  styles.assistantBubble,
+                  turn.error && styles.errorBubble,
+                  turn.cancelled && styles.cancelledBubble,
+                ]}
+              >
                 <MessageContent
                   content={turn.assistant}
                   variant="assistant"
@@ -73,6 +109,25 @@ export function ChatMessages({ turns, phaseLabel }: Props) {
               </View>
             ) : showWaitingBubble ? (
               <AssistantThinkingBlock colors={colors} />
+            ) : turn.cancelled ? (
+              <View style={[styles.bubble, styles.assistantBubble]}>
+                <Text style={styles.cancelledText}>Generation stopped</Text>
+              </View>
+            ) : null}
+
+            {canShowActions ? (
+              <MessageActions
+                turn={turn}
+                isLatest={turn.id === latestTextTurnId}
+                busy={busy}
+                onCopy={onCopyMessage!}
+                onRegenerate={
+                  turn.id === latestTextTurnId ? onRegenerate : undefined
+                }
+                onEdit={onEditMessage}
+                onFeedback={onFeedback}
+                onRetry={onRetry}
+              />
             ) : null}
           </View>
         );
@@ -101,7 +156,7 @@ function createStyles(colors: ThemeColors) {
       gap: 12,
     },
     turn: {
-      gap: 12,
+      gap: 8,
     },
     bubble: {
       maxWidth: '85%',
@@ -120,8 +175,13 @@ function createStyles(colors: ThemeColors) {
       borderWidth: 1,
       borderColor: colors.border,
       borderBottomLeftRadius: 4,
-      // Allow wide markdown tables to scroll horizontally inside the bubble.
       overflow: 'hidden',
+    },
+    errorBubble: {
+      borderColor: colors.destructive,
+    },
+    cancelledBubble: {
+      opacity: 0.85,
     },
     userText: {
       color: colors.white,
@@ -132,6 +192,12 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
       fontSize: 15,
       lineHeight: 22,
+    },
+    cancelledText: {
+      color: colors.muted,
+      fontSize: 14,
+      fontStyle: 'italic',
+      fontFamily: colors.fontFamily,
     },
     phase: {
       alignSelf: 'flex-start',

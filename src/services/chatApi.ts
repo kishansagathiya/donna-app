@@ -18,6 +18,7 @@ export type SendChatInput = {
 export type SendChatResult = {
   reply: string;
   sessionId: string;
+  aborted?: boolean;
 };
 
 export type ChatStreamCallbacks = {
@@ -26,6 +27,11 @@ export type ChatStreamCallbacks = {
   onChunk?: (text: string) => void;
   onError?: (message: string) => void;
   onDone?: (result: SendChatResult) => void;
+};
+
+export type ChatStreamHandle = {
+  promise: Promise<SendChatResult>;
+  abort: () => void;
 };
 
 type ChatRequestBody = {
@@ -103,8 +109,10 @@ export async function sendChatMessage(
 export function streamChatMessage(
   input: SendChatInput,
   callbacks: ChatStreamCallbacks,
-): Promise<SendChatResult> {
-  return new Promise((resolve, reject) => {
+): ChatStreamHandle {
+  let abortFn: () => void = () => undefined;
+
+  const promise = new Promise<SendChatResult>((resolve, reject) => {
     getAccessToken()
       .then(token => {
         if (!token) {
@@ -147,6 +155,21 @@ export function streamChatMessage(
           es.close();
           callbacks.onError?.(message);
           reject(new Error(message));
+        };
+
+        abortFn = () => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          es.close();
+          const result = {
+            reply: latestReply,
+            sessionId: latestSessionId,
+            aborted: true as const,
+          };
+          callbacks.onDone?.(result);
+          resolve(result);
         };
 
         es.addEventListener('open', () => {
@@ -230,4 +253,9 @@ export function streamChatMessage(
         reject(err instanceof Error ? err : new Error(String(err)));
       });
   });
+
+  return {
+    promise,
+    abort: () => abortFn(),
+  };
 }

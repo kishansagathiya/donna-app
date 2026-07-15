@@ -188,6 +188,7 @@ function AppContent({
   const [sheetOpen, setSheetOpen] = useState(false);
   const {
     toast,
+    showToast,
     busy: ingestBusy,
     addLink,
     pickDocument,
@@ -253,6 +254,7 @@ function AppContent({
             onClearVoiceChat={() => {
               void clearChat();
             }}
+            onToast={showToast}
           />
         ) : null}
 
