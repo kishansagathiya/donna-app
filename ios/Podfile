@@ -38,6 +38,10 @@ target 'Donna' do
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
+  # Required for Google Sign-In (AppCheckCore → GoogleUtilities / RecaptchaInterop)
+  pod 'GoogleUtilities', :modular_headers => true
+  pod 'RecaptchaInterop', :modular_headers => true
+
   post_install do |installer|
     react_native_post_install(
       installer,
