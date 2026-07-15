@@ -244,7 +244,9 @@ class StreamingPlayback {
 
       while (this.pendingPcm.length >= frameBytes) {
         const canFlushAll =
-          this.finished || this.pendingPcm.length >= MIN_PCM_SCHEDULE_BYTES;
+          this.finished ||
+          this.pendingPcm.length >= MIN_PCM_SCHEDULE_BYTES ||
+          (!this.startedPlayback && this.pendingPcm.length >= frameBytes);
         if (!canFlushAll) {
           break;
         }
