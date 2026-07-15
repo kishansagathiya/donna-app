@@ -525,3 +525,133 @@ export function ThumbsDownIcon({
     </IconFrame>
   );
 }
+
+export function PinIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Path
+        d="M12 17v5"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </IconFrame>
+  );
+}
+
+export function ArchiveIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Rect
+        x="2"
+        y="3"
+        width="20"
+        height="5"
+        rx="1"
+        stroke={color}
+        strokeWidth={strokeWidth}
+      />
+      <Path
+        d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M10 12h4"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </IconFrame>
+  );
+}
+
+export function TrashIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Path
+        d="M3 6h18"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </IconFrame>
+  );
+}
+
+export function TagIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Path
+        d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M7 7h.01"
+        stroke={color}
+        strokeWidth={strokeWidth * 1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </IconFrame>
+  );
+}
+
+export function MoreHorizontalIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Circle cx="12" cy="12" r="1" fill={color} strokeWidth={strokeWidth} />
+      <Circle cx="19" cy="12" r="1" fill={color} strokeWidth={strokeWidth} />
+      <Circle cx="5" cy="12" r="1" fill={color} strokeWidth={strokeWidth} />
+    </IconFrame>
+  );
+}

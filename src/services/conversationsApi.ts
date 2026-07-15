@@ -5,6 +5,7 @@ export type ConversationSummary = {
   id: string;
   channel: 'text' | 'voice';
   title: string;
+  title_source?: 'auto' | 'llm' | 'user';
   client_session_id?: string;
   voice_session_id?: string;
   preview: string;
@@ -12,6 +13,9 @@ export type ConversationSummary = {
   created_at: string;
   updated_at: string;
   ended_at?: string;
+  archived_at?: string;
+  pinned_at?: string;
+  tags?: string[];
 };
 
 export type ConversationTurn = {
@@ -25,11 +29,30 @@ export type ConversationDetail = {
   id: string;
   channel: 'text' | 'voice';
   title: string;
+  title_source?: 'auto' | 'llm' | 'user';
   client_session_id?: string;
   voice_session_id?: string;
   created_at: string;
   ended_at?: string;
+  archived_at?: string;
+  pinned_at?: string;
+  tags?: string[];
   turns: ConversationTurn[];
+};
+
+export type ListConversationsOptions = {
+  limit?: number;
+  q?: string;
+  tag?: string;
+  includeArchived?: boolean;
+  archivedOnly?: boolean;
+};
+
+export type PatchConversationInput = {
+  title?: string;
+  archived?: boolean;
+  pinned?: boolean;
+  tags?: string[];
 };
 
 async function authorizedFetch(
@@ -61,16 +84,54 @@ async function parseJSON<T>(res: Response): Promise<T> {
 }
 
 export async function listConversations(
-  limit = 50,
+  options: ListConversationsOptions | number = 50,
 ): Promise<ConversationSummary[]> {
-  const res = await authorizedFetch(`/conversations?limit=${limit}`);
+  const opts: ListConversationsOptions =
+    typeof options === 'number' ? { limit: options } : options;
+  const params = new URLSearchParams();
+  params.set('limit', String(opts.limit ?? 50));
+  if (opts.q?.trim()) params.set('q', opts.q.trim());
+  if (opts.tag?.trim()) params.set('tag', opts.tag.trim());
+  if (opts.includeArchived) params.set('include_archived', 'true');
+  if (opts.archivedOnly) params.set('archived_only', 'true');
+
+  const res = await authorizedFetch(`/conversations?${params.toString()}`);
   const body = await parseJSON<{ conversations: ConversationSummary[] }>(res);
   return body.conversations ?? [];
+}
+
+export async function listConversationTags(limit = 50): Promise<string[]> {
+  const res = await authorizedFetch(`/conversations/tags?limit=${limit}`);
+  const body = await parseJSON<{ tags: string[] }>(res);
+  return body.tags ?? [];
 }
 
 export async function getConversation(id: string): Promise<ConversationDetail> {
   const res = await authorizedFetch(`/conversations/${id}`);
   return parseJSON(res);
+}
+
+export async function patchConversation(
+  id: string,
+  input: PatchConversationInput,
+): Promise<ConversationSummary> {
+  const res = await authorizedFetch(
+    `/conversations/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+  return parseJSON(res);
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  const res = await authorizedFetch(
+    `/conversations/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+  );
+  await parseJSON<{ ok: boolean }>(res);
 }
 
 export async function truncateConversationTurns(
