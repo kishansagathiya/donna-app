@@ -5,6 +5,7 @@ import {
   View,
 } from 'react-native';
 import { Text } from './ThemedText';
+import { MemoryCitations } from './MemoryCitations';
 import { MessageActions } from './MessageActions';
 import { MessageContent } from './MessageContent';
 import { useTheme } from '../hooks/useTheme';
@@ -20,6 +21,7 @@ export type ChatTurn = {
   error?: boolean;
   cancelled?: boolean;
   feedback?: 'up' | 'down';
+  citations?: import('../types/citations').MemoryCitation[];
 };
 
 type Props = {
@@ -113,6 +115,10 @@ export function ChatMessages({
               <View style={[styles.bubble, styles.assistantBubble]}>
                 <Text style={styles.cancelledText}>Generation stopped</Text>
               </View>
+            ) : null}
+
+            {turn.citations && turn.citations.length > 0 && turn.assistant ? (
+              <MemoryCitations citations={turn.citations} />
             ) : null}
 
             {canShowActions ? (

@@ -1,6 +1,7 @@
 import { getAccessToken } from './auth';
 import { API_BASE_URL } from '../config';
 import type { DonnaMode } from '../types/mode';
+import type { MemoryCitation } from '../types/citations';
 import EventSource from 'react-native-sse';
 
 export type ChatTurnMessage = {
@@ -19,12 +20,14 @@ export type SendChatResult = {
   reply: string;
   sessionId: string;
   aborted?: boolean;
+  citations?: MemoryCitation[];
 };
 
 export type ChatStreamCallbacks = {
   onSession?: (sessionId: string) => void;
   onPhase?: (phase: string) => void;
   onChunk?: (text: string) => void;
+  onCitations?: (citations: MemoryCitation[]) => void;
   onError?: (message: string) => void;
   onDone?: (result: SendChatResult) => void;
 };
@@ -41,7 +44,7 @@ type ChatRequestBody = {
   mode?: string;
 };
 
-type StreamEventName = 'session' | 'phase' | 'chunk' | 'done' | 'error';
+type StreamEventName = 'session' | 'phase' | 'chunk' | 'citations' | 'done' | 'error';
 
 type CustomEventPayload = {
   type: StreamEventName | 'error';
@@ -68,6 +71,26 @@ function buildBody(input: SendChatInput): ChatRequestBody {
   return body;
 }
 
+function parseCitations(raw: unknown): MemoryCitation[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return undefined;
+  }
+  const out: MemoryCitation[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const text = typeof row.text === 'string' ? row.text.trim() : '';
+    if (!text) continue;
+    out.push({
+      source: typeof row.source === 'string' ? row.source : 'fact',
+      id: typeof row.id === 'string' ? row.id : undefined,
+      text,
+      score: typeof row.score === 'number' ? row.score : undefined,
+    });
+  }
+  return out.length ? out : undefined;
+}
+
 export async function sendChatMessage(
   input: SendChatInput,
 ): Promise<SendChatResult> {
@@ -88,6 +111,7 @@ export async function sendChatMessage(
   const responseBody = (await res.json()) as {
     reply?: string;
     session_id?: string;
+    citations?: unknown;
     error?: string;
     message?: string;
   };
@@ -103,6 +127,7 @@ export async function sendChatMessage(
   return {
     reply: responseBody.reply ?? '',
     sessionId: responseBody.session_id ?? input.sessionId ?? '',
+    citations: parseCitations(responseBody.citations),
   };
 }
 
@@ -135,6 +160,7 @@ export function streamChatMessage(
 
         let latestSessionId = input.sessionId ?? '';
         let latestReply = '';
+        let latestCitations: MemoryCitation[] | undefined;
         let settled = false;
 
         const finish = (result: SendChatResult) => {
@@ -167,6 +193,7 @@ export function streamChatMessage(
             reply: latestReply,
             sessionId: latestSessionId,
             aborted: true as const,
+            citations: latestCitations,
           };
           callbacks.onDone?.(result);
           resolve(result);
@@ -208,6 +235,21 @@ export function streamChatMessage(
           }
         });
 
+        es.addEventListener('citations', (event: CustomEventPayload) => {
+          try {
+            const data = JSON.parse(event.data ?? '{}') as {
+              citations?: unknown;
+            };
+            const cites = parseCitations(data.citations);
+            if (cites?.length) {
+              latestCitations = cites;
+              callbacks.onCitations?.(cites);
+            }
+          } catch {
+            // Ignore malformed event.
+          }
+        });
+
         es.addEventListener('error', event => {
           const custom = event as unknown as CustomEventPayload;
           if (custom.data) {
@@ -233,19 +275,34 @@ export function streamChatMessage(
             const data = JSON.parse(event.data ?? '{}') as {
               reply?: string;
               session_id?: string;
+              citations?: unknown;
             };
+            const cites = parseCitations(data.citations) ?? latestCitations;
+            if (cites?.length) {
+              latestCitations = cites;
+              callbacks.onCitations?.(cites);
+            }
             finish({
               reply: data.reply ?? latestReply,
               sessionId: data.session_id ?? latestSessionId,
+              citations: cites,
             });
           } catch {
-            finish({ reply: latestReply, sessionId: latestSessionId });
+            finish({
+              reply: latestReply,
+              sessionId: latestSessionId,
+              citations: latestCitations,
+            });
           }
         });
 
         es.addEventListener('close', () => {
           if (!settled) {
-            finish({ reply: latestReply, sessionId: latestSessionId });
+            finish({
+              reply: latestReply,
+              sessionId: latestSessionId,
+              citations: latestCitations,
+            });
           }
         });
       })

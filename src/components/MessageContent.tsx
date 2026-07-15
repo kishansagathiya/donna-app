@@ -1,7 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import Clipboard from '@react-native-clipboard/clipboard';
 import {
   Linking,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -163,6 +165,39 @@ function TableBlock({
   );
 }
 
+function CodeBlock({
+  text,
+  styles,
+}: {
+  text: string;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const onCopy = () => {
+    Clipboard.setString(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <View style={styles.codeBlock}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={copied ? 'Copied' : 'Copy code'}
+        onPress={onCopy}
+        style={({ pressed }) => [
+          styles.codeCopyButton,
+          pressed && styles.codeCopyPressed,
+        ]}
+      >
+        <Text style={styles.codeCopyText}>{copied ? 'Copied' : 'Copy'}</Text>
+      </Pressable>
+      <Text style={styles.codeBlockText}>{text}</Text>
+    </View>
+  );
+}
+
 export function MessageContent({ content, variant, textStyle }: Props) {
   const styles = useThemedStyles(createStyles);
 
@@ -191,11 +226,7 @@ export function MessageContent({ content, variant, textStyle }: Props) {
         }
 
         if (block.type === 'code') {
-          return (
-            <View key={key} style={styles.codeBlock}>
-              <Text style={styles.codeBlockText}>{block.text}</Text>
-            </View>
-          );
+          return <CodeBlock key={key} text={block.text} styles={styles} />;
         }
 
         if (block.type === 'list') {
@@ -296,6 +327,29 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primaryLight,
       paddingHorizontal: 10,
       paddingVertical: 8,
+      paddingTop: 28,
+      position: 'relative',
+    },
+    codeCopyButton: {
+      position: 'absolute',
+      top: 6,
+      right: 6,
+      zIndex: 1,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    codeCopyPressed: {
+      opacity: 0.75,
+    },
+    codeCopyText: {
+      color: colors.muted,
+      fontSize: 11,
+      fontWeight: '600',
+      fontFamily: colors.fontFamily,
     },
     codeBlockText: {
       fontFamily: MONO_FONT,

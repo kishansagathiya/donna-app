@@ -31,6 +31,11 @@ export type BlockNode =
       rows: TableCell[][];
     };
 
+// Parser parity notes vs web (react-markdown + remark-gfm):
+// - Supports: paragraphs, headings, lists, blockquotes, fenced code, hr, GFM tables, basic inline marks.
+// - Gaps: nested lists, task lists, raw HTML, image embeds, and LaTeX/math (intentionally deferred).
+// - Code copy is handled in MessageContent, not in this parser.
+
 const INLINE_TOKEN =
   /(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*\n]+\*|__[^_]+__|_[^_\n]+_|~~[^~]+~~|`[^`\n]+`|\[[^\]]+\]\([^)]+\))/g;
 

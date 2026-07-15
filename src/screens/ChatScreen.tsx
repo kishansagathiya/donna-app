@@ -147,6 +147,11 @@ export function ChatScreen({
               ),
             );
           },
+          onCitations: citations => {
+            setTextMessages(prev =>
+              prev.map(t => (t.id === turnId ? { ...t, citations } : t)),
+            );
+          },
           onDone: result => {
             setTextSessionId(result.sessionId);
             setTextMessages(prev =>
@@ -157,6 +162,7 @@ export function ChatScreen({
                       assistant: result.reply || t.assistant,
                       error: false,
                       cancelled: Boolean(result.aborted),
+                      citations: result.citations ?? t.citations,
                     }
                   : t,
               ),
