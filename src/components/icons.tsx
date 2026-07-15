@@ -311,6 +311,33 @@ export function ArrowUpIcon({
   );
 }
 
+export function ArrowDownIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 2,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Line
+        x1="12"
+        y1="5"
+        x2="12"
+        y2="19"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+      />
+      <Polyline
+        points="19 12 12 19 5 12"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </IconFrame>
+  );
+}
+
 export function PlusIcon({
   size = 24,
   color = 'currentColor',
