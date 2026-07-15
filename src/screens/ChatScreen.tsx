@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ActionSheetIOS,
   Alert,
@@ -107,6 +107,7 @@ export function ChatScreen({
   const [isSending, setIsSending] = useState(false);
   const [textError, setTextError] = useState<string | null>(null);
   const [streamHasText, setStreamHasText] = useState(false);
+  const [textPhase, setTextPhase] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<
     PendingAttachment[]
@@ -115,10 +116,15 @@ export function ChatScreen({
   const textMessagesRef = useRef(textMessages);
   const textSessionIdRef = useRef(textSessionId);
   const isSendingRef = useRef(isSending);
+  const pendingChunkRef = useRef<string | null>(null);
+  const chunkRafRef = useRef<number | null>(null);
+  const streamingTurnIdRef = useRef<string | null>(null);
+  const streamHasTextRef = useRef(false);
 
   textMessagesRef.current = textMessages;
   textSessionIdRef.current = textSessionId;
   isSendingRef.current = isSending;
+  streamHasTextRef.current = streamHasText;
 
   const messages: ChatTurn[] = [...textMessages, ...turns];
 
@@ -136,6 +142,61 @@ export function ChatScreen({
     micState === 'processing' ||
     micState === 'requesting';
 
+  const actionableTurnIds = useMemo(
+    () => new Set(textMessages.map(t => t.id)),
+    [textMessages],
+  );
+
+  const displayPhase =
+    textPhase ??
+    (isSending && !streamHasText ? DONNA_THINKING_PHASE : phaseLabel);
+
+  function cancelChunkRaf() {
+    if (chunkRafRef.current != null) {
+      cancelAnimationFrame(chunkRafRef.current);
+      chunkRafRef.current = null;
+    }
+  }
+
+  function flushPendingChunk() {
+    cancelChunkRaf();
+    const turnId = streamingTurnIdRef.current;
+    const replyText = pendingChunkRef.current;
+    if (!turnId || replyText == null) {
+      return;
+    }
+    pendingChunkRef.current = null;
+    setTextMessages(prev =>
+      prev.map(t =>
+        t.id === turnId
+          ? {
+              ...t,
+              assistant: replyText,
+              streaming: true,
+              error: false,
+              cancelled: false,
+            }
+          : t,
+      ),
+    );
+  }
+
+  function scheduleChunk(turnId: string, replyText: string) {
+    streamingTurnIdRef.current = turnId;
+    pendingChunkRef.current = replyText;
+    if (!streamHasTextRef.current) {
+      streamHasTextRef.current = true;
+      setStreamHasText(true);
+    }
+    if (chunkRafRef.current != null) {
+      return;
+    }
+    chunkRafRef.current = requestAnimationFrame(() => {
+      chunkRafRef.current = null;
+      flushPendingChunk();
+    });
+  }
+
   async function runStream(
     trimmed: string,
     history: ChatTurnMessage[],
@@ -146,7 +207,12 @@ export function ChatScreen({
   ) {
     setTextError(null);
     setStreamHasText(false);
+    streamHasTextRef.current = false;
+    setTextPhase(DONNA_THINKING_PHASE);
     setIsSending(true);
+    streamingTurnIdRef.current = turnId;
+    pendingChunkRef.current = null;
+    cancelChunkRaf();
 
     let handle: ChatStreamHandle | null = null;
     try {
@@ -162,21 +228,23 @@ export function ChatScreen({
           onSession: nextSessionId => {
             setTextSessionId(nextSessionId);
           },
+          onPhase: phase => {
+            if (
+              !streamHasTextRef.current &&
+              (phase === 'generating' || phase === 'thinking')
+            ) {
+              setTextPhase(DONNA_THINKING_PHASE);
+              return;
+            }
+            if (phase === 'idle') {
+              setTextPhase(null);
+              return;
+            }
+            setTextPhase(phase);
+          },
           onChunk: replyText => {
-            setStreamHasText(true);
-            setTextMessages(prev =>
-              prev.map(t =>
-                t.id === turnId
-                  ? {
-                      ...t,
-                      assistant: replyText,
-                      streaming: true,
-                      error: false,
-                      cancelled: false,
-                    }
-                  : t,
-              ),
-            );
+            setTextPhase(null);
+            scheduleChunk(turnId, replyText);
           },
           onCitations: citations => {
             setTextMessages(prev =>
@@ -184,6 +252,7 @@ export function ChatScreen({
             );
           },
           onDone: result => {
+            flushPendingChunk();
             setTextSessionId(result.sessionId);
             setTextMessages(prev =>
               prev.map(t =>
@@ -202,6 +271,8 @@ export function ChatScreen({
             );
           },
           onError: message => {
+            cancelChunkRaf();
+            pendingChunkRef.current = null;
             setTextError(message);
             setTextMessages(prev =>
               prev.map(t =>
@@ -216,6 +287,8 @@ export function ChatScreen({
       streamAbortRef.current = handle.abort;
       await handle.promise;
     } catch (err) {
+      cancelChunkRaf();
+      pendingChunkRef.current = null;
       const message =
         err instanceof Error
           ? err.message
@@ -230,6 +303,8 @@ export function ChatScreen({
       );
     } finally {
       streamAbortRef.current = null;
+      streamingTurnIdRef.current = null;
+      setTextPhase(null);
       setIsSending(false);
     }
   }
@@ -261,6 +336,7 @@ export function ChatScreen({
         id: turnId,
         user: displayUserContent(trimmed, attachments),
         assistant: null,
+        streaming: true,
         attachmentLabels: labels.length > 0 ? labels : undefined,
         attachments: turnAttachments.length > 0 ? turnAttachments : undefined,
       },
@@ -278,6 +354,7 @@ export function ChatScreen({
   }
 
   function handleStop() {
+    flushPendingChunk();
     streamAbortRef.current?.();
   }
 
@@ -399,6 +476,7 @@ export function ChatScreen({
         id: turnId,
         user: last.user,
         assistant: null,
+        streaming: true,
         attachmentLabels: last.attachmentLabels,
         attachments: last.attachments,
       },
@@ -438,7 +516,7 @@ export function ChatScreen({
 
     setTextMessages([
       ...kept,
-      { id: newTurnId, user: trimmed, assistant: null },
+      { id: newTurnId, user: trimmed, assistant: null, streaming: true },
     ]);
 
     await runStream(trimmed, history, newTurnId, sessionId);
@@ -471,6 +549,7 @@ export function ChatScreen({
         id: turnId,
         user: last.user,
         assistant: null,
+        streaming: true,
         error: false,
         attachmentLabels: last.attachmentLabels,
         attachments: last.attachments,
@@ -521,18 +600,24 @@ export function ChatScreen({
     resumedMessages: ChatTurn[],
   ) {
     streamAbortRef.current?.();
+    cancelChunkRaf();
+    pendingChunkRef.current = null;
     setTextMessages(resumedMessages);
     setTextSessionId(sessionId ?? null);
     setTextError(null);
+    setTextPhase(null);
     setIsSending(false);
     setStreamHasText(false);
   }
 
   function handleNewChat() {
     streamAbortRef.current?.();
+    cancelChunkRaf();
+    pendingChunkRef.current = null;
     setTextMessages([]);
     setTextSessionId(null);
     setTextError(null);
+    setTextPhase(null);
     setIsSending(false);
     setStreamHasText(false);
     onClearVoiceChat?.();
@@ -551,11 +636,9 @@ export function ChatScreen({
         {hasMessages ? (
           <ChatMessages
             turns={messages}
-            phaseLabel={
-              isSending && !streamHasText ? DONNA_THINKING_PHASE : phaseLabel
-            }
+            phaseLabel={displayPhase}
             busy={isSending}
-            actionableTurnIds={new Set(textMessages.map(t => t.id))}
+            actionableTurnIds={actionableTurnIds}
             onCopyMessage={handleCopy}
             onRegenerate={() => void handleRegenerate()}
             onEditMessage={(id, text) => void handleEditAndResend(id, text)}

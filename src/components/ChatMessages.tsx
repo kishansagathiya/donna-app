@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   NativeScrollEvent,
@@ -57,6 +57,146 @@ type Props = {
   onOpenNote?: (noteId: string) => void;
 };
 
+type TurnRowProps = {
+  turn: ChatTurn;
+  showWaitingBubble: boolean;
+  showUserActions: boolean;
+  showAssistantActions: boolean;
+  isLatest: boolean;
+  busy: boolean;
+  isStreaming: boolean;
+  hasAttachmentChips: boolean;
+  colors: ThemeColors;
+  styles: ReturnType<typeof createStyles>;
+  onCopyMessage?: (content: string) => void;
+  onRegenerate?: () => void;
+  onEditMessage?: (turnId: string, nextText: string) => void;
+  onFeedback?: (turnId: string, rating: 'up' | 'down') => void;
+  onRetry?: () => void;
+  onOpenNote?: (noteId: string) => void;
+};
+
+const ChatTurnRow = React.memo(function ChatTurnRow({
+  turn,
+  showWaitingBubble,
+  showUserActions,
+  showAssistantActions,
+  isLatest,
+  busy,
+  isStreaming,
+  hasAttachmentChips,
+  colors,
+  styles,
+  onCopyMessage,
+  onRegenerate,
+  onEditMessage,
+  onFeedback,
+  onRetry,
+  onOpenNote,
+}: TurnRowProps) {
+  const userContent = hasAttachmentChips
+    ? turn.user.replace(/\n\n📎 .+$/s, '').replace(/^📎 .+$/s, '') || ''
+    : turn.user;
+
+  return (
+    <View style={styles.turn}>
+      {turn.user ? (
+        <View style={[styles.bubble, styles.userBubble]}>
+          {hasAttachmentChips ? (
+            <View style={styles.attachmentChips}>
+              {turn.attachments && turn.attachments.length > 0
+                ? turn.attachments.map(att => (
+                    <View key={att.id} style={styles.attachmentChip}>
+                      {att.previewUri ? (
+                        <Image
+                          source={{ uri: att.previewUri }}
+                          style={styles.attachmentThumb}
+                        />
+                      ) : null}
+                      <Text
+                        style={styles.attachmentChipText}
+                        numberOfLines={1}
+                      >
+                        {att.filename}
+                      </Text>
+                    </View>
+                  ))
+                : turn.attachmentLabels?.map(label => (
+                    <View key={label} style={styles.attachmentChip}>
+                      <Text
+                        style={styles.attachmentChipText}
+                        numberOfLines={1}
+                      >
+                        {label}
+                      </Text>
+                    </View>
+                  ))}
+            </View>
+          ) : null}
+          <MessageContent
+            content={userContent}
+            variant="user"
+            textStyle={styles.userText}
+          />
+        </View>
+      ) : null}
+
+      {showUserActions ? (
+        <MessageActions
+          turn={turn}
+          target="user"
+          isLatest={isLatest}
+          busy={busy}
+          onCopy={onCopyMessage!}
+          onEdit={onEditMessage}
+        />
+      ) : null}
+
+      {turn.assistant ? (
+        <View
+          style={[
+            styles.bubble,
+            styles.assistantBubble,
+            isStreaming && styles.streamingBubble,
+            turn.error && styles.errorBubble,
+            turn.cancelled && styles.cancelledBubble,
+          ]}
+        >
+          <MessageContent
+            content={turn.assistant}
+            variant="assistant"
+            streaming={isStreaming}
+            textStyle={styles.assistantText}
+          />
+        </View>
+      ) : showWaitingBubble ? (
+        <AssistantThinkingBlock colors={colors} />
+      ) : turn.cancelled ? (
+        <View style={[styles.bubble, styles.assistantBubble]}>
+          <Text style={styles.cancelledText}>Generation stopped</Text>
+        </View>
+      ) : null}
+
+      {turn.citations && turn.citations.length > 0 && turn.assistant ? (
+        <MemoryCitations citations={turn.citations} onOpenNote={onOpenNote} />
+      ) : null}
+
+      {showAssistantActions ? (
+        <MessageActions
+          turn={turn}
+          target="assistant"
+          isLatest={isLatest}
+          busy={busy}
+          onCopy={onCopyMessage!}
+          onRegenerate={isLatest ? onRegenerate : undefined}
+          onFeedback={onFeedback}
+          onRetry={onRetry}
+        />
+      ) : null}
+    </View>
+  );
+});
+
 export function ChatMessages({
   turns,
   phaseLabel,
@@ -75,16 +215,21 @@ export function ChatMessages({
   const stickToBottomRef = useRef(true);
   const prevTurnCountRef = useRef(0);
   const [stickToBottom, setStickToBottom] = useState(true);
-  const isThinking = isDonnaThinkingPhase(phaseLabel);
+  const isThinking =
+    isDonnaThinkingPhase(phaseLabel) || phaseLabel === 'generating';
   const thinkingTurnId =
     isThinking && turns.length > 0 ? turns[turns.length - 1]?.id : null;
   const hasWaitingBubble = Boolean(
     thinkingTurnId &&
-      turns.some(turn => turn.id === thinkingTurnId && turn.user && !turn.assistant),
+      turns.some(
+        turn => turn.id === thinkingTurnId && turn.user && !turn.assistant,
+      ),
   );
-  const latestTextTurnId = [...turns]
-    .reverse()
-    .find(turn => actionableTurnIds?.has(turn.id))?.id;
+  const latestTextTurnId = useMemo(
+    () =>
+      [...turns].reverse().find(turn => actionableTurnIds?.has(turn.id))?.id,
+    [turns, actionableTurnIds],
+  );
 
   const enableStickToBottom = () => {
     stickToBottomRef.current = true;
@@ -147,8 +292,9 @@ export function ChatMessages({
         }}
       >
         {turns.map(turn => {
-          const showWaitingBubble =
-            turn.id === thinkingTurnId && turn.user && !turn.assistant;
+          const showWaitingBubble = Boolean(
+            turn.id === thinkingTurnId && turn.user && !turn.assistant,
+          );
           const isActionable =
             Boolean(actionableTurnIds?.has(turn.id)) &&
             Boolean(onCopyMessage);
@@ -164,111 +310,25 @@ export function ChatMessages({
             (busy && turn.id === latestTextTurnId && Boolean(turn.assistant));
 
           return (
-            <View key={turn.id} style={styles.turn}>
-              {turn.user ? (
-                <View style={[styles.bubble, styles.userBubble]}>
-                  {hasAttachmentChips ? (
-                    <View style={styles.attachmentChips}>
-                      {turn.attachments && turn.attachments.length > 0
-                        ? turn.attachments.map(att => (
-                            <View key={att.id} style={styles.attachmentChip}>
-                              {att.previewUri ? (
-                                <Image
-                                  source={{ uri: att.previewUri }}
-                                  style={styles.attachmentThumb}
-                                />
-                              ) : null}
-                              <Text
-                                style={styles.attachmentChipText}
-                                numberOfLines={1}
-                              >
-                                {att.filename}
-                              </Text>
-                            </View>
-                          ))
-                        : turn.attachmentLabels?.map(label => (
-                            <View key={label} style={styles.attachmentChip}>
-                              <Text
-                                style={styles.attachmentChipText}
-                                numberOfLines={1}
-                              >
-                                {label}
-                              </Text>
-                            </View>
-                          ))}
-                    </View>
-                  ) : null}
-                  <MessageContent
-                    content={
-                      hasAttachmentChips
-                        ? turn.user
-                            .replace(/\n\n📎 .+$/s, '')
-                            .replace(/^📎 .+$/s, '') || ''
-                        : turn.user
-                    }
-                    variant="user"
-                    textStyle={styles.userText}
-                  />
-                </View>
-              ) : null}
-
-              {showUserActions ? (
-                <MessageActions
-                  turn={turn}
-                  target="user"
-                  isLatest={turn.id === latestTextTurnId}
-                  busy={busy}
-                  onCopy={onCopyMessage!}
-                  onEdit={onEditMessage}
-                />
-              ) : null}
-
-              {turn.assistant ? (
-                <View
-                  style={[
-                    styles.bubble,
-                    styles.assistantBubble,
-                    isStreaming && styles.streamingBubble,
-                    turn.error && styles.errorBubble,
-                    turn.cancelled && styles.cancelledBubble,
-                  ]}
-                >
-                  <MessageContent
-                    content={turn.assistant}
-                    variant="assistant"
-                    textStyle={styles.assistantText}
-                  />
-                </View>
-              ) : showWaitingBubble ? (
-                <AssistantThinkingBlock colors={colors} />
-              ) : turn.cancelled ? (
-                <View style={[styles.bubble, styles.assistantBubble]}>
-                  <Text style={styles.cancelledText}>Generation stopped</Text>
-                </View>
-              ) : null}
-
-              {turn.citations && turn.citations.length > 0 && turn.assistant ? (
-                <MemoryCitations
-                  citations={turn.citations}
-                  onOpenNote={onOpenNote}
-                />
-              ) : null}
-
-              {showAssistantActions ? (
-                <MessageActions
-                  turn={turn}
-                  target="assistant"
-                  isLatest={turn.id === latestTextTurnId}
-                  busy={busy}
-                  onCopy={onCopyMessage!}
-                  onRegenerate={
-                    turn.id === latestTextTurnId ? onRegenerate : undefined
-                  }
-                  onFeedback={onFeedback}
-                  onRetry={onRetry}
-                />
-              ) : null}
-            </View>
+            <ChatTurnRow
+              key={turn.id}
+              turn={turn}
+              showWaitingBubble={showWaitingBubble}
+              showUserActions={showUserActions}
+              showAssistantActions={showAssistantActions}
+              isLatest={turn.id === latestTextTurnId}
+              busy={busy}
+              isStreaming={isStreaming}
+              hasAttachmentChips={Boolean(hasAttachmentChips)}
+              colors={colors}
+              styles={styles}
+              onCopyMessage={onCopyMessage}
+              onRegenerate={onRegenerate}
+              onEditMessage={onEditMessage}
+              onFeedback={onFeedback}
+              onRetry={onRetry}
+              onOpenNote={onOpenNote}
+            />
           );
         })}
 

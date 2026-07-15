@@ -46,14 +46,25 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
+/** In-memory JWT so chat/voice requests skip AsyncStorage on the hot path. */
+let memoryAccessToken: string | null | undefined;
+
+export function primeAccessToken(token: string | null): void {
+  memoryAccessToken = token;
+}
+
 export async function getSession(): Promise<Session | null> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
+  memoryAccessToken = session?.access_token ?? null;
   return session;
 }
 
 export async function getAccessToken(): Promise<string | null> {
+  if (memoryAccessToken) {
+    return memoryAccessToken;
+  }
   const session = await getSession();
   return session?.access_token ?? null;
 }
@@ -201,6 +212,7 @@ export async function signInWithDevCredentials(): Promise<void> {
 
 export async function signOut(): Promise<void> {
   const { error } = await supabase.auth.signOut();
+  memoryAccessToken = null;
   if (error) {
     throw new Error(error.message);
   }
@@ -212,6 +224,7 @@ export function onAuthStateChange(
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange((_event, session) => {
+    memoryAccessToken = session?.access_token ?? null;
     callback(session);
   });
 

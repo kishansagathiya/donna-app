@@ -37,7 +37,6 @@
     "react-native-permissions": "^5.4.2",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-share-menu": "^6.0.0",
-    "react-native-sse": "^1.2.1",
     "react-native-svg": "^15.15.5",
     "react-native-url-polyfill": "^3.0.0"
   },

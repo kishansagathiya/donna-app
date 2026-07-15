@@ -3,7 +3,7 @@ import { API_BASE_URL } from '../config';
 import type { DonnaMode } from '../types/mode';
 import type { MemoryCitation } from '../types/citations';
 import type { ChatAttachmentPayload } from '../lib/chatAttachments';
-import EventSource from 'react-native-sse';
+import { openSsePost } from './sseXhr';
 
 export type ChatTurnMessage = {
   role: 'user' | 'assistant';
@@ -49,15 +49,6 @@ type ChatRequestBody = {
   mode?: string;
   attachments?: ChatAttachmentPayload[];
   web_search?: boolean;
-};
-
-type StreamEventName = 'session' | 'phase' | 'chunk' | 'citations' | 'done' | 'error';
-
-type CustomEventPayload = {
-  type: StreamEventName | 'error';
-  data: string | null;
-  lastEventId: string | null;
-  url: string;
 };
 
 function buildBody(input: SendChatInput): ChatRequestBody {
@@ -167,27 +158,18 @@ export function streamChatMessage(
         const url = `${API_BASE_URL}/chat?stream=1`;
         const body = buildBody(input);
 
-        const es = new EventSource<StreamEventName>(url, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
-          method: 'POST',
-          pollingInterval: 0,
-        });
-
         let latestSessionId = input.sessionId ?? '';
         let latestReply = '';
         let latestCitations: MemoryCitation[] | undefined;
         let settled = false;
+        let closeStream: () => void = () => undefined;
 
         const finish = (result: SendChatResult) => {
           if (settled) {
             return;
           }
           settled = true;
-          es.close();
+          closeStream();
           callbacks.onDone?.(result);
           resolve(result);
         };
@@ -197,17 +179,122 @@ export function streamChatMessage(
             return;
           }
           settled = true;
-          es.close();
+          closeStream();
           callbacks.onError?.(message);
           reject(new Error(message));
         };
+
+        const handle = openSsePost(
+          url,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+          },
+          {
+            onEvent: (event, data) => {
+              if (settled) {
+                return;
+              }
+
+              try {
+                switch (event) {
+                  case 'session': {
+                    const parsed = JSON.parse(data) as { session_id?: string };
+                    if (parsed.session_id) {
+                      latestSessionId = parsed.session_id;
+                      callbacks.onSession?.(parsed.session_id);
+                    }
+                    break;
+                  }
+                  case 'phase': {
+                    // Phase payloads are JSON strings, e.g. `"thinking"`.
+                    const phase =
+                      data.startsWith('"') && data.endsWith('"')
+                        ? JSON.parse(data)
+                        : data.replace(/^"|"$/g, '');
+                    if (typeof phase === 'string' && phase) {
+                      callbacks.onPhase?.(phase);
+                    }
+                    break;
+                  }
+                  case 'chunk': {
+                    const parsed = JSON.parse(data) as { text?: string };
+                    if (parsed.text) {
+                      latestReply = parsed.text;
+                      callbacks.onChunk?.(parsed.text);
+                    }
+                    break;
+                  }
+                  case 'citations': {
+                    const parsed = JSON.parse(data) as { citations?: unknown };
+                    const cites = parseCitations(parsed.citations);
+                    if (cites?.length) {
+                      latestCitations = cites;
+                      callbacks.onCitations?.(cites);
+                    }
+                    break;
+                  }
+                  case 'done': {
+                    const parsed = JSON.parse(data) as {
+                      reply?: string;
+                      session_id?: string;
+                      citations?: unknown;
+                      grounded_user_message?: string;
+                      attachment_labels?: string[];
+                    };
+                    const cites =
+                      parseCitations(parsed.citations) ?? latestCitations;
+                    if (cites?.length) {
+                      latestCitations = cites;
+                      callbacks.onCitations?.(cites);
+                    }
+                    finish({
+                      reply: parsed.reply ?? latestReply,
+                      sessionId: parsed.session_id ?? latestSessionId,
+                      citations: cites,
+                      groundedUserMessage: parsed.grounded_user_message,
+                      attachmentLabels: parsed.attachment_labels,
+                    });
+                    break;
+                  }
+                  case 'error': {
+                    const parsed = JSON.parse(data) as { message?: string };
+                    fail(parsed.message ?? data);
+                    break;
+                  }
+                  default:
+                    break;
+                }
+              } catch {
+                // Ignore malformed SSE frames; wait for a later valid event.
+              }
+            },
+            onError: message => {
+              fail(message);
+            },
+            onClose: () => {
+              if (!settled) {
+                finish({
+                  reply: latestReply,
+                  sessionId: latestSessionId,
+                  citations: latestCitations,
+                });
+              }
+            },
+          },
+        );
+
+        closeStream = handle.close;
 
         abortFn = () => {
           if (settled) {
             return;
           }
           settled = true;
-          es.close();
+          closeStream();
           const result = {
             reply: latestReply,
             sessionId: latestSessionId,
@@ -217,117 +304,6 @@ export function streamChatMessage(
           callbacks.onDone?.(result);
           resolve(result);
         };
-
-        es.addEventListener('open', () => {
-          // Stream opened; data events will follow.
-        });
-
-        es.addEventListener('session', (event: CustomEventPayload) => {
-          try {
-            const data = JSON.parse(event.data ?? '{}') as {
-              session_id?: string;
-            };
-            if (data.session_id) {
-              latestSessionId = data.session_id;
-              callbacks.onSession?.(data.session_id);
-            }
-          } catch {
-            // Ignore malformed event.
-          }
-        });
-
-        es.addEventListener('phase', (event: CustomEventPayload) => {
-          if (event.data) {
-            callbacks.onPhase?.(event.data);
-          }
-        });
-
-        es.addEventListener('chunk', (event: CustomEventPayload) => {
-          try {
-            const data = JSON.parse(event.data ?? '{}') as { text?: string };
-            if (data.text) {
-              latestReply = data.text;
-              callbacks.onChunk?.(data.text);
-            }
-          } catch {
-            // Ignore malformed event.
-          }
-        });
-
-        es.addEventListener('citations', (event: CustomEventPayload) => {
-          try {
-            const data = JSON.parse(event.data ?? '{}') as {
-              citations?: unknown;
-            };
-            const cites = parseCitations(data.citations);
-            if (cites?.length) {
-              latestCitations = cites;
-              callbacks.onCitations?.(cites);
-            }
-          } catch {
-            // Ignore malformed event.
-          }
-        });
-
-        es.addEventListener('error', event => {
-          const custom = event as unknown as CustomEventPayload;
-          if (custom.data) {
-            try {
-              const data = JSON.parse(custom.data) as { message?: string };
-              if (data.message) {
-                fail(data.message);
-                return;
-              }
-            } catch {
-              // Fall through to raw data.
-            }
-            fail(custom.data);
-            return;
-          }
-
-          const connectionError = event as { message?: string };
-          fail(connectionError.message ?? 'Chat stream failed');
-        });
-
-        es.addEventListener('done', (event: CustomEventPayload) => {
-          try {
-            const data = JSON.parse(event.data ?? '{}') as {
-              reply?: string;
-              session_id?: string;
-              citations?: unknown;
-              grounded_user_message?: string;
-              attachment_labels?: string[];
-            };
-            const cites = parseCitations(data.citations) ?? latestCitations;
-            if (cites?.length) {
-              latestCitations = cites;
-              callbacks.onCitations?.(cites);
-            }
-            finish({
-              reply: data.reply ?? latestReply,
-              sessionId: data.session_id ?? latestSessionId,
-              citations: cites,
-              groundedUserMessage: data.grounded_user_message,
-              attachmentLabels: data.attachment_labels,
-            });
-          } catch {
-            finish({
-              reply: latestReply,
-              sessionId: latestSessionId,
-              citations: latestCitations,
-            });
-          }
-        });
-
-        es.addEventListener('close', () => {
-          if (!settled) {
-            finish({
-              reply: latestReply,
-              sessionId: latestSessionId,
-              citations: latestCitations,
-            });
-          }
-        });
       })
       .catch(err => {
         reject(err instanceof Error ? err : new Error(String(err)));
