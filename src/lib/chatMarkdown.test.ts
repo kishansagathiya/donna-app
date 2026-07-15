@@ -54,4 +54,36 @@ describe('parseMarkdownBlocks', () => {
       expect(blocks[2].items).toHaveLength(2);
     }
   });
+
+  it('parses GFM tables with bold cells and alignment', () => {
+    const blocks = parseMarkdownBlocks(
+      [
+        'By Use Case',
+        '',
+        '| Use case | Model | Notes |',
+        '| ---: | :---: | --- |',
+        '| **Coding** | Claude Fable 5 | Fast |',
+        '| *Writing* | GPT-5.4 | Clear |',
+      ].join('\n'),
+    );
+
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toMatchObject({ type: 'paragraph' });
+    expect(blocks[1]).toMatchObject({ type: 'table' });
+    if (blocks[1].type !== 'table') {
+      throw new Error('expected table block');
+    }
+    expect(blocks[1].header).toHaveLength(3);
+    expect(blocks[1].header[0].align).toBe('right');
+    expect(blocks[1].header[1].align).toBe('center');
+    expect(blocks[1].header[2].align).toBeNull();
+    expect(blocks[1].rows).toHaveLength(2);
+    expect(blocks[1].rows[0][0].children).toEqual([
+      { text: 'Coding', marks: { bold: true } },
+    ]);
+    expect(blocks[1].rows[1][0].children).toEqual([
+      { text: 'Writing', marks: { italic: true } },
+    ]);
+    expect(blocks[1].rows[0][1].children[0].text).toBe('Claude Fable 5');
+  });
 });

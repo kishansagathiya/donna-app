@@ -11,13 +11,25 @@ export type InlineNode = {
   marks: InlineMark;
 };
 
+export type TableAlign = 'left' | 'center' | 'right' | null;
+
+export type TableCell = {
+  children: InlineNode[];
+  align: TableAlign;
+};
+
 export type BlockNode =
   | { type: 'paragraph'; children: InlineNode[] }
   | { type: 'heading'; level: 1 | 2 | 3; children: InlineNode[] }
   | { type: 'list'; ordered: boolean; items: InlineNode[][] }
   | { type: 'blockquote'; children: InlineNode[] }
   | { type: 'code'; text: string }
-  | { type: 'hr' };
+  | { type: 'hr' }
+  | {
+      type: 'table';
+      header: TableCell[];
+      rows: TableCell[][];
+    };
 
 const INLINE_TOKEN =
   /(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*\n]+\*|__[^_]+__|_[^_\n]+_|~~[^~]+~~|`[^`\n]+`|\[[^\]]+\]\([^)]+\))/g;
@@ -99,6 +111,108 @@ function isOrderedListLine(line: string): boolean {
   return /^\s*\d+[.)]\s+/.test(line);
 }
 
+/** GFM table separator cells look like ---: :--- :---: --- */
+function parseTableAlignments(line: string): TableAlign[] | null {
+  const trimmed = line.trim();
+  if (!trimmed.includes('|')) {
+    return null;
+  }
+  const cells = splitTableRow(trimmed);
+  if (cells.length === 0) {
+    return null;
+  }
+  const alignments: TableAlign[] = [];
+  for (const cell of cells) {
+    const token = cell.trim();
+    if (!/^:?-{3,}:?$/.test(token)) {
+      return null;
+    }
+    const left = token.startsWith(':');
+    const right = token.endsWith(':');
+    if (left && right) {
+      alignments.push('center');
+    } else if (right) {
+      alignments.push('right');
+    } else if (left) {
+      alignments.push('left');
+    } else {
+      alignments.push(null);
+    }
+  }
+  return alignments;
+}
+
+function splitTableRow(line: string): string[] {
+  let trimmed = line.trim();
+  if (trimmed.startsWith('|')) {
+    trimmed = trimmed.slice(1);
+  }
+  if (trimmed.endsWith('|')) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  return trimmed.split('|').map(cell => cell.trim());
+}
+
+function looksLikeTableRow(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.includes('|') && !isBlank(trimmed);
+}
+
+function parseTableCells(
+  line: string,
+  alignments: TableAlign[],
+): TableCell[] {
+  const rawCells = splitTableRow(line);
+  const columnCount = Math.max(alignments.length, rawCells.length);
+  const cells: TableCell[] = [];
+  for (let i = 0; i < columnCount; i += 1) {
+    cells.push({
+      children: parseInlineMarkdown(rawCells[i] ?? ''),
+      align: alignments[i] ?? null,
+    });
+  }
+  return cells;
+}
+
+function tryParseTable(
+  lines: string[],
+  start: number,
+): { block: BlockNode; nextIndex: number } | null {
+  if (start + 1 >= lines.length) {
+    return null;
+  }
+  const headerLine = lines[start];
+  const separatorLine = lines[start + 1];
+  if (!looksLikeTableRow(headerLine)) {
+    return null;
+  }
+  const alignments = parseTableAlignments(separatorLine);
+  if (!alignments) {
+    return null;
+  }
+
+  const header = parseTableCells(headerLine, alignments);
+  const rows: TableCell[][] = [];
+  let i = start + 2;
+  while (i < lines.length && looksLikeTableRow(lines[i]) && !isBlank(lines[i])) {
+    // Stop if the next non-table construct starts mid-row stream.
+    if (
+      /^```/.test(lines[i]) ||
+      /^(#{1,3})\s+/.test(lines[i]) ||
+      /^\s*>/.test(lines[i])
+    ) {
+      break;
+    }
+    rows.push(parseTableCells(lines[i], alignments));
+    i += 1;
+  }
+
+  return {
+    block: { type: 'table', header, rows },
+    nextIndex: i,
+  };
+}
+
 /** Parse assistant chat markdown into simple block nodes for native rendering. */
 export function parseMarkdownBlocks(markdown: string): BlockNode[] {
   const normalized = markdown.replace(/\r\n/g, '\n');
@@ -174,6 +288,13 @@ export function parseMarkdownBlocks(markdown: string): BlockNode[] {
       continue;
     }
 
+    const table = tryParseTable(lines, i);
+    if (table) {
+      blocks.push(table.block);
+      i = table.nextIndex;
+      continue;
+    }
+
     const paraLines: string[] = [];
     while (i < lines.length && !isBlank(lines[i])) {
       const peek = lines[i];
@@ -182,7 +303,8 @@ export function parseMarkdownBlocks(markdown: string): BlockNode[] {
         /^(#{1,3})\s+/.test(peek) ||
         /^\s*>/.test(peek) ||
         parseListItemText(peek) !== null ||
-        /^\s*---+\s*$/.test(peek)
+        /^\s*---+\s*$/.test(peek) ||
+        tryParseTable(lines, i) !== null
       ) {
         break;
       }

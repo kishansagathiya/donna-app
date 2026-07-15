@@ -120,6 +120,8 @@ function createStyles(colors: ThemeColors) {
       borderWidth: 1,
       borderColor: colors.border,
       borderBottomLeftRadius: 4,
+      // Allow wide markdown tables to scroll horizontally inside the bubble.
+      overflow: 'hidden',
     },
     userText: {
       color: colors.white,
