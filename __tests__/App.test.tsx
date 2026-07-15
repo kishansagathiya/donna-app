@@ -2,6 +2,28 @@
  * @format
  */
 
+jest.mock('react-native-blob-util', () => ({
+  __esModule: true,
+  default: {
+    fs: {
+      readFile: jest.fn(async () => ''),
+      stat: jest.fn(async () => ({ size: 0 })),
+    },
+  },
+}));
+
+jest.mock('react-native-document-picker', () => ({
+  __esModule: true,
+  default: {
+    pick: jest.fn(async () => []),
+    isCancel: jest.fn(() => false),
+  },
+}));
+
+jest.mock('react-native-image-picker', () => ({
+  launchImageLibrary: jest.fn(async () => ({ didCancel: true, assets: [] })),
+}));
+
 jest.mock('@react-native-clipboard/clipboard', () => ({
   setString: jest.fn(),
   getString: jest.fn(async () => ''),
