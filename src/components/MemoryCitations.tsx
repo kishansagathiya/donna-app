@@ -69,8 +69,12 @@ export function MemoryCitations({ citations, onOpenNote }: Props) {
 
             const body = (
               <View style={styles.itemRow}>
-                <Icon size={14} color={colors.primary} />
-                <Text style={styles.text}>{label}</Text>
+                <View style={styles.iconSlot}>
+                  <Icon size={14} color={colors.primary} />
+                </View>
+                <View style={styles.textWrap}>
+                  <Text style={styles.text}>{label}</Text>
+                </View>
               </View>
             );
 
@@ -125,11 +129,12 @@ export function MemoryCitations({ citations, onOpenNote }: Props) {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     wrap: {
-      alignSelf: 'flex-start',
+      alignSelf: 'stretch',
       maxWidth: '90%',
       gap: 6,
     },
     chip: {
+      alignSelf: 'flex-start',
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
@@ -155,6 +160,7 @@ function createStyles(colors: ThemeColors) {
       fontSize: 11,
     },
     panel: {
+      alignSelf: 'stretch',
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
@@ -163,6 +169,7 @@ function createStyles(colors: ThemeColors) {
       gap: 4,
     },
     item: {
+      alignSelf: 'stretch',
       borderRadius: 8,
       paddingHorizontal: 6,
       paddingVertical: 6,
@@ -174,9 +181,19 @@ function createStyles(colors: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'flex-start',
       gap: 8,
+      width: '100%',
+    },
+    iconSlot: {
+      width: 14,
+      height: 14,
+      marginTop: 1.5,
+    },
+    textWrap: {
+      flex: 1,
+      flexShrink: 1,
+      minWidth: 0,
     },
     text: {
-      flex: 1,
       color: colors.text,
       fontSize: 12,
       lineHeight: 17,
