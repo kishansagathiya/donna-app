@@ -23,6 +23,8 @@ import type { ThemeColors } from '../theme/colors';
 type Props = {
   content: string;
   variant: 'user' | 'assistant';
+  /** While streaming, skip markdown parse for cheaper per-token updates. */
+  streaming?: boolean;
   textStyle?: StyleProp<TextStyle>;
 };
 
@@ -198,21 +200,26 @@ function CodeBlock({
   );
 }
 
-export function MessageContent({ content, variant, textStyle }: Props) {
+export function MessageContent({
+  content,
+  variant,
+  streaming = false,
+  textStyle,
+}: Props) {
   const styles = useThemedStyles(createStyles);
 
   const blocks = useMemo(() => {
-    if (!content || variant === 'user') {
+    if (!content || variant === 'user' || streaming) {
       return null;
     }
     return parseMarkdownBlocks(content);
-  }, [content, variant]);
+  }, [content, variant, streaming]);
 
   if (!content) {
     return null;
   }
 
-  if (variant === 'user' || !blocks) {
+  if (variant === 'user' || streaming || !blocks) {
     return <Text style={textStyle}>{content}</Text>;
   }
 

@@ -7,7 +7,11 @@ import {
   type ReactNode,
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { getSession, onAuthStateChange } from '../services/auth';
+import {
+  getSession,
+  onAuthStateChange,
+  primeAccessToken,
+} from '../services/auth';
 
 type AuthContextValue = {
   session: Session | null;
@@ -28,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function init() {
       const currentSession = await getSession();
       if (mounted) {
+        primeAccessToken(currentSession?.access_token ?? null);
         setSession(currentSession);
         setLoading(false);
       }
@@ -36,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void init();
 
     const unsubscribe = onAuthStateChange(nextSession => {
+      primeAccessToken(nextSession?.access_token ?? null);
       if (mounted) {
         setSession(nextSession);
         setLoading(false);
