@@ -7,12 +7,13 @@ import type { ThemeColors } from '../theme/colors';
 import {
   CalendarCheckIcon,
   DatabaseIcon,
+  InboxIcon,
   MessageSquareIcon,
   StickyNoteIcon,
   UserIcon,
 } from './icons';
 
-export type AppTab = 'chat' | 'notes' | 'today' | 'memory' | 'profile';
+export type AppTab = 'chat' | 'notes' | 'actions' | 'today' | 'memory' | 'profile';
 
 type Props = {
   active: AppTab;
@@ -26,6 +27,7 @@ const tabs: {
 }[] = [
   { id: 'chat', label: 'Chat', Icon: MessageSquareIcon },
   { id: 'notes', label: 'Notes', Icon: StickyNoteIcon },
+  { id: 'actions', label: 'Actions', Icon: InboxIcon },
   { id: 'today', label: 'Today', Icon: CalendarCheckIcon },
   { id: 'memory', label: 'Memory', Icon: DatabaseIcon },
   { id: 'profile', label: 'Profile', Icon: UserIcon },

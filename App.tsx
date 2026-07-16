@@ -37,6 +37,7 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { AIDataConsentScreen } from './src/screens/AIDataConsentScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { NotesScreen } from './src/screens/NotesScreen';
+import { ActionsScreen } from './src/screens/ActionsScreen';
 import { MemoryScreen } from './src/screens/MemoryScreen';
 import { PairDeviceScreen } from './src/screens/PairDeviceScreen';
 import { PrivacyScreen } from './src/screens/PrivacyScreen';
@@ -350,6 +351,8 @@ function AppContent({
             onSaveToMemory={handleSaveToMemory}
           />
         </View>
+
+        {tab === 'actions' ? <ActionsScreen /> : null}
 
         {tab === 'today' ? (
           <TodayScreen embedded onOpenNote={openNote} />

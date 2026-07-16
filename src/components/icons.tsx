@@ -439,6 +439,31 @@ export function CheckIcon({
   );
 }
 
+export function InboxIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Path
+        d="M22 12h-6l-2 3h-4l-2-3H2"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </IconFrame>
+  );
+}
+
 export function PencilIcon({
   size = 24,
   color = 'currentColor',
