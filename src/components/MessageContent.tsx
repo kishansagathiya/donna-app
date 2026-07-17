@@ -223,32 +223,51 @@ export function MessageContent({
     return <Text style={textStyle}>{content}</Text>;
   }
 
+  const lastIndex = blocks.length - 1;
+
   return (
-    <View style={styles.root}>
+    <View style={styles.root} collapsable={false}>
       {blocks.map((block, index) => {
         const key = `${block.type}-${index}`;
+        // Margins instead of gap: Fabric/Yoga has under-measured ScrollView
+        // content when gap separates Text-heavy markdown blocks on iOS.
+        const blockSpacing =
+          index < lastIndex ? styles.blockSpacing : null;
 
         if (block.type === 'hr') {
-          return <View key={key} style={styles.hr} />;
+          return <View key={key} style={[styles.hr, blockSpacing]} />;
         }
 
         if (block.type === 'code') {
-          return <CodeBlock key={key} text={block.text} styles={styles} />;
+          return (
+            <View key={key} style={blockSpacing}>
+              <CodeBlock text={block.text} styles={styles} />
+            </View>
+          );
         }
 
         if (block.type === 'list') {
           return (
-            <View key={key} style={styles.list}>
+            <View key={key} style={[styles.list, blockSpacing]} collapsable={false}>
               {block.items.map((item, itemIndex) => (
-                <View key={`${key}-${itemIndex}`} style={styles.listItem}>
-                  <Text style={[textStyle, styles.listMarker]}>
-                    {block.ordered ? `${itemIndex + 1}.` : '•'}
-                  </Text>
-                  <View style={styles.listItemBody}>
-                    <Text style={textStyle}>
-                      {InlineText(item, textStyle, styles)}
+                // Keep marker + body in one Text tree. A flex row + flex:1
+                // body under-measures wrapped height on iOS Fabric, which
+                // clips the last lines and makes the chat ScrollView bounce.
+                <View
+                  key={`${key}-${itemIndex}`}
+                  style={
+                    itemIndex < block.items.length - 1
+                      ? styles.listItemSpacing
+                      : null
+                  }
+                  collapsable={false}
+                >
+                  <Text style={textStyle}>
+                    <Text style={[textStyle, styles.listMarker]}>
+                      {block.ordered ? `${itemIndex + 1}. ` : '• '}
                     </Text>
-                  </View>
+                    {InlineText(item, textStyle, styles)}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -257,7 +276,7 @@ export function MessageContent({
 
         if (block.type === 'blockquote') {
           return (
-            <View key={key} style={styles.blockquote}>
+            <View key={key} style={[styles.blockquote, blockSpacing]}>
               <Text style={[textStyle, styles.blockquoteText]}>
                 {InlineText(
                   block.children,
@@ -277,28 +296,33 @@ export function MessageContent({
                 ? styles.h2
                 : styles.h3;
           return (
-            <Text key={key} style={[textStyle, headingStyle]}>
-              {InlineText(block.children, [textStyle, headingStyle], styles)}
-            </Text>
+            <View key={key} style={blockSpacing} collapsable={false}>
+              <Text style={[textStyle, headingStyle]}>
+                {InlineText(block.children, [textStyle, headingStyle], styles)}
+              </Text>
+            </View>
           );
         }
 
         if (block.type === 'table') {
           return (
-            <TableBlock
-              key={key}
-              header={block.header}
-              rows={block.rows}
-              textStyle={textStyle}
-              styles={styles}
-            />
+            <View key={key} style={blockSpacing} collapsable={false}>
+              <TableBlock
+                header={block.header}
+                rows={block.rows}
+                textStyle={textStyle}
+                styles={styles}
+              />
+            </View>
           );
         }
 
         return (
-          <Text key={key} style={[styles.paragraph, textStyle]}>
-            {InlineText(block.children, textStyle, styles)}
-          </Text>
+          <View key={key} style={blockSpacing} collapsable={false}>
+            <Text style={[styles.paragraph, textStyle]}>
+              {InlineText(block.children, textStyle, styles)}
+            </Text>
+          </View>
         );
       })}
     </View>
@@ -307,8 +331,9 @@ export function MessageContent({
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
-    root: {
-      gap: 8,
+    root: {},
+    blockSpacing: {
+      marginBottom: 8,
     },
     paragraph: {},
     bold: {
@@ -366,22 +391,12 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 18,
       color: colors.text,
     },
-    list: {
-      gap: 4,
-    },
-    listItem: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 8,
+    list: {},
+    listItemSpacing: {
+      marginBottom: 4,
     },
     listMarker: {
-      minWidth: 18,
       color: colors.text,
-    },
-    listItemBody: {
-      flex: 1,
-      flexShrink: 1,
-      minWidth: 0,
     },
     blockquote: {
       borderLeftWidth: 2,
