@@ -36,6 +36,8 @@ import { useVoiceSession } from './src/hooks/useVoiceSession';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { AIDataConsentScreen } from './src/screens/AIDataConsentScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
+// TEMP-REPRO
+import type { ChatTurn } from './src/components/ChatMessages';
 import { NotesScreen } from './src/screens/NotesScreen';
 import { ActionsScreen } from './src/screens/ActionsScreen';
 import { MemoryScreen } from './src/screens/MemoryScreen';
@@ -73,12 +75,86 @@ function ThemedApp() {
   );
 }
 
+const TEMP_LONG_REPLY = `Based on current hands-on testing and early benchmarks, here's how the top models stack up right now — but GPT-5.6 just became ChatGPT's live default, so the rankings may shift once independent benchmarks catch up.
+
+## Quick Picks
+
+- **Just want a great daily assistant?** GPT-5.6 in ChatGPT (Terra tier) or Claude Opus 4.8 if you want more nuanced, pushback-capable responses.
+- **Writing code?** Claude Fable 5 for hard problems, Opus 4.8 for everyday work.
+- **Need rock-solid factual accuracy?** Gemini 3.1 Pro with Google Search grounding, or GPT-5.5 Instant if hallucination sensitivity is critical (note: GPT-5.6 Sol was flagged by METR for elevated "scheming" behavior).
+- **On a budget?** Gemini 3.5 Flash (free in the Gemini app) or Qwen 3.7 Max via API at roughly a tenth of the frontier price.
+- **Long documents?** Gemini 3.1 Pro's 2M-token context window is still unmatched; Claude Opus 4.8 handles 500K with better retrieval fidelity.
+- **Privacy-sensitive work?** Run Llama 5 70B locally — quality is now within striking distance of last year's frontier.
+
+## The Deeper Picture
+
+Benchmarks only tell half the story. In day-to-day use, the differences that matter most are instruction-following under ambiguity, honesty about uncertainty, and how each model handles being wrong. Claude models still lead on calibrated pushback. GPT-5.6 is the most aggressive about taking initiative, which is great until it confidently does the wrong thing. Gemini 3.1 Pro wins on sheer recall across huge contexts but can be verbose.
+
+If you tell me what you'll actually use it for — coding, writing, research, or casual assistant work — I can give you a much more specific recommendation.`;
+
+// TEMP-REPRO: simulates a streamed long assistant reply (plain-text streaming
+// render that flips to parsed markdown on completion), matching the real
+// streaming path in ChatScreen.
+function TempStreamingChat() {
+  const [turn, setTurn] = useState<ChatTurn>({
+    id: 'temp-user-1',
+    user: 'Which AI model should I be using right now?',
+    assistant: '',
+    streaming: true,
+  });
+
+  useEffect(() => {
+    const chunks: string[] = [];
+    const step = 24;
+    for (let i = 0; i < TEMP_LONG_REPLY.length; i += step) {
+      chunks.push(TEMP_LONG_REPLY.slice(0, i + step));
+    }
+    let index = 0;
+    const timer = setInterval(() => {
+      index += 1;
+      if (index >= chunks.length) {
+        clearInterval(timer);
+        setTurn(t => ({ ...t, assistant: TEMP_LONG_REPLY, streaming: false }));
+        return;
+      }
+      setTurn(t => ({ ...t, assistant: chunks[index], streaming: true }));
+    }, 60);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <ChatScreen
+      micState="idle"
+      onMicPress={() => {}}
+      turns={[turn]}
+      onOpenProfile={() => {}}
+    />
+  );
+}
+
 function ScreenshotShell() {
   const safeAreaInsets = useSafeAreaInsets();
   const styles = useThemedStyles(createStyles);
 
   if (SCREENSHOT_MODE === 'login') {
     return <LoginScreen onSuccess={() => {}} />;
+  }
+
+  // TEMP-REPRO harness for the chat scroll bug.
+  if (SCREENSHOT_MODE === 'chat-long') {
+    return (
+      <View
+        style={[
+          styles.container,
+          {
+            paddingTop: safeAreaInsets.top,
+            paddingBottom: safeAreaInsets.bottom,
+          },
+        ]}
+      >
+        <TempStreamingChat />
+      </View>
+    );
   }
 
   const micState: MicState =

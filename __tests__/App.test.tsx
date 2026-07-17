@@ -181,6 +181,12 @@ jest.mock('../src/hooks/useDeviceSync', () => ({
   listPairedDevices: jest.fn(async () => []),
 }));
 
+jest.mock('../src/config', () => ({
+  ...jest.requireActual('../src/config'),
+  // Tests always exercise the real app shell, never a screenshot/repro mode.
+  SCREENSHOT_MODE: null,
+}));
+
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import App from '../App';
