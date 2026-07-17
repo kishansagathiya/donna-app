@@ -36,14 +36,8 @@ export const GOOGLE_IOS_CLIENT_ID =
  * App Store screenshot capture — set to a screen name, run in Simulator, Cmd+S.
  * Set back to null before release builds.
  */
-export type ScreenshotMode =
-  | 'login'
-  | 'voice-idle'
-  | 'voice-listening'
-  | 'chat-long'
-  | null;
-// TEMP-REPRO: set to 'chat-long' to reproduce the chat scroll bug.
-export const SCREENSHOT_MODE: ScreenshotMode = 'chat-long';
+export type ScreenshotMode = 'login' | 'voice-idle' | 'voice-listening' | null;
+export const SCREENSHOT_MODE: ScreenshotMode = null;
 
 /** Production voice WebSocket (release builds always use this). */
 const PRODUCTION_VOICE_WS_URL =

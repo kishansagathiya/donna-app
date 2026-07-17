@@ -99,16 +99,7 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
     : turn.user;
 
   return (
-    <View
-      style={styles.turn}
-      onLayout={e => {
-        // TEMP-REPRO instrumentation
-        const { y, height } = e.nativeEvent.layout;
-        console.log(
-          `[SCROLLDBG] row ${turn.id} y=${y.toFixed(1)} h=${height.toFixed(1)} bottom=${(y + height).toFixed(1)}`,
-        );
-      }}
-    >
+    <View style={styles.turn}>
       {turn.user ? (
         <View style={[styles.bubble, styles.userBubble]}>
           {hasAttachmentChips ? (
@@ -253,15 +244,6 @@ export function ChatMessages({
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     const distanceFromBottom =
       contentSize.height - layoutMeasurement.height - contentOffset.y;
-    // TEMP-REPRO instrumentation
-    console.log(
-      '[SCROLLDBG] scroll y=',
-      contentOffset.y.toFixed(1),
-      'maxY=',
-      (contentSize.height - layoutMeasurement.height).toFixed(1),
-      'distFromBottom=',
-      distanceFromBottom.toFixed(1),
-    );
     const nearBottom = distanceFromBottom <= NEAR_BOTTOM_PX;
     if (nearBottom === stickToBottomRef.current) return;
     stickToBottomRef.current = nearBottom;
@@ -303,16 +285,7 @@ export function ChatMessages({
         nestedScrollEnabled
         onScroll={handleScroll}
         scrollEventThrottle={16}
-        onLayout={e => {
-          // TEMP-REPRO instrumentation
-          console.log(
-            '[SCROLLDBG] viewport height =',
-            e.nativeEvent.layout.height,
-          );
-        }}
-        onContentSizeChange={(w, h) => {
-          // TEMP-REPRO instrumentation
-          console.log('[SCROLLDBG] contentSize =', w, h);
+        onContentSizeChange={() => {
           if (stickToBottomRef.current) {
             scrollToBottom(false);
           }
@@ -366,20 +339,6 @@ export function ChatMessages({
             {phaseLabel}
           </Text>
         ) : null}
-        {/* TEMP-REPRO instrumentation: marks the true laid-out end of content */}
-        <View
-          onLayout={e => {
-            const { y, height } = e.nativeEvent.layout;
-            console.log(
-              '[SCROLLDBG] endMarker bottom =',
-              y + height,
-              '(+24 padding => expected contentSize',
-              y + height + 24,
-              ')',
-            );
-          }}
-          style={{ height: 1 }}
-        />
       </ScrollView>
 
       {!stickToBottom ? (
