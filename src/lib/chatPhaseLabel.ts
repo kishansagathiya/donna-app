@@ -34,7 +34,7 @@ export function coerceChatPhase(
 
 /**
  * Concrete wait-status labels only (site / images).
- * Vague protocol phases return null so the UI can say "Donna is generating".
+ * Vague protocol phases return null so the UI can rotate thinking verbs.
  */
 export function chatPhaseLabel(
   phase: string | null | undefined,

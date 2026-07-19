@@ -154,7 +154,7 @@ export function ChatScreen({
 
   const displayPhase =
     textPhase ??
-    (isSending && !streamHasText ? 'generating' : phaseLabel);
+    (isSending && !streamHasText ? DONNA_THINKING_PHASE : phaseLabel);
 
   function cancelChunkRaf() {
     if (chunkRafRef.current != null) {
@@ -213,7 +213,7 @@ export function ChatScreen({
     setTextError(null);
     setStreamHasText(false);
     streamHasTextRef.current = false;
-    setTextPhase('generating');
+    setTextPhase(DONNA_THINKING_PHASE);
     setIsSending(true);
     streamingTurnIdRef.current = turnId;
     pendingChunkRef.current = null;
@@ -244,8 +244,7 @@ export function ChatScreen({
               !streamHasTextRef.current &&
               (isGeneratingPhase(phase) || raw === 'thinking')
             ) {
-              // Keep a distinct marker so the UI can say "Donna is generating".
-              setTextPhase(isGeneratingPhase(phase) ? 'generating' : DONNA_THINKING_PHASE);
+              setTextPhase(DONNA_THINKING_PHASE);
               return;
             }
             if (raw === 'idle' || raw === 'done') {

@@ -63,7 +63,6 @@ type Props = {
 type TurnRowProps = {
   turn: ChatTurn;
   showWaitingBubble: boolean;
-  thinkingVerb?: string;
   showUserActions: boolean;
   showAssistantActions: boolean;
   isLatest: boolean;
@@ -83,7 +82,6 @@ type TurnRowProps = {
 const ChatTurnRow = React.memo(function ChatTurnRow({
   turn,
   showWaitingBubble,
-  thinkingVerb,
   showUserActions,
   showAssistantActions,
   isLatest,
@@ -178,7 +176,7 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
         </View>
       ) : showWaitingBubble ? (
         <View style={styles.turnSection}>
-          <AssistantThinkingBlock colors={colors} verb={thinkingVerb} />
+          <AssistantThinkingBlock colors={colors} />
         </View>
       ) : turn.cancelled ? (
         <View style={[styles.bubble, styles.assistantBubble]}>
@@ -231,10 +229,8 @@ export function ChatMessages({
   const measuredContentHeightRef = useRef(0);
   const viewportHeightRef = useRef(0);
   const [stickToBottom, setStickToBottom] = useState(true);
-  const generating = isGeneratingPhase(phaseLabel);
   const isThinking =
-    isDonnaThinkingPhase(phaseLabel) || generating;
-  const thinkingVerb = generating ? 'generating' : undefined;
+    isDonnaThinkingPhase(phaseLabel) || isGeneratingPhase(phaseLabel);
   const thinkingTurnId =
     isThinking && turns.length > 0 ? turns[turns.length - 1]?.id : null;
   const hasWaitingBubble = Boolean(
@@ -386,7 +382,6 @@ export function ChatMessages({
                 key={turn.id}
                 turn={turn}
                 showWaitingBubble={showWaitingBubble}
-                thinkingVerb={thinkingVerb}
                 showUserActions={showUserActions}
                 showAssistantActions={showAssistantActions}
                 isLatest={turn.id === latestTextTurnId}
@@ -406,7 +401,7 @@ export function ChatMessages({
           })}
 
           {hasWaitingBubble ? null : isThinking ? (
-            <AssistantThinkingBlock colors={colors} verb={thinkingVerb} />
+            <AssistantThinkingBlock colors={colors} />
           ) : statusLabel ? (
             <Text style={styles.phase} accessibilityRole="text">
               {statusLabel}
