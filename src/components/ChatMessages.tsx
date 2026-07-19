@@ -21,6 +21,8 @@ import { AssistantThinkingBlock } from './ThinkingIndicator';
 
 /** Distance from bottom (px) that still counts as "following" the stream. */
 const NEAR_BOTTOM_PX = 80;
+/** Must match contentContainerStyle paddingTop + paddingBottom. */
+const CONTENT_VERTICAL_PADDING = 16 + 32;
 
 export type ChatTurnAttachment = {
   id: string;
@@ -142,14 +144,16 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
       ) : null}
 
       {showUserActions ? (
-        <MessageActions
-          turn={turn}
-          target="user"
-          isLatest={isLatest}
-          busy={busy}
-          onCopy={onCopyMessage!}
-          onEdit={onEditMessage}
-        />
+        <View style={styles.turnSection}>
+          <MessageActions
+            turn={turn}
+            target="user"
+            isLatest={isLatest}
+            busy={busy}
+            onCopy={onCopyMessage!}
+            onEdit={onEditMessage}
+          />
+        </View>
       ) : null}
 
       {turn.assistant ? (
@@ -170,7 +174,9 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
           />
         </View>
       ) : showWaitingBubble ? (
-        <AssistantThinkingBlock colors={colors} />
+        <View style={styles.turnSection}>
+          <AssistantThinkingBlock colors={colors} />
+        </View>
       ) : turn.cancelled ? (
         <View style={[styles.bubble, styles.assistantBubble]}>
           <Text style={styles.cancelledText}>Generation stopped</Text>
@@ -178,20 +184,24 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
       ) : null}
 
       {turn.citations && turn.citations.length > 0 && turn.assistant ? (
-        <MemoryCitations citations={turn.citations} onOpenNote={onOpenNote} />
+        <View style={styles.turnSection}>
+          <MemoryCitations citations={turn.citations} onOpenNote={onOpenNote} />
+        </View>
       ) : null}
 
       {showAssistantActions ? (
-        <MessageActions
-          turn={turn}
-          target="assistant"
-          isLatest={isLatest}
-          busy={busy}
-          onCopy={onCopyMessage!}
-          onRegenerate={isLatest ? onRegenerate : undefined}
-          onFeedback={onFeedback}
-          onRetry={onRetry}
-        />
+        <View style={styles.turnSection}>
+          <MessageActions
+            turn={turn}
+            target="assistant"
+            isLatest={isLatest}
+            busy={busy}
+            onCopy={onCopyMessage!}
+            onRegenerate={isLatest ? onRegenerate : undefined}
+            onFeedback={onFeedback}
+            onRetry={onRetry}
+          />
+        </View>
       ) : null}
     </View>
   );
@@ -215,6 +225,7 @@ export function ChatMessages({
   const stickToBottomRef = useRef(true);
   const prevTurnCountRef = useRef(0);
   const contentHeightRef = useRef(0);
+  const measuredContentHeightRef = useRef(0);
   const viewportHeightRef = useRef(0);
   const [stickToBottom, setStickToBottom] = useState(true);
   const isThinking =
@@ -244,14 +255,27 @@ export function ChatMessages({
     setStickToBottom(false);
   };
 
+  const resolvedContentHeight = () => {
+    const reported = contentHeightRef.current;
+    const measured = measuredContentHeightRef.current;
+    // Fabric sometimes over-reports contentSize after markdown remounts.
+    // Prefer the inner wrapper's onLayout (+ container padding) when the
+    // reported size is meaningfully larger than the laid-out children.
+    if (
+      measured > 0 &&
+      reported > measured + CONTENT_VERTICAL_PADDING + 24
+    ) {
+      return measured + CONTENT_VERTICAL_PADDING;
+    }
+    return reported > 0 ? reported : measured + CONTENT_VERTICAL_PADDING;
+  };
+
   const scrollToBottom = (animated = false) => {
-    const maxY = Math.max(
-      0,
-      contentHeightRef.current - viewportHeightRef.current,
-    );
+    const contentH = resolvedContentHeight();
+    const maxY = Math.max(0, contentH - viewportHeightRef.current);
     // Prefer explicit y over scrollToEnd — Fabric can report a stale
     // contentSize to scrollToEnd right after markdown remounts.
-    if (contentHeightRef.current > 0 && viewportHeightRef.current > 0) {
+    if (contentH > 0 && viewportHeightRef.current > 0) {
       scrollRef.current?.scrollTo({ y: maxY, animated });
       return;
     }
@@ -262,8 +286,9 @@ export function ChatMessages({
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     contentHeightRef.current = contentSize.height;
     viewportHeightRef.current = layoutMeasurement.height;
+    const contentH = resolvedContentHeight();
     const distanceFromBottom =
-      contentSize.height - layoutMeasurement.height - contentOffset.y;
+      contentH - layoutMeasurement.height - contentOffset.y;
     const nearBottom = distanceFromBottom <= NEAR_BOTTOM_PX;
     if (nearBottom === stickToBottomRef.current) return;
     stickToBottomRef.current = nearBottom;
@@ -320,8 +345,17 @@ export function ChatMessages({
           Single child wrapper: contentContainerStyle `gap` across many
           siblings has under-reported contentSize on iOS Fabric, so the
           ScrollView rubber-bands before the real end of long replies.
+          onLayout gives a second opinion when contentSize is over-reported.
         */}
-        <View collapsable={false}>
+        <View
+          collapsable={false}
+          onLayout={event => {
+            measuredContentHeightRef.current = event.nativeEvent.layout.height;
+            if (stickToBottomRef.current) {
+              scrollToBottom(false);
+            }
+          }}
+        >
           {turns.map(turn => {
             const showWaitingBubble = Boolean(
               turn.id === thinkingTurnId && turn.user && !turn.assistant,
@@ -407,6 +441,9 @@ function createStyles(colors: ThemeColors) {
       paddingTop: 16,
       // Extra room so the last lines / actions clear the composer edge.
       paddingBottom: 32,
+      // Do not flexGrow — that stretches short threads and reads as a
+      // giant empty region under the last reply.
+      flexGrow: 0,
     },
     jumpFab: {
       position: 'absolute',
@@ -431,14 +468,19 @@ function createStyles(colors: ThemeColors) {
       opacity: 0.85,
     },
     turn: {
+      // Margins instead of gap: gap on multi-child rows has mis-measured
+      // ScrollView contentSize on iOS Fabric (both under- and over-report).
       marginBottom: 12,
-      gap: 8,
+    },
+    turnSection: {
+      marginBottom: 8,
     },
     bubble: {
       maxWidth: '85%',
       borderRadius: 16,
       paddingHorizontal: 14,
       paddingVertical: 10,
+      marginBottom: 8,
     },
     userBubble: {
       alignSelf: 'flex-end',

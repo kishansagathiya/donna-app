@@ -110,6 +110,8 @@ function TableBlock({
       horizontal
       nestedScrollEnabled
       showsHorizontalScrollIndicator={false}
+      // flexGrow:0 — nested horizontal ScrollViews can inflate the parent
+      // vertical contentSize on iOS Fabric when height is unconstrained.
       style={styles.tableScroll}
       contentContainerStyle={styles.tableScrollContent}
     >
@@ -226,11 +228,12 @@ export function MessageContent({
   const lastIndex = blocks.length - 1;
 
   return (
-    <View style={styles.root} collapsable={false}>
+    // Avoid wrapping every Text block in collapsable={false} Views — on iOS
+    // Fabric that over-reports ScrollView contentSize and leaves a huge empty
+    // region after the reply. Prefer margins on the Text/nodes themselves.
+    <View style={styles.root}>
       {blocks.map((block, index) => {
         const key = `${block.type}-${index}`;
-        // Margins instead of gap: Fabric/Yoga has under-measured ScrollView
-        // content when gap separates Text-heavy markdown blocks on iOS.
         const blockSpacing =
           index < lastIndex ? styles.blockSpacing : null;
 
@@ -248,27 +251,25 @@ export function MessageContent({
 
         if (block.type === 'list') {
           return (
-            <View key={key} style={[styles.list, blockSpacing]} collapsable={false}>
+            <View key={key} style={[styles.list, blockSpacing]}>
               {block.items.map((item, itemIndex) => (
                 // Keep marker + body in one Text tree. A flex row + flex:1
                 // body under-measures wrapped height on iOS Fabric, which
                 // clips the last lines and makes the chat ScrollView bounce.
-                <View
+                <Text
                   key={`${key}-${itemIndex}`}
-                  style={
+                  style={[
+                    textStyle,
                     itemIndex < block.items.length - 1
                       ? styles.listItemSpacing
-                      : null
-                  }
-                  collapsable={false}
+                      : null,
+                  ]}
                 >
-                  <Text style={textStyle}>
-                    <Text style={[textStyle, styles.listMarker]}>
-                      {block.ordered ? `${itemIndex + 1}. ` : '• '}
-                    </Text>
-                    {InlineText(item, textStyle, styles)}
+                  <Text style={[textStyle, styles.listMarker]}>
+                    {block.ordered ? `${itemIndex + 1}. ` : '• '}
                   </Text>
-                </View>
+                  {InlineText(item, textStyle, styles)}
+                </Text>
               ))}
             </View>
           );
@@ -296,17 +297,15 @@ export function MessageContent({
                 ? styles.h2
                 : styles.h3;
           return (
-            <View key={key} style={blockSpacing} collapsable={false}>
-              <Text style={[textStyle, headingStyle]}>
-                {InlineText(block.children, [textStyle, headingStyle], styles)}
-              </Text>
-            </View>
+            <Text key={key} style={[textStyle, headingStyle, blockSpacing]}>
+              {InlineText(block.children, [textStyle, headingStyle], styles)}
+            </Text>
           );
         }
 
         if (block.type === 'table') {
           return (
-            <View key={key} style={blockSpacing} collapsable={false}>
+            <View key={key} style={blockSpacing}>
               <TableBlock
                 header={block.header}
                 rows={block.rows}
@@ -318,11 +317,9 @@ export function MessageContent({
         }
 
         return (
-          <View key={key} style={blockSpacing} collapsable={false}>
-            <Text style={[styles.paragraph, textStyle]}>
-              {InlineText(block.children, textStyle, styles)}
-            </Text>
-          </View>
+          <Text key={key} style={[styles.paragraph, textStyle, blockSpacing]}>
+            {InlineText(block.children, textStyle, styles)}
+          </Text>
         );
       })}
     </View>
@@ -429,9 +426,10 @@ function createStyles(colors: ThemeColors) {
     tableScroll: {
       marginVertical: 2,
       maxWidth: '100%',
+      flexGrow: 0,
     },
     tableScrollContent: {
-      flexGrow: 1,
+      flexGrow: 0,
     },
     table: {
       borderWidth: StyleSheet.hairlineWidth,
