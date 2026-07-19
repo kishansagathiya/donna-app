@@ -149,6 +149,11 @@ export function PrivacyScreen({ visible, onClose }: Props) {
             needed to operate the service until you delete your account or we no
             longer need the data to provide Donna.
           </Text>
+          <Text style={styles.paragraph}>
+            Imported meeting snapshots from integrations remain in Donna after
+            disconnect or source-side permission changes until you explicitly
+            delete them from Integrations.
+          </Text>
 
           <Text style={styles.sectionTitle}>Account deletion</Text>
           <Text style={styles.paragraph}>

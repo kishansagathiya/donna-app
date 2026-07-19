@@ -241,6 +241,11 @@ export function NoteDetailScreen({
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.flagRow}>
+              {item.source_type === 'integration' ? (
+                <View style={styles.flagChip}>
+                  <Text style={styles.flagChipText}>From Granola</Text>
+                </View>
+              ) : null}
               {!isLocalDeviceNote ? (
                 <>
               <Pressable
@@ -281,7 +286,8 @@ export function NoteDetailScreen({
 
             <Text style={styles.meta}>
               {formatNoteDate(item.note_date)}
-              {item.source_type !== 'manual'
+              {item.source_type !== 'manual' &&
+              item.source_type !== 'integration'
                 ? ` · from ${item.source_type.replace('_', ' ')}`
                 : ''}
             </Text>

@@ -29,6 +29,10 @@ import { BottomTabBar, type AppTab } from './src/components/BottomTabBar';
 import { IngestToast } from './src/components/IngestToast';
 import { MicButton, type MicState } from './src/components/MicButton';
 import { useAssetIngest } from './src/hooks/useAssetIngest';
+import {
+  useGranolaOAuthReturn,
+  type GranolaOAuthResult,
+} from './src/hooks/useGranolaOAuthReturn';
 import { useIncomingShare } from './src/hooks/useIncomingShare';
 import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import { useDeviceSync } from './src/hooks/useDeviceSync';
@@ -176,6 +180,9 @@ function AppContent({
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [tab, setTab] = useState<AppTab>('chat');
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
+  const [integrationsRefreshToken, setIntegrationsRefreshToken] = useState(0);
+  const [granolaOauthResult, setGranolaOauthResult] =
+    useState<GranolaOAuthResult | null>(null);
   const {
     state,
     toggleTalk,
@@ -288,6 +295,18 @@ function AppContent({
 
   useIncomingShare(handleShare);
 
+  const handleGranolaOAuthReturn = useCallback((result: GranolaOAuthResult) => {
+    setTab('profile');
+    setGranolaOauthResult(result);
+    setIntegrationsRefreshToken(token => token + 1);
+  }, []);
+
+  const handleGranolaOAuthResultConsumed = useCallback(() => {
+    setGranolaOauthResult(null);
+  }, []);
+
+  useGranolaOAuthReturn(handleGranolaOAuthReturn);
+
   useEffect(() => {
     const showEvent =
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -366,6 +385,9 @@ function AppContent({
             onPairDevicePress={() => setPairSheetOpen(true)}
             onOpenPrivacy={() => onOpenLegal('privacy')}
             onOpenSupport={() => onOpenLegal('support')}
+            integrationsRefreshToken={integrationsRefreshToken}
+            granolaOauthResult={granolaOauthResult}
+            onGranolaOauthResultConsumed={handleGranolaOAuthResultConsumed}
           />
         ) : null}
 
