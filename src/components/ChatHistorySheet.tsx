@@ -118,7 +118,9 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
         (turn, index) => ({
           id: `history-${conversation.id}-${index}`,
           user: turn.user,
+          historyUser: turn.historyUser,
           assistant: turn.assistant,
+          attachments: turn.attachments,
         }),
       );
       const sessionId =
