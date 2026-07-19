@@ -24,7 +24,11 @@ import {
   type ChatAttachmentPayload,
   type PendingAttachment,
 } from '../lib/chatAttachments';
-import { chatPhaseLabel } from '../lib/chatPhaseLabel';
+import {
+  chatPhaseLabel,
+  coerceChatPhase,
+  isGeneratingPhase,
+} from '../lib/chatPhaseLabel';
 import {
   DONNA_THINKING_PHASE,
   isDonnaThinkingPhase,
@@ -150,7 +154,7 @@ export function ChatScreen({
 
   const displayPhase =
     textPhase ??
-    (isSending && !streamHasText ? DONNA_THINKING_PHASE : phaseLabel);
+    (isSending && !streamHasText ? 'generating' : phaseLabel);
 
   function cancelChunkRaf() {
     if (chunkRafRef.current != null) {
@@ -209,7 +213,7 @@ export function ChatScreen({
     setTextError(null);
     setStreamHasText(false);
     streamHasTextRef.current = false;
-    setTextPhase(DONNA_THINKING_PHASE);
+    setTextPhase('generating');
     setIsSending(true);
     streamingTurnIdRef.current = turnId;
     pendingChunkRef.current = null;
@@ -230,27 +234,23 @@ export function ChatScreen({
             setTextSessionId(nextSessionId);
           },
           onPhase: (phase, meta) => {
-            if (
-              phase === 'fetching' ||
-              phase === 'browsing' ||
-              phase === 'analyzing' ||
-              phase === 'finishing'
-            ) {
-              setTextPhase(chatPhaseLabel(phase, meta?.host));
+            const label = chatPhaseLabel(phase, meta?.host);
+            if (label) {
+              setTextPhase(label);
               return;
             }
+            const raw = coerceChatPhase(phase, meta?.host)?.phase;
             if (
               !streamHasTextRef.current &&
-              (phase === 'generating' || phase === 'thinking')
+              (isGeneratingPhase(phase) || raw === 'thinking')
             ) {
-              setTextPhase(DONNA_THINKING_PHASE);
+              // Keep a distinct marker so the UI can say "Donna is generating".
+              setTextPhase(isGeneratingPhase(phase) ? 'generating' : DONNA_THINKING_PHASE);
               return;
             }
-            if (phase === 'idle') {
+            if (raw === 'idle' || raw === 'done') {
               setTextPhase(null);
-              return;
             }
-            setTextPhase(chatPhaseLabel(phase, meta?.host) ?? phase);
           },
           onChunk: replyText => {
             setTextPhase(null);

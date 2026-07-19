@@ -15,6 +15,7 @@ import { MessageContent } from './MessageContent';
 import { ArrowDownIcon } from './icons';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import { isGeneratingPhase } from '../lib/chatPhaseLabel';
 import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
 import { AssistantThinkingBlock } from './ThinkingIndicator';
@@ -62,6 +63,7 @@ type Props = {
 type TurnRowProps = {
   turn: ChatTurn;
   showWaitingBubble: boolean;
+  thinkingVerb?: string;
   showUserActions: boolean;
   showAssistantActions: boolean;
   isLatest: boolean;
@@ -81,6 +83,7 @@ type TurnRowProps = {
 const ChatTurnRow = React.memo(function ChatTurnRow({
   turn,
   showWaitingBubble,
+  thinkingVerb,
   showUserActions,
   showAssistantActions,
   isLatest,
@@ -175,7 +178,7 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
         </View>
       ) : showWaitingBubble ? (
         <View style={styles.turnSection}>
-          <AssistantThinkingBlock colors={colors} />
+          <AssistantThinkingBlock colors={colors} verb={thinkingVerb} />
         </View>
       ) : turn.cancelled ? (
         <View style={[styles.bubble, styles.assistantBubble]}>
@@ -228,8 +231,10 @@ export function ChatMessages({
   const measuredContentHeightRef = useRef(0);
   const viewportHeightRef = useRef(0);
   const [stickToBottom, setStickToBottom] = useState(true);
+  const generating = isGeneratingPhase(phaseLabel);
   const isThinking =
-    isDonnaThinkingPhase(phaseLabel) || phaseLabel === 'generating';
+    isDonnaThinkingPhase(phaseLabel) || generating;
+  const thinkingVerb = generating ? 'generating' : undefined;
   const thinkingTurnId =
     isThinking && turns.length > 0 ? turns[turns.length - 1]?.id : null;
   const hasWaitingBubble = Boolean(
@@ -238,6 +243,8 @@ export function ChatMessages({
         turn => turn.id === thinkingTurnId && turn.user && !turn.assistant,
       ),
   );
+  const statusLabel =
+    phaseLabel && !isThinking ? phaseLabel : null;
   const latestTextTurnId = useMemo(
     () =>
       [...turns].reverse().find(turn => actionableTurnIds?.has(turn.id))?.id,
@@ -379,6 +386,7 @@ export function ChatMessages({
                 key={turn.id}
                 turn={turn}
                 showWaitingBubble={showWaitingBubble}
+                thinkingVerb={thinkingVerb}
                 showUserActions={showUserActions}
                 showAssistantActions={showAssistantActions}
                 isLatest={turn.id === latestTextTurnId}
@@ -397,11 +405,11 @@ export function ChatMessages({
             );
           })}
 
-          {isThinking && !hasWaitingBubble ? (
-            <AssistantThinkingBlock colors={colors} />
-          ) : phaseLabel && !isThinking ? (
+          {hasWaitingBubble ? null : isThinking ? (
+            <AssistantThinkingBlock colors={colors} verb={thinkingVerb} />
+          ) : statusLabel ? (
             <Text style={styles.phase} accessibilityRole="text">
-              {phaseLabel}
+              {statusLabel}
             </Text>
           ) : null}
         </View>
