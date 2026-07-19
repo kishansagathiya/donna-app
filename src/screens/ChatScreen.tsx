@@ -24,6 +24,7 @@ import {
   type ChatAttachmentPayload,
   type PendingAttachment,
 } from '../lib/chatAttachments';
+import { chatPhaseLabel } from '../lib/chatPhaseLabel';
 import {
   DONNA_THINKING_PHASE,
   isDonnaThinkingPhase,
@@ -229,6 +230,10 @@ export function ChatScreen({
             setTextSessionId(nextSessionId);
           },
           onPhase: phase => {
+            if (phase === 'fetching' || phase === 'browsing') {
+              setTextPhase(chatPhaseLabel(phase));
+              return;
+            }
             if (
               !streamHasTextRef.current &&
               (phase === 'generating' || phase === 'thinking')
@@ -240,7 +245,7 @@ export function ChatScreen({
               setTextPhase(null);
               return;
             }
-            setTextPhase(phase);
+            setTextPhase(chatPhaseLabel(phase) ?? phase);
           },
           onChunk: replyText => {
             setTextPhase(null);
