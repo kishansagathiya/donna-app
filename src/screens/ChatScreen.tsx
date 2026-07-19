@@ -229,9 +229,14 @@ export function ChatScreen({
           onSession: nextSessionId => {
             setTextSessionId(nextSessionId);
           },
-          onPhase: phase => {
-            if (phase === 'fetching' || phase === 'browsing') {
-              setTextPhase(chatPhaseLabel(phase));
+          onPhase: (phase, meta) => {
+            if (
+              phase === 'fetching' ||
+              phase === 'browsing' ||
+              phase === 'analyzing' ||
+              phase === 'finishing'
+            ) {
+              setTextPhase(chatPhaseLabel(phase, meta?.host));
               return;
             }
             if (
@@ -245,7 +250,7 @@ export function ChatScreen({
               setTextPhase(null);
               return;
             }
-            setTextPhase(chatPhaseLabel(phase) ?? phase);
+            setTextPhase(chatPhaseLabel(phase, meta?.host) ?? phase);
           },
           onChunk: replyText => {
             setTextPhase(null);
