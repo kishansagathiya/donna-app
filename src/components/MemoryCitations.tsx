@@ -10,7 +10,12 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import type { MemoryCitation } from '../types/citations';
 import type { ThemeColors } from '../theme/colors';
-import { BrainIcon, GlobeIcon, StickyNoteIcon } from './icons';
+import {
+  BrainIcon,
+  CalendarCheckIcon,
+  GlobeIcon,
+  StickyNoteIcon,
+} from './icons';
 
 type Props = {
   citations: MemoryCitation[];
@@ -28,7 +33,8 @@ export function MemoryCitations({ citations, onOpenNote }: Props) {
 
   const webCount = citations.filter(c => c.source === 'web').length;
   const noteCount = citations.filter(c => c.source === 'note').length;
-  const factCount = citations.length - noteCount - webCount;
+  const granolaCount = citations.filter(c => c.source === 'granola').length;
+  const factCount = citations.length - noteCount - webCount - granolaCount;
   const labelParts: string[] = [];
   if (webCount > 0) {
     labelParts.push(`${webCount} web source${webCount === 1 ? '' : 's'}`);
@@ -38,6 +44,11 @@ export function MemoryCitations({ citations, onOpenNote }: Props) {
   }
   if (noteCount > 0) {
     labelParts.push(`${noteCount} note${noteCount === 1 ? '' : 's'}`);
+  }
+  if (granolaCount > 0) {
+    labelParts.push(
+      `${granolaCount} Granola source${granolaCount === 1 ? '' : 's'}`,
+    );
   }
   const chipLabel = `Used ${labelParts.join(' · ')}`;
 
@@ -60,11 +71,14 @@ export function MemoryCitations({ citations, onOpenNote }: Props) {
             const key = `${citation.source}-${citation.id ?? index}`;
             const isNote = citation.source === 'note' && citation.id;
             const isWeb = citation.source === 'web' && citation.url;
+            const isGranola = citation.source === 'granola';
             const Icon = isWeb
               ? GlobeIcon
               : isNote
                 ? StickyNoteIcon
-                : BrainIcon;
+                : isGranola
+                  ? CalendarCheckIcon
+                  : BrainIcon;
             const label = citation.title?.trim() || citation.text;
 
             const body = (
@@ -73,6 +87,9 @@ export function MemoryCitations({ citations, onOpenNote }: Props) {
                   <Icon size={14} color={colors.primary} />
                 </View>
                 <View style={styles.textWrap}>
+                  {isGranola ? (
+                    <Text style={styles.sourceLabel}>Granola</Text>
+                  ) : null}
                   <Text style={styles.text}>{label}</Text>
                 </View>
               </View>
@@ -192,6 +209,15 @@ function createStyles(colors: ThemeColors) {
       flex: 1,
       flexShrink: 1,
       minWidth: 0,
+    },
+    sourceLabel: {
+      color: colors.muted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+      marginBottom: 2,
+      fontFamily: colors.fontFamily,
     },
     text: {
       color: colors.text,

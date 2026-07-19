@@ -14,6 +14,8 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
 import type { DeviceSyncStatus } from '../hooks/useDeviceSync';
+import { IntegrationsSection } from '../components/IntegrationsSection';
+import type { GranolaOAuthResult } from '../hooks/useGranolaOAuthReturn';
 import {
   deleteAccount,
   downloadAccountExport,
@@ -40,6 +42,9 @@ type ProfileScreenProps = {
   onPairDevicePress: () => void;
   onOpenPrivacy?: () => void;
   onOpenSupport?: () => void;
+  integrationsRefreshToken?: number;
+  granolaOauthResult?: GranolaOAuthResult | null;
+  onGranolaOauthResultConsumed?: () => void;
 };
 
 export function ProfileScreen({
@@ -47,6 +52,9 @@ export function ProfileScreen({
   onPairDevicePress,
   onOpenPrivacy,
   onOpenSupport,
+  integrationsRefreshToken = 0,
+  granolaOauthResult = null,
+  onGranolaOauthResultConsumed,
 }: ProfileScreenProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -314,6 +322,12 @@ export function ProfileScreen({
       <ThemeToggle />
 
       <DailyBriefingAlertsToggle />
+
+      <IntegrationsSection
+        refreshToken={integrationsRefreshToken}
+        oauthResult={granolaOauthResult}
+        onOauthResultConsumed={onGranolaOauthResultConsumed}
+      />
 
       <Text style={styles.sectionTitle}>Help & legal</Text>
       <Pressable

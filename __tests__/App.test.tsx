@@ -164,6 +164,10 @@ jest.mock('../src/hooks/useIncomingShare', () => ({
   }),
 }));
 
+jest.mock('../src/hooks/useGranolaOAuthReturn', () => ({
+  useGranolaOAuthReturn: () => {},
+}));
+
 jest.mock('../src/hooks/useDeviceSync', () => ({
   useDeviceSync: () => ({
     connected: false,
