@@ -25,6 +25,11 @@ import {
   type PendingAttachment,
 } from '../lib/chatAttachments';
 import {
+  chatPhaseLabel,
+  coerceChatPhase,
+  isGeneratingPhase,
+} from '../lib/chatPhaseLabel';
+import {
   DONNA_THINKING_PHASE,
   isDonnaThinkingPhase,
 } from '../lib/thinkingPhrases';
@@ -228,19 +233,23 @@ export function ChatScreen({
           onSession: nextSessionId => {
             setTextSessionId(nextSessionId);
           },
-          onPhase: phase => {
+          onPhase: (phase, meta) => {
+            const label = chatPhaseLabel(phase, meta?.host);
+            if (label) {
+              setTextPhase(label);
+              return;
+            }
+            const raw = coerceChatPhase(phase, meta?.host)?.phase;
             if (
               !streamHasTextRef.current &&
-              (phase === 'generating' || phase === 'thinking')
+              (isGeneratingPhase(phase) || raw === 'thinking')
             ) {
               setTextPhase(DONNA_THINKING_PHASE);
               return;
             }
-            if (phase === 'idle') {
+            if (raw === 'idle' || raw === 'done') {
               setTextPhase(null);
-              return;
             }
-            setTextPhase(phase);
           },
           onChunk: replyText => {
             setTextPhase(null);

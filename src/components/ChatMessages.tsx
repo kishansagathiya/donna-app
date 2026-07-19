@@ -15,12 +15,15 @@ import { MessageContent } from './MessageContent';
 import { ArrowDownIcon } from './icons';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import { isGeneratingPhase } from '../lib/chatPhaseLabel';
 import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
 import { AssistantThinkingBlock } from './ThinkingIndicator';
 
 /** Distance from bottom (px) that still counts as "following" the stream. */
 const NEAR_BOTTOM_PX = 80;
+/** Must match contentContainerStyle paddingTop + paddingBottom. */
+const CONTENT_VERTICAL_PADDING = 16 + 32;
 
 export type ChatTurnAttachment = {
   id: string;
@@ -142,14 +145,16 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
       ) : null}
 
       {showUserActions ? (
-        <MessageActions
-          turn={turn}
-          target="user"
-          isLatest={isLatest}
-          busy={busy}
-          onCopy={onCopyMessage!}
-          onEdit={onEditMessage}
-        />
+        <View style={styles.turnSection}>
+          <MessageActions
+            turn={turn}
+            target="user"
+            isLatest={isLatest}
+            busy={busy}
+            onCopy={onCopyMessage!}
+            onEdit={onEditMessage}
+          />
+        </View>
       ) : null}
 
       {turn.assistant ? (
@@ -170,7 +175,9 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
           />
         </View>
       ) : showWaitingBubble ? (
-        <AssistantThinkingBlock colors={colors} />
+        <View style={styles.turnSection}>
+          <AssistantThinkingBlock colors={colors} />
+        </View>
       ) : turn.cancelled ? (
         <View style={[styles.bubble, styles.assistantBubble]}>
           <Text style={styles.cancelledText}>Generation stopped</Text>
@@ -178,20 +185,24 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
       ) : null}
 
       {turn.citations && turn.citations.length > 0 && turn.assistant ? (
-        <MemoryCitations citations={turn.citations} onOpenNote={onOpenNote} />
+        <View style={styles.turnSection}>
+          <MemoryCitations citations={turn.citations} onOpenNote={onOpenNote} />
+        </View>
       ) : null}
 
       {showAssistantActions ? (
-        <MessageActions
-          turn={turn}
-          target="assistant"
-          isLatest={isLatest}
-          busy={busy}
-          onCopy={onCopyMessage!}
-          onRegenerate={isLatest ? onRegenerate : undefined}
-          onFeedback={onFeedback}
-          onRetry={onRetry}
-        />
+        <View style={styles.turnSection}>
+          <MessageActions
+            turn={turn}
+            target="assistant"
+            isLatest={isLatest}
+            busy={busy}
+            onCopy={onCopyMessage!}
+            onRegenerate={isLatest ? onRegenerate : undefined}
+            onFeedback={onFeedback}
+            onRetry={onRetry}
+          />
+        </View>
       ) : null}
     </View>
   );
@@ -214,9 +225,12 @@ export function ChatMessages({
   const scrollRef = useRef<ScrollView>(null);
   const stickToBottomRef = useRef(true);
   const prevTurnCountRef = useRef(0);
+  const contentHeightRef = useRef(0);
+  const measuredContentHeightRef = useRef(0);
+  const viewportHeightRef = useRef(0);
   const [stickToBottom, setStickToBottom] = useState(true);
   const isThinking =
-    isDonnaThinkingPhase(phaseLabel) || phaseLabel === 'generating';
+    isDonnaThinkingPhase(phaseLabel) || isGeneratingPhase(phaseLabel);
   const thinkingTurnId =
     isThinking && turns.length > 0 ? turns[turns.length - 1]?.id : null;
   const hasWaitingBubble = Boolean(
@@ -225,6 +239,8 @@ export function ChatMessages({
         turn => turn.id === thinkingTurnId && turn.user && !turn.assistant,
       ),
   );
+  const statusLabel =
+    phaseLabel && !isThinking ? phaseLabel : null;
   const latestTextTurnId = useMemo(
     () =>
       [...turns].reverse().find(turn => actionableTurnIds?.has(turn.id))?.id,
@@ -236,14 +252,46 @@ export function ChatMessages({
     setStickToBottom(true);
   };
 
+  const pauseStickToBottom = () => {
+    if (!stickToBottomRef.current) return;
+    stickToBottomRef.current = false;
+    setStickToBottom(false);
+  };
+
+  const resolvedContentHeight = () => {
+    const reported = contentHeightRef.current;
+    const measured = measuredContentHeightRef.current;
+    // Fabric sometimes over-reports contentSize after markdown remounts.
+    // Prefer the inner wrapper's onLayout (+ container padding) when the
+    // reported size is meaningfully larger than the laid-out children.
+    if (
+      measured > 0 &&
+      reported > measured + CONTENT_VERTICAL_PADDING + 24
+    ) {
+      return measured + CONTENT_VERTICAL_PADDING;
+    }
+    return reported > 0 ? reported : measured + CONTENT_VERTICAL_PADDING;
+  };
+
   const scrollToBottom = (animated = false) => {
+    const contentH = resolvedContentHeight();
+    const maxY = Math.max(0, contentH - viewportHeightRef.current);
+    // Prefer explicit y over scrollToEnd — Fabric can report a stale
+    // contentSize to scrollToEnd right after markdown remounts.
+    if (contentH > 0 && viewportHeightRef.current > 0) {
+      scrollRef.current?.scrollTo({ y: maxY, animated });
+      return;
+    }
     scrollRef.current?.scrollToEnd({ animated });
   };
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    contentHeightRef.current = contentSize.height;
+    viewportHeightRef.current = layoutMeasurement.height;
+    const contentH = resolvedContentHeight();
     const distanceFromBottom =
-      contentSize.height - layoutMeasurement.height - contentOffset.y;
+      contentH - layoutMeasurement.height - contentOffset.y;
     const nearBottom = distanceFromBottom <= NEAR_BOTTOM_PX;
     if (nearBottom === stickToBottomRef.current) return;
     stickToBottomRef.current = nearBottom;
@@ -285,60 +333,81 @@ export function ChatMessages({
         nestedScrollEnabled
         onScroll={handleScroll}
         scrollEventThrottle={16}
-        onContentSizeChange={() => {
+        onScrollBeginDrag={pauseStickToBottom}
+        onLayout={event => {
+          viewportHeightRef.current = event.nativeEvent.layout.height;
+        }}
+        onContentSizeChange={(_w, h) => {
+          contentHeightRef.current = h;
           if (stickToBottomRef.current) {
             scrollToBottom(false);
           }
         }}
       >
-        {turns.map(turn => {
-          const showWaitingBubble = Boolean(
-            turn.id === thinkingTurnId && turn.user && !turn.assistant,
-          );
-          const isActionable =
-            Boolean(actionableTurnIds?.has(turn.id)) &&
-            Boolean(onCopyMessage);
-          // Copy/edit sit under the user prompt even while Donna is thinking.
-          const showUserActions = isActionable && Boolean(turn.user);
-          const showAssistantActions =
-            isActionable && Boolean(turn.assistant) && !showWaitingBubble;
-          const hasAttachmentChips =
-            (turn.attachments && turn.attachments.length > 0) ||
-            (turn.attachmentLabels && turn.attachmentLabels.length > 0);
-          const isStreaming =
-            Boolean(turn.streaming) ||
-            (busy && turn.id === latestTextTurnId && Boolean(turn.assistant));
+        {/*
+          Single child wrapper: contentContainerStyle `gap` across many
+          siblings has under-reported contentSize on iOS Fabric, so the
+          ScrollView rubber-bands before the real end of long replies.
+          onLayout gives a second opinion when contentSize is over-reported.
+        */}
+        <View
+          collapsable={false}
+          onLayout={event => {
+            measuredContentHeightRef.current = event.nativeEvent.layout.height;
+            if (stickToBottomRef.current) {
+              scrollToBottom(false);
+            }
+          }}
+        >
+          {turns.map(turn => {
+            const showWaitingBubble = Boolean(
+              turn.id === thinkingTurnId && turn.user && !turn.assistant,
+            );
+            const isActionable =
+              Boolean(actionableTurnIds?.has(turn.id)) &&
+              Boolean(onCopyMessage);
+            // Copy/edit sit under the user prompt even while Donna is thinking.
+            const showUserActions = isActionable && Boolean(turn.user);
+            const showAssistantActions =
+              isActionable && Boolean(turn.assistant) && !showWaitingBubble;
+            const hasAttachmentChips =
+              (turn.attachments && turn.attachments.length > 0) ||
+              (turn.attachmentLabels && turn.attachmentLabels.length > 0);
+            const isStreaming =
+              Boolean(turn.streaming) ||
+              (busy && turn.id === latestTextTurnId && Boolean(turn.assistant));
 
-          return (
-            <ChatTurnRow
-              key={turn.id}
-              turn={turn}
-              showWaitingBubble={showWaitingBubble}
-              showUserActions={showUserActions}
-              showAssistantActions={showAssistantActions}
-              isLatest={turn.id === latestTextTurnId}
-              busy={busy}
-              isStreaming={isStreaming}
-              hasAttachmentChips={Boolean(hasAttachmentChips)}
-              colors={colors}
-              styles={styles}
-              onCopyMessage={onCopyMessage}
-              onRegenerate={onRegenerate}
-              onEditMessage={onEditMessage}
-              onFeedback={onFeedback}
-              onRetry={onRetry}
-              onOpenNote={onOpenNote}
-            />
-          );
-        })}
+            return (
+              <ChatTurnRow
+                key={turn.id}
+                turn={turn}
+                showWaitingBubble={showWaitingBubble}
+                showUserActions={showUserActions}
+                showAssistantActions={showAssistantActions}
+                isLatest={turn.id === latestTextTurnId}
+                busy={busy}
+                isStreaming={isStreaming}
+                hasAttachmentChips={Boolean(hasAttachmentChips)}
+                colors={colors}
+                styles={styles}
+                onCopyMessage={onCopyMessage}
+                onRegenerate={onRegenerate}
+                onEditMessage={onEditMessage}
+                onFeedback={onFeedback}
+                onRetry={onRetry}
+                onOpenNote={onOpenNote}
+              />
+            );
+          })}
 
-        {isThinking && !hasWaitingBubble ? (
-          <AssistantThinkingBlock colors={colors} />
-        ) : phaseLabel && !isThinking ? (
-          <Text style={styles.phase} accessibilityRole="text">
-            {phaseLabel}
-          </Text>
-        ) : null}
+          {hasWaitingBubble ? null : isThinking ? (
+            <AssistantThinkingBlock colors={colors} />
+          ) : statusLabel ? (
+            <Text style={styles.phase} accessibilityRole="text">
+              {statusLabel}
+            </Text>
+          ) : null}
+        </View>
       </ScrollView>
 
       {!stickToBottom ? (
@@ -374,8 +443,10 @@ function createStyles(colors: ThemeColors) {
       paddingHorizontal: 20,
       paddingTop: 16,
       // Extra room so the last lines / actions clear the composer edge.
-      paddingBottom: 24,
-      gap: 12,
+      paddingBottom: 32,
+      // Do not flexGrow — that stretches short threads and reads as a
+      // giant empty region under the last reply.
+      flexGrow: 0,
     },
     jumpFab: {
       position: 'absolute',
@@ -400,13 +471,19 @@ function createStyles(colors: ThemeColors) {
       opacity: 0.85,
     },
     turn: {
-      gap: 8,
+      // Margins instead of gap: gap on multi-child rows has mis-measured
+      // ScrollView contentSize on iOS Fabric (both under- and over-report).
+      marginBottom: 12,
+    },
+    turnSection: {
+      marginBottom: 8,
     },
     bubble: {
       maxWidth: '85%',
       borderRadius: 16,
       paddingHorizontal: 14,
       paddingVertical: 10,
+      marginBottom: 8,
     },
     userBubble: {
       alignSelf: 'flex-end',
@@ -416,14 +493,14 @@ function createStyles(colors: ThemeColors) {
     attachmentChips: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 6,
       marginBottom: 8,
     },
     attachmentChip: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
       maxWidth: 160,
+      marginRight: 6,
+      marginBottom: 6,
       borderRadius: 8,
       backgroundColor: 'rgba(255,255,255,0.15)',
       paddingHorizontal: 8,
@@ -433,6 +510,7 @@ function createStyles(colors: ThemeColors) {
       width: 28,
       height: 28,
       borderRadius: 4,
+      marginRight: 6,
     },
     attachmentChipText: {
       flexShrink: 1,

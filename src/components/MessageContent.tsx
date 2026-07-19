@@ -110,6 +110,8 @@ function TableBlock({
       horizontal
       nestedScrollEnabled
       showsHorizontalScrollIndicator={false}
+      // flexGrow:0 — nested horizontal ScrollViews can inflate the parent
+      // vertical contentSize on iOS Fabric when height is unconstrained.
       style={styles.tableScroll}
       contentContainerStyle={styles.tableScrollContent}
     >
@@ -223,33 +225,51 @@ export function MessageContent({
     return <Text style={textStyle}>{content}</Text>;
   }
 
+  const lastIndex = blocks.length - 1;
+
   return (
+    // Avoid wrapping every Text block in collapsable={false} Views — on iOS
+    // Fabric that over-reports ScrollView contentSize and leaves a huge empty
+    // region after the reply. Prefer margins on the Text/nodes themselves.
     <View style={styles.root}>
       {blocks.map((block, index) => {
         const key = `${block.type}-${index}`;
+        const blockSpacing =
+          index < lastIndex ? styles.blockSpacing : null;
 
         if (block.type === 'hr') {
-          return <View key={key} style={styles.hr} />;
+          return <View key={key} style={[styles.hr, blockSpacing]} />;
         }
 
         if (block.type === 'code') {
-          return <CodeBlock key={key} text={block.text} styles={styles} />;
+          return (
+            <View key={key} style={blockSpacing}>
+              <CodeBlock text={block.text} styles={styles} />
+            </View>
+          );
         }
 
         if (block.type === 'list') {
           return (
-            <View key={key} style={styles.list}>
+            <View key={key} style={[styles.list, blockSpacing]}>
               {block.items.map((item, itemIndex) => (
-                <View key={`${key}-${itemIndex}`} style={styles.listItem}>
+                // Keep marker + body in one Text tree. A flex row + flex:1
+                // body under-measures wrapped height on iOS Fabric, which
+                // clips the last lines and makes the chat ScrollView bounce.
+                <Text
+                  key={`${key}-${itemIndex}`}
+                  style={[
+                    textStyle,
+                    itemIndex < block.items.length - 1
+                      ? styles.listItemSpacing
+                      : null,
+                  ]}
+                >
                   <Text style={[textStyle, styles.listMarker]}>
-                    {block.ordered ? `${itemIndex + 1}.` : '•'}
+                    {block.ordered ? `${itemIndex + 1}. ` : '• '}
                   </Text>
-                  <View style={styles.listItemBody}>
-                    <Text style={textStyle}>
-                      {InlineText(item, textStyle, styles)}
-                    </Text>
-                  </View>
-                </View>
+                  {InlineText(item, textStyle, styles)}
+                </Text>
               ))}
             </View>
           );
@@ -257,7 +277,7 @@ export function MessageContent({
 
         if (block.type === 'blockquote') {
           return (
-            <View key={key} style={styles.blockquote}>
+            <View key={key} style={[styles.blockquote, blockSpacing]}>
               <Text style={[textStyle, styles.blockquoteText]}>
                 {InlineText(
                   block.children,
@@ -277,7 +297,7 @@ export function MessageContent({
                 ? styles.h2
                 : styles.h3;
           return (
-            <Text key={key} style={[textStyle, headingStyle]}>
+            <Text key={key} style={[textStyle, headingStyle, blockSpacing]}>
               {InlineText(block.children, [textStyle, headingStyle], styles)}
             </Text>
           );
@@ -285,18 +305,19 @@ export function MessageContent({
 
         if (block.type === 'table') {
           return (
-            <TableBlock
-              key={key}
-              header={block.header}
-              rows={block.rows}
-              textStyle={textStyle}
-              styles={styles}
-            />
+            <View key={key} style={blockSpacing}>
+              <TableBlock
+                header={block.header}
+                rows={block.rows}
+                textStyle={textStyle}
+                styles={styles}
+              />
+            </View>
           );
         }
 
         return (
-          <Text key={key} style={[styles.paragraph, textStyle]}>
+          <Text key={key} style={[styles.paragraph, textStyle, blockSpacing]}>
             {InlineText(block.children, textStyle, styles)}
           </Text>
         );
@@ -307,8 +328,9 @@ export function MessageContent({
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
-    root: {
-      gap: 8,
+    root: {},
+    blockSpacing: {
+      marginBottom: 8,
     },
     paragraph: {},
     bold: {
@@ -366,22 +388,12 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 18,
       color: colors.text,
     },
-    list: {
-      gap: 4,
-    },
-    listItem: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 8,
+    list: {},
+    listItemSpacing: {
+      marginBottom: 4,
     },
     listMarker: {
-      minWidth: 18,
       color: colors.text,
-    },
-    listItemBody: {
-      flex: 1,
-      flexShrink: 1,
-      minWidth: 0,
     },
     blockquote: {
       borderLeftWidth: 2,
@@ -414,9 +426,10 @@ function createStyles(colors: ThemeColors) {
     tableScroll: {
       marginVertical: 2,
       maxWidth: '100%',
+      flexGrow: 0,
     },
     tableScrollContent: {
-      flexGrow: 1,
+      flexGrow: 0,
     },
     table: {
       borderWidth: StyleSheet.hairlineWidth,

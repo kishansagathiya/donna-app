@@ -120,11 +120,15 @@ export function ThinkingLabel({
 
 type BlockProps = {
   colors: ThemeColors;
+  /** Fixed verb; omit to rotate thinking phrases. */
+  verb?: string;
 };
 
-export function AssistantThinkingBlock({ colors }: BlockProps) {
+export function AssistantThinkingBlock({ colors, verb }: BlockProps) {
   const styles = useThemedStyles(createStyles);
-  const { verb, visible } = useThinkingPhrase();
+  const phrase = useThinkingPhrase();
+  const labelVerb = verb ?? phrase.verb;
+  const visible = verb !== undefined ? true : phrase.visible;
 
   return (
     <View style={styles.block}>
@@ -132,7 +136,7 @@ export function AssistantThinkingBlock({ colors }: BlockProps) {
         <BouncingDots size="md" color={colors.muted} />
       </View>
       <ThinkingLabel
-        verb={verb}
+        verb={labelVerb}
         visible={visible}
         color={colors.muted}
         style={styles.blockLabel}
