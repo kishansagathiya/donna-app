@@ -15,7 +15,7 @@ import {
   createNote,
   formatNoteDate,
   listNotesForTag,
-  listRecentNotes,
+  listNotesPage,
   listTags,
   updateNote,
   type NoteSummary,
@@ -136,33 +136,50 @@ export function NotesScreen({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const loadNotes = useCallback(async (offset = 0, append = false) => {
-    if (offset === 0) {
+  const loadNotes = useCallback(async (opts?: {
+    cursor?: string;
+    append?: boolean;
+    offset?: number;
+  }) => {
+    const append = Boolean(opts?.append);
+    if (!append) {
       setLoading(true);
     } else {
       setLoadingMore(true);
     }
     setError(null);
     try {
-      const [batch, localSummaries] = await Promise.all([
-        listRecentNotes(PAGE_SIZE, offset),
-        offset === 0 ? listLocalDeviceNoteSummaries() : Promise.resolve([]),
+      const [page, localSummaries] = await Promise.all([
+        listNotesPage({
+          limit: PAGE_SIZE,
+          cursor: append ? opts?.cursor : undefined,
+          offset: append && opts?.cursor === 'offset' ? (opts.offset ?? 0) : 0,
+          curated: true,
+        }),
+        append ? Promise.resolve([]) : listLocalDeviceNoteSummaries(),
       ]);
-      const merged = offset === 0
+      const batch = page.items;
+      const merged = !append
         ? [...localSummaries, ...batch].sort(
-            (a, b) => new Date(b.note_date).getTime() - new Date(a.note_date).getTime(),
+            (a, b) =>
+              new Date(b.note_date).getTime() - new Date(a.note_date).getTime(),
           )
         : batch;
       setNotes(prev => (append ? [...prev, ...merged] : merged));
-      setHasMore(batch.length === PAGE_SIZE);
+      setNextCursor(page.nextCursor);
+      setHasMore(Boolean(page.nextCursor));
+      if (page.facets?.length) {
+        setTags(page.facets.map(f => ({ tag: f.tag, count: f.count })));
+      }
     } catch (err: unknown) {
-      if (offset === 0) {
+      if (!append) {
         try {
           const localSummaries = await listLocalDeviceNoteSummaries();
           if (localSummaries.length > 0) {
@@ -458,7 +475,13 @@ export function NotesScreen({
                       styles.loadMore,
                       pressed && styles.loadMorePressed,
                     ]}
-                    onPress={() => void loadNotes(notes.length, true)}
+                    onPress={() =>
+                      void loadNotes({
+                        cursor: nextCursor,
+                        append: true,
+                        offset: notes.length,
+                      })
+                    }
                     disabled={loadingMore}
                   >
                     {loadingMore ? (

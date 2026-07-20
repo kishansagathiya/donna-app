@@ -1,4 +1,3 @@
-import { sendChatMessage } from './chatApi';
 import { authorizedFetch, parseJSON } from './http';
 
 export type NoteSummary = {
@@ -12,6 +11,10 @@ export type NoteSummary = {
   keywords: string[] | null;
   category: string | null;
   has_audio: boolean;
+  content_version?: number;
+  enrichment_status?: string;
+  enrichment_version?: number;
+  tags?: string[];
 };
 
 export type Note = NoteSummary & {
@@ -30,6 +33,20 @@ export type NoteTags = {
 };
 
 export type NoteSearchResult = NoteSummary;
+
+export type TagFacet = {
+  tag: string;
+  canonical: string;
+  count: number;
+  pinned: boolean;
+  alias_of?: string | null;
+};
+
+export type NotesFeed = {
+  items: NoteSummary[];
+  next_cursor?: string;
+  facets: { tags: TagFacet[] };
+};
 
 export type DailyTask = {
   note_id: string;
@@ -60,9 +77,94 @@ export type TagCount = {
   count: number;
 };
 
+export class NotesApiError extends Error {
+  status: number;
+  code: string;
+
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.name = 'NotesApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function parseNotesJSON<T>(res: Response): Promise<T> {
+  let body: (T & { error?: string; message?: string }) | null = null;
+  try {
+    body = (await res.json()) as T & { error?: string; message?: string };
+  } catch {
+    throw new Error(
+      res.ok
+        ? 'Invalid response from Donna server'
+        : `Request failed (${res.status})`,
+    );
+  }
+  if (!res.ok) {
+    throw new NotesApiError(
+      res.status,
+      body?.error ?? 'request_failed',
+      body?.message ?? body?.error ?? `Request failed (${res.status})`,
+    );
+  }
+  return body as T;
+}
+
 export async function checkDailyNotes(): Promise<DailyBriefing> {
   const res = await authorizedFetch('/notes/daily-check', { method: 'POST' });
   return parseJSON(res);
+}
+
+export async function listNotesFeed(params: {
+  limit?: number;
+  cursor?: string;
+  q?: string;
+  tag?: string;
+  curated?: boolean;
+} = {}): Promise<NotesFeed> {
+  const qs = new URLSearchParams();
+  qs.set('limit', String(params.limit ?? 50));
+  if (params.cursor) qs.set('cursor', params.cursor);
+  if (params.q?.trim()) qs.set('q', params.q.trim());
+  if (params.tag?.trim()) qs.set('tag', params.tag.trim());
+  if (params.curated !== undefined) qs.set('curated', String(params.curated));
+  const res = await authorizedFetch(`/notes/feed?${qs.toString()}`);
+  return parseNotesJSON(res);
+}
+
+/** Prefers the V2 feed; falls back to /notes/recent when the feed flag is off. */
+export async function listNotesPage(params: {
+  limit?: number;
+  cursor?: string;
+  offset?: number;
+  tag?: string;
+  curated?: boolean;
+} = {}): Promise<{ items: NoteSummary[]; nextCursor?: string; facets?: TagFacet[] }> {
+  try {
+    const feed = await listNotesFeed({
+      limit: params.limit,
+      cursor: params.cursor,
+      tag: params.tag,
+      curated: params.curated ?? true,
+    });
+    return {
+      items: feed.items,
+      nextCursor: feed.next_cursor,
+      facets: feed.facets.tags,
+    };
+  } catch (err) {
+    if (
+      err instanceof NotesApiError &&
+      (err.status === 404 || err.code === 'notes_feed_disabled')
+    ) {
+      const batch = await listRecentNotes(params.limit ?? 50, params.offset ?? 0);
+      return {
+        items: batch,
+        nextCursor: batch.length === (params.limit ?? 50) ? 'offset' : undefined,
+      };
+    }
+    throw err;
+  }
 }
 
 export async function listRecentNotes(
@@ -91,7 +193,7 @@ export async function listNotesForTag(
 }
 
 export async function getNote(id: string): Promise<Note> {
-  const res = await authorizedFetch(`/notes/${id}`, {}, { webClient: true });
+  const res = await authorizedFetch(`/notes/${id}`);
   return parseJSON(res);
 }
 
@@ -102,6 +204,7 @@ export async function updateNote(
     note_date?: string;
     is_important?: boolean;
     is_urgent?: boolean;
+    content_version?: number;
   },
 ): Promise<Note> {
   const res = await authorizedFetch(`/notes/${id}`, {
@@ -109,33 +212,25 @@ export async function updateNote(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   });
-  return parseJSON(res);
+  return parseNotesJSON(res);
 }
 
 export async function deleteNote(id: string): Promise<void> {
-  const res = await authorizedFetch(
-    `/notes/${id}`,
-    { method: 'DELETE' },
-    { webClient: true },
-  );
+  const res = await authorizedFetch(`/notes/${id}`, { method: 'DELETE' });
   await parseJSON(res);
 }
 
 export async function getNoteTags(id: string): Promise<NoteTags> {
-  const res = await authorizedFetch(`/notes/${id}/tags`, {}, { webClient: true });
+  const res = await authorizedFetch(`/notes/${id}/tags`);
   return parseJSON(res);
 }
 
 export async function setNoteTags(id: string, tags: string[]): Promise<NoteTags> {
-  const res = await authorizedFetch(
-    `/notes/${id}/tags`,
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tags }),
-    },
-    { webClient: true },
-  );
+  const res = await authorizedFetch(`/notes/${id}/tags`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tags }),
+  });
   return parseJSON(res);
 }
 
@@ -173,33 +268,30 @@ export function formatNoteDate(iso: string): string {
   });
 }
 
-function noteSummaryFromContent(content: string): NoteSummary {
-  const trimmed = content.trim();
-  const firstLine = trimmed.split('\n').find(line => line.trim())?.trim() ?? '';
-  const title = firstLine.slice(0, 80) || 'Untitled';
-  const previewStart = trimmed.indexOf(firstLine) + firstLine.length;
-  const preview = trimmed.slice(previewStart).trim().slice(0, 200);
-
-  return {
-    id: `pending-${Date.now()}`,
-    title,
-    preview,
-    note_date: new Date().toISOString(),
-    is_important: false,
-    is_urgent: false,
-    source_type: 'manual',
-    keywords: null,
-    category: null,
-    has_audio: false,
-  };
+export function newNoteId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
 }
 
-export async function createNote(content: string): Promise<NoteSummary> {
+export async function createNote(
+  content: string,
+  opts?: { noteDate?: string; id?: string },
+): Promise<Note> {
   const trimmed = content.trim();
   if (!trimmed) {
     throw new Error('Note cannot be empty');
   }
 
-  await sendChatMessage({ message: trimmed, mode: 'notes' });
-  return noteSummaryFromContent(trimmed);
+  const res = await authorizedFetch('/notes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: opts?.id ?? newNoteId(),
+      content: trimmed,
+      note_date: opts?.noteDate,
+    }),
+  });
+  return parseNotesJSON(res);
 }

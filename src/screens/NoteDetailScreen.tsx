@@ -116,7 +116,10 @@ export function NoteDetailScreen({
     setSaving(true);
     setError(null);
     try {
-      const updated = await updateNote(noteId, { content });
+      const updated = await updateNote(noteId, {
+        content,
+        content_version: item.content_version,
+      });
       setItem(updated);
       onUpdated?.(toSummary(updated));
     } catch (err: unknown) {
