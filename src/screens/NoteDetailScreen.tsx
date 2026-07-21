@@ -75,6 +75,9 @@ export function NoteDetailScreen({
   const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [autosaveStatus, setAutosaveStatus] = useState<
+    'idle' | 'saving' | 'saved' | 'error'
+  >('idle');
   const isLocalDeviceNote = isLocalDeviceNoteId(noteId);
   const updateMutation = useUpdateNoteMutation();
   const deleteMutation = useDeleteNoteMutation();
@@ -82,8 +85,10 @@ export function NoteDetailScreen({
   const failedMutations = useFailedNoteMutations();
   const retryFailed = useRetryFailedNoteMutation();
   const failure = failedMutations.find(f => f.noteId === noteId);
-  const saving = updateMutation.isPending;
+  const saving = updateMutation.isPending || autosaveStatus === 'saving';
   const savingTags = tagsMutation.isPending;
+  const lastSavedContent = React.useRef<string | null>(null);
+  const hydratedRef = React.useRef(false);
 
   const loadNote = useCallback(async () => {
     setLoading(true);
@@ -98,6 +103,8 @@ export function NoteDetailScreen({
         setItem(loaded);
         setContent(loaded.content);
         setTags([]);
+        lastSavedContent.current = loaded.content;
+        hydratedRef.current = true;
         return;
       }
       const [loaded, tagRes] = await Promise.all([
@@ -107,6 +114,8 @@ export function NoteDetailScreen({
       setItem(loaded);
       setContent(loaded.content);
       setTags(tagRes.tags ?? []);
+      lastSavedContent.current = loaded.content;
+      hydratedRef.current = true;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Note not found');
       setItem(null);
@@ -119,11 +128,44 @@ export function NoteDetailScreen({
     void loadNote();
   }, [loadNote]);
 
+  useEffect(() => {
+    if (!item || isLocalDeviceNote || !hydratedRef.current) {
+      return;
+    }
+    if (lastSavedContent.current === content) {
+      return;
+    }
+    setAutosaveStatus('saving');
+    const handle = setTimeout(() => {
+      void (async () => {
+        try {
+          const updated = await updateMutation.mutateAsync({
+            id: noteId,
+            patch: {
+              content,
+              content_version: item.content_version,
+            },
+          });
+          setItem(updated);
+          lastSavedContent.current = content;
+          onUpdated?.(toSummary(updated));
+          setAutosaveStatus('saved');
+          setError(null);
+        } catch (err: unknown) {
+          setAutosaveStatus('error');
+          setError(err instanceof Error ? err.message : 'Failed to save');
+        }
+      })();
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [content, isLocalDeviceNote, item?.id, item?.content_version, noteId]);
+
   const handleSave = async () => {
     if (!item || isLocalDeviceNote) {
       return;
     }
     setError(null);
+    setAutosaveStatus('saving');
     try {
       const updated = await updateMutation.mutateAsync({
         id: noteId,
@@ -133,8 +175,11 @@ export function NoteDetailScreen({
         },
       });
       setItem(updated);
+      lastSavedContent.current = content;
       onUpdated?.(toSummary(updated));
+      setAutosaveStatus('saved');
     } catch (err: unknown) {
+      setAutosaveStatus('error');
       setError(err instanceof Error ? err.message : 'Failed to save');
     }
   };
@@ -432,7 +477,9 @@ export function NoteDetailScreen({
               {saving ? (
                 <ActivityIndicator size="small" color={colors.white} />
               ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
+                <Text style={styles.saveButtonText}>
+                  {autosaveStatus === 'saved' ? 'Saved' : 'Save'}
+                </Text>
               )}
             </Pressable>
             ) : null}

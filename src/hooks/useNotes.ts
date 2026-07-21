@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useAuth } from "./useAuth";
+import { useAuth } from './useAuth';
 import {
   clearFailedMutation,
   listFailedMutations,
@@ -17,21 +17,22 @@ import {
   upsertNoteInFeeds,
   type FailedNoteMutation,
   type NotesFeedPage,
-} from "../lib/notesCache";
-import { notesQueryKeys } from "../lib/notesQueryKeys";
+} from '../lib/notesCache';
+import { notesQueryKeys } from '../lib/notesQueryKeys';
 import {
   createNote,
   deleteNote,
   getNote,
   getNoteTags,
-  listNotesForTag,
+  listNotesFeed,
   listNotesPage,
   listTags,
+  NotesApiError,
   setNoteTags,
   updateNote,
   type Note,
   type NoteSummary,
-} from "../services/notesApi";
+} from '../services/notesApi';
 
 const PAGE_SIZE = 50;
 
@@ -46,32 +47,66 @@ type FeedPageParam =
   | { kind: "cursor"; cursor?: string }
   | { kind: "offset"; offset: number };
 
-export function useNotesFeed(tag: string | null = null) {
+export function useNotesFeed(opts: {
+  tag?: string | null;
+  q?: string;
+  pinnedOnly?: boolean;
+} = {}) {
   const { userId } = useAuth();
   const uid = userId ?? "anonymous";
+  const tag = opts.tag ?? null;
+  const q = opts.q?.trim() ?? "";
 
   return useInfiniteQuery({
-    queryKey: notesQueryKeys.feed(uid, { tag, curated: true }),
+    queryKey: notesQueryKeys.feed(uid, { tag, curated: true, q }),
     enabled: Boolean(userId),
     initialPageParam: { kind: "cursor" } as FeedPageParam,
     placeholderData: keepPreviousData,
     queryFn: async ({ pageParam }) => {
-      if (tag) {
-        const items = await listNotesForTag(tag, PAGE_SIZE);
-        const page: NotesFeedPage = { items, nextCursor: undefined };
-        return page;
+      try {
+        const feed = await listNotesFeed({
+          limit: PAGE_SIZE,
+          cursor: pageParam.kind === "cursor" ? pageParam.cursor : undefined,
+          tag: tag ?? undefined,
+          q: q || undefined,
+          curated: true,
+        });
+        return {
+          items: feed.items,
+          nextCursor: feed.next_cursor,
+          facets: feed.facets.tags.map((f) => ({
+            tag: f.tag,
+            count: f.count,
+            canonical: f.canonical,
+            pinned: f.pinned,
+          })),
+        } satisfies NotesFeedPage;
+      } catch (err) {
+        if (
+          !(err instanceof NotesApiError) ||
+          (err.status !== 404 && err.code !== "notes_feed_disabled")
+        ) {
+          throw err;
+        }
+        const page = await listNotesPage({
+          limit: PAGE_SIZE,
+          cursor: pageParam.kind === "cursor" ? pageParam.cursor : "offset",
+          offset: pageParam.kind === "offset" ? pageParam.offset : 0,
+          tag: tag ?? undefined,
+          q: q || undefined,
+          curated: true,
+        });
+        return {
+          items: page.items,
+          nextCursor: page.nextCursor,
+          facets: page.facets?.map((f) => ({
+            tag: f.tag,
+            count: f.count,
+            canonical: f.canonical,
+            pinned: f.pinned,
+          })),
+        } satisfies NotesFeedPage;
       }
-      const page = await listNotesPage({
-        limit: PAGE_SIZE,
-        cursor: pageParam.kind === "cursor" ? pageParam.cursor : "offset",
-        offset: pageParam.kind === "offset" ? pageParam.offset : 0,
-        curated: true,
-      });
-      return {
-        items: page.items,
-        nextCursor: page.nextCursor,
-        facets: page.facets?.map((f) => ({ tag: f.tag, count: f.count })),
-      } satisfies NotesFeedPage;
     },
     getNextPageParam: (lastPage, pages) => {
       if (!lastPage.nextCursor) return undefined;

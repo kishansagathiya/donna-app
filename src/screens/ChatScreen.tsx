@@ -16,6 +16,7 @@ import { ChatInput } from '../components/ChatInput';
 import { ChatMessages, type ChatTurn } from '../components/ChatMessages';
 import type { MicState } from '../components/MicButton';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useCreateNoteMutation } from '../hooks/useNotes';
 import {
   assertAttachmentBudget,
   displayUserContent,
@@ -43,6 +44,7 @@ import {
   submitTurnFeedback,
   truncateConversationTurns,
 } from '../services/conversationsApi';
+import { newNoteId } from '../services/notesApi';
 
 const QUICK_ACTIONS = [
   {
@@ -107,6 +109,7 @@ export function ChatScreen({
   onToast,
 }: Props) {
   const styles = useThemedStyles(createStyles);
+  const createNoteMutation = useCreateNoteMutation();
   const [textMessages, setTextMessages] = useState<ChatTurn[]>([]);
   const [textSessionId, setTextSessionId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -652,6 +655,21 @@ export function ChatScreen({
             onRegenerate={() => void handleRegenerate()}
             onEditMessage={(id, text) => void handleEditAndResend(id, text)}
             onFeedback={(id, rating) => void handleFeedback(id, rating)}
+            onSaveAsNote={async content => {
+              try {
+                await createNoteMutation.mutateAsync({
+                  content,
+                  id: newNoteId(),
+                });
+                onToast?.('Saved to Notes', false);
+              } catch (err: unknown) {
+                onToast?.(
+                  err instanceof Error ? err.message : 'Could not save note',
+                  true,
+                );
+                throw err;
+              }
+            }}
             onRetry={() => void handleRetry()}
             onOpenNote={onOpenNote}
           />

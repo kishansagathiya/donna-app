@@ -56,6 +56,7 @@ type Props = {
   onRegenerate?: () => void;
   onEditMessage?: (turnId: string, nextText: string) => void;
   onFeedback?: (turnId: string, rating: 'up' | 'down') => void;
+  onSaveAsNote?: (content: string) => void | Promise<void>;
   onRetry?: () => void;
   onOpenNote?: (noteId: string) => void;
 };
@@ -75,6 +76,7 @@ type TurnRowProps = {
   onRegenerate?: () => void;
   onEditMessage?: (turnId: string, nextText: string) => void;
   onFeedback?: (turnId: string, rating: 'up' | 'down') => void;
+  onSaveAsNote?: (content: string) => void | Promise<void>;
   onRetry?: () => void;
   onOpenNote?: (noteId: string) => void;
 };
@@ -94,6 +96,7 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
   onRegenerate,
   onEditMessage,
   onFeedback,
+  onSaveAsNote,
   onRetry,
   onOpenNote,
 }: TurnRowProps) {
@@ -153,6 +156,7 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
             busy={busy}
             onCopy={onCopyMessage!}
             onEdit={onEditMessage}
+            onSaveAsNote={onSaveAsNote}
           />
         </View>
       ) : null}
@@ -200,6 +204,7 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
             onCopy={onCopyMessage!}
             onRegenerate={isLatest ? onRegenerate : undefined}
             onFeedback={onFeedback}
+            onSaveAsNote={onSaveAsNote}
             onRetry={onRetry}
           />
         </View>
@@ -217,6 +222,7 @@ export function ChatMessages({
   onRegenerate,
   onEditMessage,
   onFeedback,
+  onSaveAsNote,
   onRetry,
   onOpenNote,
 }: Props) {
@@ -394,6 +400,7 @@ export function ChatMessages({
                 onRegenerate={onRegenerate}
                 onEditMessage={onEditMessage}
                 onFeedback={onFeedback}
+                onSaveAsNote={onSaveAsNote}
                 onRetry={onRetry}
                 onOpenNote={onOpenNote}
               />

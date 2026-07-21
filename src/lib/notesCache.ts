@@ -5,7 +5,12 @@ import { notesQueryKeys, type NotesFeedFilters } from './notesQueryKeys';
 export type NotesFeedPage = {
   items: NoteSummary[];
   nextCursor?: string;
-  facets?: { tag: string; count: number }[];
+  facets?: {
+    tag: string;
+    count: number;
+    canonical?: string;
+    pinned?: boolean;
+  }[];
 };
 
 export type FailedNoteMutation = {

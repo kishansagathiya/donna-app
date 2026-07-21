@@ -21,8 +21,7 @@ import {
   listLocalDeviceNoteSummaries,
 } from '../services/localDeviceCaptures';
 import type { ThemeColors } from '../theme/colors';
-import { ArrowUpIcon, SearchIcon } from '../components/icons';
-import { SearchNotesModal } from '../components/SearchContextModal';
+import { ArrowUpIcon } from '../components/icons';
 import { NoteDetailScreen } from './NoteDetailScreen';
 import {
   useCreateNoteMutation,
@@ -32,6 +31,11 @@ import {
   useRetryFailedNoteMutation,
   useUpdateNoteMutation,
 } from '../hooks/useNotes';
+import {
+  enrichmentLabel,
+  noteTagList,
+  sourceLabel,
+} from '../lib/noteDisplay';
 
 function NoteCard({
   note,
@@ -52,6 +56,9 @@ function NoteCard({
   styles: ReturnType<typeof createStyles>;
   colors: ThemeColors;
 }) {
+  const source = sourceLabel(note.source_type);
+  const enrichment = enrichmentLabel(note.enrichment_status);
+  const tagsForNote = noteTagList(note);
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
@@ -105,26 +112,31 @@ function NoteCard({
           {note.preview}
         </Text>
       ) : null}
-      <Text style={styles.cardDate}>
-        {formatNoteDate(note.note_date)}
-        {syncFailed ? (
+      <View style={styles.metaRow}>
+        <Text style={styles.cardDate}>{formatNoteDate(note.note_date)}</Text>
+        {source ? <Text style={styles.metaTag}>{source}</Text> : null}
+        {enrichment ? (
           <Text
-            style={{ color: colors.destructive }}
-            onPress={onRetrySync}
+            style={[
+              styles.metaTag,
+              enrichment.tone === 'error' && { color: colors.destructive },
+              enrichment.tone === 'warn' && { color: colors.primary },
+            ]}
           >
-            {'  '}
+            {enrichment.label}
+          </Text>
+        ) : null}
+        {syncFailed ? (
+          <Text style={{ color: colors.destructive }} onPress={onRetrySync}>
             Sync failed · Retry
           </Text>
         ) : null}
-      </Text>
-      {note.category || (note.keywords && note.keywords.length > 0) ? (
+      </View>
+      {tagsForNote.length > 0 ? (
         <View style={styles.tagRow}>
-          {note.category ? (
-            <Text style={styles.metaTag}>{note.category}</Text>
-          ) : null}
-          {(note.keywords ?? []).slice(0, 4).map(kw => (
-            <Text key={kw} style={styles.metaTag}>
-              {kw}
+          {tagsForNote.slice(0, 6).map(tag => (
+            <Text key={tag} style={styles.metaTag}>
+              #{tag}
             </Text>
           ))}
         </View>
@@ -152,13 +164,22 @@ export function NotesScreen({
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [draft, setDraft] = useState('');
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [localNotes, setLocalNotes] = useState<NoteSummary[]>([]);
 
-  const feedQuery = useNotesFeed(activeTag);
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, 200);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
+
+  const feedQuery = useNotesFeed({ tag: activeTag, q: debouncedSearch });
   const tagsQuery = useNotesTags();
   const createMutation = useCreateNoteMutation();
   const updateMutation = useUpdateNoteMutation();
@@ -171,7 +192,7 @@ export function NotesScreen({
   );
 
   const notes = useMemo(() => {
-    if (activeTag) {
+    if (activeTag || debouncedSearch) {
       return serverNotes;
     }
     const serverIds = new Set(serverNotes.map(n => n.id));
@@ -180,15 +201,26 @@ export function NotesScreen({
       (a, b) =>
         new Date(b.note_date).getTime() - new Date(a.note_date).getTime(),
     );
-  }, [activeTag, localNotes, serverNotes]);
+  }, [activeTag, debouncedSearch, localNotes, serverNotes]);
 
   const tags = useMemo(() => {
     const fromFacets = feedQuery.data?.pages[0]?.facets;
-    if (fromFacets?.length) {
-      return fromFacets;
-    }
-    return tagsQuery.data ?? [];
+    const base = fromFacets?.length
+      ? fromFacets
+      : (tagsQuery.data ?? []).map(t => ({
+          tag: t.tag,
+          count: t.count,
+          pinned: false as boolean | undefined,
+        }));
+    return [...base].sort((a, b) => {
+      const ap = a.pinned ? 1 : 0;
+      const bp = b.pinned ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      return b.count - a.count;
+    });
   }, [feedQuery.data, tagsQuery.data]);
+
+  const visibleTags = pinnedOnly ? tags.filter(t => t.pinned) : tags;
 
   const failedByNoteId = useMemo(() => {
     const map = new Map<string, (typeof failedMutations)[number]>();
@@ -291,19 +323,38 @@ export function NotesScreen({
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Notes</Text>
-        <View style={styles.headerActions}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.iconButton,
-              pressed && styles.iconButtonPressed,
+        <Pressable
+          style={({ pressed }) => [
+            styles.pinToggle,
+            pinnedOnly && styles.pinToggleActive,
+            pressed && styles.iconButtonPressed,
+          ]}
+          onPress={() => setPinnedOnly(prev => !prev)}
+          accessibilityRole="button"
+          accessibilityLabel="Show pinned tags"
+        >
+          <Text
+            style={[
+              styles.pinToggleText,
+              pinnedOnly && styles.pinToggleTextActive,
             ]}
-            onPress={() => setSearchOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Search notes"
           >
-            <SearchIcon size={20} color={colors.muted} />
-          </Pressable>
-        </View>
+            Pinned
+          </Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.searchWrap}>
+        <TextInput
+          style={styles.searchInput}
+          value={searchInput}
+          onChangeText={setSearchInput}
+          placeholder="Search notes…"
+          placeholderTextColor={colors.muted}
+          autoCorrect={false}
+          autoCapitalize="none"
+          clearButtonMode="while-editing"
+        />
       </View>
 
       <View style={styles.composeRow}>
@@ -373,46 +424,46 @@ export function NotesScreen({
         </View>
       ) : null}
 
-      {tags.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tagFilterRow}
-        >
-          <Pressable
-            style={[styles.filterChip, activeTag === null && styles.filterChipActive]}
-            onPress={() => setActiveTag(null)}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                activeTag === null && styles.filterChipTextActive,
-              ]}
+          {visibleTags.length > 0 || pinnedOnly ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tagFilterRow}
             >
-              All
-            </Text>
-          </Pressable>
-          {tags.map(t => (
-            <Pressable
-              key={t.tag}
-              style={[
-                styles.filterChip,
-                activeTag === t.tag && styles.filterChipActive,
-              ]}
-              onPress={() => setActiveTag(t.tag)}
-            >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  activeTag === t.tag && styles.filterChipTextActive,
-                ]}
+              <Pressable
+                style={[styles.filterChip, activeTag === null && styles.filterChipActive]}
+                onPress={() => setActiveTag(null)}
               >
-                #{t.tag} {t.count}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      ) : null}
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    activeTag === null && styles.filterChipTextActive,
+                  ]}
+                >
+                  All
+                </Text>
+              </Pressable>
+              {visibleTags.map(t => (
+                <Pressable
+                  key={t.tag}
+                  style={[
+                    styles.filterChip,
+                    activeTag === t.tag && styles.filterChipActive,
+                  ]}
+                  onPress={() => setActiveTag(t.tag)}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      activeTag === t.tag && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {t.pinned ? '* ' : ''}#{t.tag} {t.count}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : null}
 
       {error ? (
         <View style={styles.errorBanner}>
@@ -454,6 +505,12 @@ export function NotesScreen({
           data={notes}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
+          onEndReachedThreshold={0.4}
+          onEndReached={() => {
+            if (feedQuery.hasNextPage && !feedQuery.isFetchingNextPage) {
+              void feedQuery.fetchNextPage();
+            }
+          }}
           ListEmptyComponent={
             !error ? (
               <View style={styles.empty}>
@@ -491,31 +548,16 @@ export function NotesScreen({
             );
           }}
           ListFooterComponent={
-            feedQuery.hasNextPage && notes.length > 0 ? (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.loadMore,
-                  pressed && styles.loadMorePressed,
-                ]}
-                onPress={() => void feedQuery.fetchNextPage()}
-                disabled={feedQuery.isFetchingNextPage}
-              >
-                {feedQuery.isFetchingNextPage ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Text style={styles.loadMoreText}>Load more</Text>
-                )}
-              </Pressable>
+            feedQuery.isFetchingNextPage ? (
+              <ActivityIndicator
+                style={{ marginVertical: 12 }}
+                size="small"
+                color={colors.primary}
+              />
             ) : null
           }
         />
       )}
-
-      <SearchNotesModal
-        visible={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        onSelect={setSelectedNoteId}
-      />
     </View>
   );
 }
@@ -540,20 +582,51 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '700',
       color: colors.text,
     },
-    headerActions: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
+    pinToggle: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      backgroundColor: colors.surface,
     },
-    iconButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      alignItems: 'center',
-      justifyContent: 'center',
+    pinToggleActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.background,
+    },
+    pinToggleText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.muted,
+    },
+    pinToggleTextActive: {
+      color: colors.primary,
     },
     iconButtonPressed: {
       backgroundColor: colors.surface,
+    },
+    searchWrap: {
+      paddingHorizontal: 16,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    searchInput: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 15,
+      color: colors.text,
+      backgroundColor: colors.background,
+    },
+    metaRow: {
+      marginTop: 8,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      alignItems: 'center',
     },
     composeRow: {
       flexDirection: 'row',

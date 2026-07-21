@@ -14,6 +14,7 @@ import {
   CopyIcon,
   PencilIcon,
   RefreshIcon,
+  StickyNoteIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
 } from './icons';
@@ -28,6 +29,7 @@ type Props = {
   onRegenerate?: () => void;
   onEdit?: (turnId: string, nextText: string) => void;
   onFeedback?: (turnId: string, rating: 'up' | 'down') => void;
+  onSaveAsNote?: (content: string) => void | Promise<void>;
   onRetry?: () => void;
 };
 
@@ -40,13 +42,23 @@ export function MessageActions({
   onRegenerate,
   onEdit,
   onFeedback,
+  onSaveAsNote,
   onRetry,
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(turn.user);
+
+  const saveContent = (content: string) => {
+    if (!onSaveAsNote || !content.trim()) return;
+    void Promise.resolve(onSaveAsNote(content)).then(() => {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    });
+  };
 
   if (target === 'user') {
     if (!turn.user) {
@@ -115,6 +127,21 @@ export function MessageActions({
             <CopyIcon size={14} color={colors.muted} />
           )}
         </Pressable>
+        {onSaveAsNote ? (
+          <Pressable
+            style={styles.btn}
+            disabled={busy || saved}
+            accessibilityRole="button"
+            accessibilityLabel={saved ? 'Saved as note' : 'Save as note'}
+            onPress={() => saveContent(turn.user)}
+          >
+            {saved ? (
+              <CheckIcon size={14} color={colors.muted} />
+            ) : (
+              <StickyNoteIcon size={14} color={colors.muted} />
+            )}
+          </Pressable>
+        ) : null}
         {onEdit ? (
           <Pressable
             style={styles.btn}
@@ -155,6 +182,21 @@ export function MessageActions({
           <CopyIcon size={14} color={colors.muted} />
         )}
       </Pressable>
+      {onSaveAsNote ? (
+        <Pressable
+          style={styles.btn}
+          disabled={busy || saved}
+          accessibilityRole="button"
+          accessibilityLabel={saved ? 'Saved as note' : 'Save as note'}
+          onPress={() => saveContent(turn.assistant ?? '')}
+        >
+          {saved ? (
+            <CheckIcon size={14} color={colors.muted} />
+          ) : (
+            <StickyNoteIcon size={14} color={colors.muted} />
+          )}
+        </Pressable>
+      ) : null}
       {isLatest && onRegenerate ? (
         <Pressable
           style={styles.btn}

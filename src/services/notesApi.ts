@@ -138,6 +138,7 @@ export async function listNotesPage(params: {
   cursor?: string;
   offset?: number;
   tag?: string;
+  q?: string;
   curated?: boolean;
 } = {}): Promise<{ items: NoteSummary[]; nextCursor?: string; facets?: TagFacet[] }> {
   try {
@@ -145,6 +146,7 @@ export async function listNotesPage(params: {
       limit: params.limit,
       cursor: params.cursor,
       tag: params.tag,
+      q: params.q,
       curated: params.curated ?? true,
     });
     return {
