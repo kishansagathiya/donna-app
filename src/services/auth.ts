@@ -211,8 +211,18 @@ export async function signInWithDevCredentials(): Promise<void> {
 }
 
 export async function signOut(): Promise<void> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const userId = session?.user.id;
   const { error } = await supabase.auth.signOut();
   memoryAccessToken = null;
+  if (userId) {
+    const { clearNotesCacheForUser } = await import(
+      '../hooks/NotesQueryProvider'
+    );
+    await clearNotesCacheForUser(userId);
+  }
   if (error) {
     throw new Error(error.message);
   }

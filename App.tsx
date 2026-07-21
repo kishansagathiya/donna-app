@@ -35,6 +35,7 @@ import {
 } from './src/hooks/useGranolaOAuthReturn';
 import { useIncomingShare } from './src/hooks/useIncomingShare';
 import { AuthProvider, useAuth } from './src/hooks/useAuth';
+import { NotesQueryProvider } from './src/hooks/NotesQueryProvider';
 import { useDeviceSync } from './src/hooks/useDeviceSync';
 import { useVoiceSession } from './src/hooks/useVoiceSession';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -71,7 +72,9 @@ function ThemedApp() {
     <>
       <StatusBar barStyle="dark-content" />
       <AuthProvider>
-        <AppShell />
+        <NotesQueryProvider>
+          <AppShell />
+        </NotesQueryProvider>
       </AuthProvider>
     </>
   );

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -12,28 +12,34 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
 import {
-  createNote,
   formatNoteDate,
-  listNotesForTag,
-  listNotesPage,
-  listTags,
-  updateNote,
+  newNoteId,
   type NoteSummary,
-  type TagCount,
 } from '../services/notesApi';
-import { isLocalDeviceNoteId, listLocalDeviceNoteSummaries } from '../services/localDeviceCaptures';
+import {
+  isLocalDeviceNoteId,
+  listLocalDeviceNoteSummaries,
+} from '../services/localDeviceCaptures';
 import type { ThemeColors } from '../theme/colors';
 import { ArrowUpIcon, SearchIcon } from '../components/icons';
 import { SearchNotesModal } from '../components/SearchContextModal';
 import { NoteDetailScreen } from './NoteDetailScreen';
-
-const PAGE_SIZE = 50;
+import {
+  useCreateNoteMutation,
+  useFailedNoteMutations,
+  useNotesFeed,
+  useNotesTags,
+  useRetryFailedNoteMutation,
+  useUpdateNoteMutation,
+} from '../hooks/useNotes';
 
 function NoteCard({
   note,
   onPress,
   onToggleUrgent,
   onToggleImportant,
+  syncFailed,
+  onRetrySync,
   styles,
   colors,
 }: {
@@ -41,6 +47,8 @@ function NoteCard({
   onPress: () => void;
   onToggleUrgent: () => void;
   onToggleImportant: () => void;
+  syncFailed?: boolean;
+  onRetrySync?: () => void;
   styles: ReturnType<typeof createStyles>;
   colors: ThemeColors;
 }) {
@@ -56,36 +64,38 @@ function NoteCard({
         <View style={styles.flagActions}>
           {note.source_type !== 'device' ? (
             <>
-          <Pressable
-            onPress={onToggleUrgent}
-            hitSlop={8}
-            accessibilityLabel={note.is_urgent ? 'Mark not urgent' : 'Mark urgent'}
-          >
-            <Text
-              style={[
-                styles.flagButton,
-                note.is_urgent && { color: colors.destructive },
-              ]}
-            >
-              !
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={onToggleImportant}
-            hitSlop={8}
-            accessibilityLabel={
-              note.is_important ? 'Mark not important' : 'Mark important'
-            }
-          >
-            <Text
-              style={[
-                styles.flagButton,
-                note.is_important && { color: colors.primary },
-              ]}
-            >
-              ★
-            </Text>
-          </Pressable>
+              <Pressable
+                onPress={onToggleUrgent}
+                hitSlop={8}
+                accessibilityLabel={
+                  note.is_urgent ? 'Mark not urgent' : 'Mark urgent'
+                }
+              >
+                <Text
+                  style={[
+                    styles.flagButton,
+                    note.is_urgent && { color: colors.destructive },
+                  ]}
+                >
+                  !
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={onToggleImportant}
+                hitSlop={8}
+                accessibilityLabel={
+                  note.is_important ? 'Mark not important' : 'Mark important'
+                }
+              >
+                <Text
+                  style={[
+                    styles.flagButton,
+                    note.is_important && { color: colors.primary },
+                  ]}
+                >
+                  ★
+                </Text>
+              </Pressable>
             </>
           ) : null}
         </View>
@@ -95,7 +105,18 @@ function NoteCard({
           {note.preview}
         </Text>
       ) : null}
-      <Text style={styles.cardDate}>{formatNoteDate(note.note_date)}</Text>
+      <Text style={styles.cardDate}>
+        {formatNoteDate(note.note_date)}
+        {syncFailed ? (
+          <Text
+            style={{ color: colors.destructive }}
+            onPress={onRetrySync}
+          >
+            {'  '}
+            Sync failed · Retry
+          </Text>
+        ) : null}
+      </Text>
       {note.category || (note.keywords && note.keywords.length > 0) ? (
         <View style={styles.tagRow}>
           {note.category ? (
@@ -130,100 +151,74 @@ export function NotesScreen({
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
-  const [notes, setNotes] = useState<NoteSummary[]>([]);
-  const [tags, setTags] = useState<TagCount[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [nextCursor, setNextCursor] = useState<string | undefined>();
-  const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
-  const [saving, setSaving] = useState(false);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [localNotes, setLocalNotes] = useState<NoteSummary[]>([]);
 
-  const loadNotes = useCallback(async (opts?: {
-    cursor?: string;
-    append?: boolean;
-    offset?: number;
-  }) => {
-    const append = Boolean(opts?.append);
-    if (!append) {
-      setLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
-    setError(null);
-    try {
-      const [page, localSummaries] = await Promise.all([
-        listNotesPage({
-          limit: PAGE_SIZE,
-          cursor: append ? opts?.cursor : undefined,
-          offset: append && opts?.cursor === 'offset' ? (opts.offset ?? 0) : 0,
-          curated: true,
-        }),
-        append ? Promise.resolve([]) : listLocalDeviceNoteSummaries(),
-      ]);
-      const batch = page.items;
-      const merged = !append
-        ? [...localSummaries, ...batch].sort(
-            (a, b) =>
-              new Date(b.note_date).getTime() - new Date(a.note_date).getTime(),
-          )
-        : batch;
-      setNotes(prev => (append ? [...prev, ...merged] : merged));
-      setNextCursor(page.nextCursor);
-      setHasMore(Boolean(page.nextCursor));
-      if (page.facets?.length) {
-        setTags(page.facets.map(f => ({ tag: f.tag, count: f.count })));
-      }
-    } catch (err: unknown) {
-      if (!append) {
-        try {
-          const localSummaries = await listLocalDeviceNoteSummaries();
-          if (localSummaries.length > 0) {
-            setNotes(localSummaries);
-            setError(null);
-            return;
-          }
-        } catch {
-          // fall through to server error
-        }
-      }
-      setError(err instanceof Error ? err.message : 'Failed to load notes');
-      if (!append) {
-        setNotes([]);
-      }
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, []);
+  const feedQuery = useNotesFeed(activeTag);
+  const tagsQuery = useNotesTags();
+  const createMutation = useCreateNoteMutation();
+  const updateMutation = useUpdateNoteMutation();
+  const failedMutations = useFailedNoteMutations();
+  const retryFailed = useRetryFailedNoteMutation();
 
-  const loadTagged = useCallback(async (tag: string) => {
-    setLoading(true);
-    setError(null);
+  const serverNotes = useMemo(
+    () => feedQuery.data?.pages.flatMap(page => page.items) ?? [],
+    [feedQuery.data],
+  );
+
+  const notes = useMemo(() => {
+    if (activeTag) {
+      return serverNotes;
+    }
+    const serverIds = new Set(serverNotes.map(n => n.id));
+    const locals = localNotes.filter(n => !serverIds.has(n.id));
+    return [...locals, ...serverNotes].sort(
+      (a, b) =>
+        new Date(b.note_date).getTime() - new Date(a.note_date).getTime(),
+    );
+  }, [activeTag, localNotes, serverNotes]);
+
+  const tags = useMemo(() => {
+    const fromFacets = feedQuery.data?.pages[0]?.facets;
+    if (fromFacets?.length) {
+      return fromFacets;
+    }
+    return tagsQuery.data ?? [];
+  }, [feedQuery.data, tagsQuery.data]);
+
+  const failedByNoteId = useMemo(() => {
+    const map = new Map<string, (typeof failedMutations)[number]>();
+    for (const failure of failedMutations) {
+      map.set(failure.noteId, failure);
+    }
+    return map;
+  }, [failedMutations]);
+
+  const showInitialSpinner =
+    feedQuery.isLoading && !feedQuery.isPlaceholderData && notes.length === 0;
+
+  const refreshLocals = useCallback(async () => {
     try {
-      const batch = await listNotesForTag(tag, PAGE_SIZE);
-      setNotes(batch);
-      setHasMore(false);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load tag');
-    } finally {
-      setLoading(false);
+      const localSummaries = await listLocalDeviceNoteSummaries();
+      setLocalNotes(localSummaries);
+    } catch {
+      setLocalNotes([]);
     }
   }, []);
 
   useEffect(() => {
-    if (!isVisible || activeTag) {
+    if (!isVisible) {
       return;
     }
-    void loadNotes();
-    void listTags(30)
-      .then(setTags)
-      .catch(() => setTags([]));
-  }, [isVisible, activeTag, loadNotes, notesRefreshToken]);
+    void refreshLocals();
+    void feedQuery.refetch();
+    void tagsQuery.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- token/visibility driven refresh
+  }, [isVisible, notesRefreshToken, refreshLocals]);
 
   useEffect(() => {
     if (!openNoteId) {
@@ -233,33 +228,19 @@ export function NotesScreen({
     onOpenNoteConsumed?.();
   }, [openNoteId, onOpenNoteConsumed]);
 
-  const selectTag = (tag: string | null) => {
-    setActiveTag(tag);
-    if (tag) {
-      void loadTagged(tag);
-    } else {
-      void loadNotes();
-    }
-  };
-
   const toggleFlag = async (
     note: NoteSummary,
     field: 'is_urgent' | 'is_important',
   ) => {
     if (isLocalDeviceNoteId(note.id)) return;
-    const next = !note[field];
-    setNotes(prev =>
-      prev.map(item => (item.id === note.id ? { ...item, [field]: next } : item)),
-    );
+    setActionError(null);
     try {
-      await updateNote(note.id, { [field]: next });
+      await updateMutation.mutateAsync({
+        id: note.id,
+        patch: { [field]: !note[field] },
+      });
     } catch (err: unknown) {
-      setNotes(prev =>
-        prev.map(item =>
-          item.id === note.id ? { ...item, [field]: note[field] } : item,
-        ),
-      );
-      setError(err instanceof Error ? err.message : 'Failed to update note');
+      setActionError(err instanceof Error ? err.message : 'Failed to update note');
     }
   };
 
@@ -267,51 +248,44 @@ export function NotesScreen({
     setSelectedNoteId(note.id);
   };
 
-  const handleNoteUpdated = (note: NoteSummary) => {
-    setNotes(prev => prev.map(item => (item.id === note.id ? note : item)));
-  };
-
-  const handleNoteDeleted = (noteId: string) => {
-    setNotes(prev => prev.filter(item => item.id !== noteId));
-  };
-
   if (selectedNoteId) {
     return (
       <NoteDetailScreen
         noteId={selectedNoteId}
         onClose={() => setSelectedNoteId(null)}
-        onUpdated={handleNoteUpdated}
-        onDeleted={handleNoteDeleted}
+        onUpdated={() => {
+          void feedQuery.refetch();
+        }}
+        onDeleted={() => {
+          void feedQuery.refetch();
+          void tagsQuery.refetch();
+        }}
       />
     );
   }
 
   const handleCreateNote = async () => {
     const trimmed = draft.trim();
-    if (!trimmed || saving) {
+    if (!trimmed || createMutation.isPending) {
       return;
     }
 
-    setSaving(true);
-    setError(null);
+    setActionError(null);
     try {
-      const created = await createNote(trimmed);
+      await createMutation.mutateAsync({ content: trimmed, id: newNoteId() });
+      setDraft('');
       if (activeTag) {
         setActiveTag(null);
-        setHasMore(true);
       }
-      setDraft('');
-      setNotes(prev => [created, ...prev.filter(note => note.id !== created.id)]);
-      void listTags(30)
-        .then(setTags)
-        .catch(() => setTags([]));
-      void loadNotes();
+      void tagsQuery.refetch();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to save note');
-    } finally {
-      setSaving(false);
+      setActionError(err instanceof Error ? err.message : 'Failed to save note');
     }
   };
+
+  const error =
+    actionError ??
+    (feedQuery.error instanceof Error ? feedQuery.error.message : null);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -333,167 +307,209 @@ export function NotesScreen({
       </View>
 
       <View style={styles.composeRow}>
-            <TextInput
-              style={styles.composeInput}
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Jot down a note…"
-              placeholderTextColor={colors.muted}
-              multiline
-              editable={!saving}
-              returnKeyType="default"
-              blurOnSubmit={false}
-            />
-            <Pressable
-              style={({ pressed }) => [
-                styles.composeSend,
-                draft.trim().length > 0 && !saving && styles.composeSendActive,
-                pressed && styles.composeSendPressed,
-              ]}
-              onPress={() => void handleCreateNote()}
-              disabled={!draft.trim() || saving}
-              accessibilityRole="button"
-              accessibilityLabel="Save note"
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <ArrowUpIcon size={18} color={draft.trim() ? colors.white : colors.muted} />
-              )}
-            </Pressable>
-          </View>
-
-          {onAddLink || onSaveToMemory ? (
-            <View style={styles.ingestActions}>
-              {onAddLink ? (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.ingestButton,
-                    pressed && styles.ingestButtonPressed,
-                  ]}
-                  onPress={onAddLink}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add link"
-                >
-                  <Text style={styles.ingestButtonText}>Add link</Text>
-                </Pressable>
-              ) : null}
-              {onSaveToMemory ? (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.ingestButton,
-                    pressed && styles.ingestButtonPressed,
-                  ]}
-                  onPress={onSaveToMemory}
-                  accessibilityRole="button"
-                  accessibilityLabel="Save to memory"
-                >
-                  <Text style={styles.ingestButtonText}>Save to memory</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-
-          {tags.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.tagFilterRow}
-            >
-              <Pressable
-                style={[styles.filterChip, activeTag === null && styles.filterChipActive]}
-                onPress={() => selectTag(null)}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    activeTag === null && styles.filterChipTextActive,
-                  ]}
-                >
-                  All
-                </Text>
-              </Pressable>
-              {tags.map(t => (
-                <Pressable
-                  key={t.tag}
-                  style={[styles.filterChip, activeTag === t.tag && styles.filterChipActive]}
-                  onPress={() => selectTag(t.tag)}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      activeTag === t.tag && styles.filterChipTextActive,
-                    ]}
-                  >
-                    #{t.tag} {t.count}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : null}
-
-          {error ? (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
-
-          {loading ? (
-            <View style={styles.centered}>
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
+        <TextInput
+          style={styles.composeInput}
+          value={draft}
+          onChangeText={setDraft}
+          placeholder="Jot down a note…"
+          placeholderTextColor={colors.muted}
+          multiline
+          editable={!createMutation.isPending}
+          returnKeyType="default"
+          blurOnSubmit={false}
+        />
+        <Pressable
+          style={({ pressed }) => [
+            styles.composeSend,
+            draft.trim().length > 0 &&
+              !createMutation.isPending &&
+              styles.composeSendActive,
+            pressed && styles.composeSendPressed,
+          ]}
+          onPress={() => void handleCreateNote()}
+          disabled={!draft.trim() || createMutation.isPending}
+          accessibilityRole="button"
+          accessibilityLabel="Save note"
+        >
+          {createMutation.isPending ? (
+            <ActivityIndicator size="small" color={colors.white} />
           ) : (
-            <FlatList
-              data={notes}
-              keyExtractor={item => item.id}
-              contentContainerStyle={styles.listContent}
-              ListEmptyComponent={
-                !error ? (
-                  <View style={styles.empty}>
-                    <Text style={styles.emptyTitle}>No notes yet</Text>
-                    <Text style={styles.emptyBody}>
-                      Jot a note above, or save links and documents for Donna to
-                      turn into notes.
-                    </Text>
-                  </View>
-                ) : null
-              }
-              renderItem={({ item }) => (
-                <NoteCard
-                  note={item}
-                  onPress={() => openNote(item)}
-                  onToggleUrgent={() => void toggleFlag(item, 'is_urgent')}
-                  onToggleImportant={() => void toggleFlag(item, 'is_important')}
-                  styles={styles}
-                  colors={colors}
-                />
-              )}
-              ListFooterComponent={
-                hasMore && notes.length > 0 ? (
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.loadMore,
-                      pressed && styles.loadMorePressed,
-                    ]}
-                    onPress={() =>
-                      void loadNotes({
-                        cursor: nextCursor,
-                        append: true,
-                        offset: notes.length,
-                      })
-                    }
-                    disabled={loadingMore}
-                  >
-                    {loadingMore ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                      <Text style={styles.loadMoreText}>Load more</Text>
-                    )}
-                  </Pressable>
-                ) : null
-              }
+            <ArrowUpIcon
+              size={18}
+              color={draft.trim() ? colors.white : colors.muted}
             />
           )}
+        </Pressable>
+      </View>
+
+      {onAddLink || onSaveToMemory ? (
+        <View style={styles.ingestActions}>
+          {onAddLink ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.ingestButton,
+                pressed && styles.ingestButtonPressed,
+              ]}
+              onPress={onAddLink}
+              accessibilityRole="button"
+              accessibilityLabel="Add link"
+            >
+              <Text style={styles.ingestButtonText}>Add link</Text>
+            </Pressable>
+          ) : null}
+          {onSaveToMemory ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.ingestButton,
+                pressed && styles.ingestButtonPressed,
+              ]}
+              onPress={onSaveToMemory}
+              accessibilityRole="button"
+              accessibilityLabel="Save to memory"
+            >
+              <Text style={styles.ingestButtonText}>Save to memory</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {tags.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tagFilterRow}
+        >
+          <Pressable
+            style={[styles.filterChip, activeTag === null && styles.filterChipActive]}
+            onPress={() => setActiveTag(null)}
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                activeTag === null && styles.filterChipTextActive,
+              ]}
+            >
+              All
+            </Text>
+          </Pressable>
+          {tags.map(t => (
+            <Pressable
+              key={t.tag}
+              style={[
+                styles.filterChip,
+                activeTag === t.tag && styles.filterChipActive,
+              ]}
+              onPress={() => setActiveTag(t.tag)}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  activeTag === t.tag && styles.filterChipTextActive,
+                ]}
+              >
+                #{t.tag} {t.count}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+
+      {error ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
+
+      {failedMutations.length > 0 ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>
+            {failedMutations.length} sync{' '}
+            {failedMutations.length === 1 ? 'change' : 'changes'} failed
+          </Text>
+          {failedMutations.slice(0, 3).map(failure => (
+            <Pressable
+              key={failure.id}
+              onPress={() => {
+                void retryFailed(failure).catch((err: unknown) => {
+                  setActionError(
+                    err instanceof Error ? err.message : 'Retry failed',
+                  );
+                });
+              }}
+            >
+              <Text style={[styles.errorText, { marginTop: 6 }]}>
+                Retry: {failure.message}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
+      {showInitialSpinner ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={notes}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            !error ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyTitle}>No notes yet</Text>
+                <Text style={styles.emptyBody}>
+                  Jot a note above, or save links and documents for Donna to turn
+                  into notes.
+                </Text>
+              </View>
+            ) : null
+          }
+          renderItem={({ item }) => {
+            const failure = failedByNoteId.get(item.id);
+            return (
+              <NoteCard
+                note={item}
+                onPress={() => openNote(item)}
+                onToggleUrgent={() => void toggleFlag(item, 'is_urgent')}
+                onToggleImportant={() => void toggleFlag(item, 'is_important')}
+                syncFailed={Boolean(failure)}
+                onRetrySync={
+                  failure
+                    ? () => {
+                        void retryFailed(failure).catch((err: unknown) => {
+                          setActionError(
+                            err instanceof Error ? err.message : 'Retry failed',
+                          );
+                        });
+                      }
+                    : undefined
+                }
+                styles={styles}
+                colors={colors}
+              />
+            );
+          }}
+          ListFooterComponent={
+            feedQuery.hasNextPage && notes.length > 0 ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.loadMore,
+                  pressed && styles.loadMorePressed,
+                ]}
+                onPress={() => void feedQuery.fetchNextPage()}
+                disabled={feedQuery.isFetchingNextPage}
+              >
+                {feedQuery.isFetchingNextPage ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Text style={styles.loadMoreText}>Load more</Text>
+                )}
+              </Pressable>
+            ) : null
+          }
+        />
+      )}
 
       <SearchNotesModal
         visible={searchOpen}

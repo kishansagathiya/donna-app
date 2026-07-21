@@ -15,13 +15,10 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { NoteAudioPlayer } from '../components/NoteAudioPlayer';
 import { useTheme } from '../hooks/useTheme';
 import {
-  deleteNote,
   extractHashtags,
   formatNoteDate,
   getNote,
   getNoteTags,
-  setNoteTags,
-  updateNote,
   type Note,
   type NoteSummary,
 } from '../services/notesApi';
@@ -32,6 +29,13 @@ import {
   localCaptureToDetail,
   parseLocalDeviceNoteId,
 } from '../services/localDeviceCaptures';
+import {
+  useDeleteNoteMutation,
+  useFailedNoteMutations,
+  useRetryFailedNoteMutation,
+  useSetNoteTagsMutation,
+  useUpdateNoteMutation,
+} from '../hooks/useNotes';
 import type { ThemeColors } from '../theme/colors';
 
 type Props = {
@@ -70,10 +74,16 @@ export function NoteDetailScreen({
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [savingTags, setSavingTags] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isLocalDeviceNote = isLocalDeviceNoteId(noteId);
+  const updateMutation = useUpdateNoteMutation();
+  const deleteMutation = useDeleteNoteMutation();
+  const tagsMutation = useSetNoteTagsMutation();
+  const failedMutations = useFailedNoteMutations();
+  const retryFailed = useRetryFailedNoteMutation();
+  const failure = failedMutations.find(f => f.noteId === noteId);
+  const saving = updateMutation.isPending;
+  const savingTags = tagsMutation.isPending;
 
   const loadNote = useCallback(async () => {
     setLoading(true);
@@ -110,33 +120,37 @@ export function NoteDetailScreen({
   }, [loadNote]);
 
   const handleSave = async () => {
-    if (!item) {
+    if (!item || isLocalDeviceNote) {
       return;
     }
-    setSaving(true);
     setError(null);
     try {
-      const updated = await updateNote(noteId, {
-        content,
-        content_version: item.content_version,
+      const updated = await updateMutation.mutateAsync({
+        id: noteId,
+        patch: {
+          content,
+          content_version: item.content_version,
+        },
       });
       setItem(updated);
       onUpdated?.(toSummary(updated));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save');
-    } finally {
-      setSaving(false);
     }
   };
 
   const toggleFlag = async (field: 'is_urgent' | 'is_important') => {
-    if (!item) {
+    if (!item || isLocalDeviceNote) {
       return;
     }
     const next = !item[field];
     setItem({ ...item, [field]: next });
+    setError(null);
     try {
-      const updated = await updateNote(noteId, { [field]: next });
+      const updated = await updateMutation.mutateAsync({
+        id: noteId,
+        patch: { [field]: next },
+      });
       setItem(updated);
       onUpdated?.(toSummary(updated));
     } catch (err: unknown) {
@@ -158,7 +172,7 @@ export function NoteDetailScreen({
                 const localId = parseLocalDeviceNoteId(noteId);
                 if (localId) await deleteLocalDeviceCapture(localId);
               } else {
-                await deleteNote(noteId);
+                await deleteMutation.mutateAsync(noteId);
               }
               onDeleted?.(noteId);
               onClose();
@@ -172,15 +186,16 @@ export function NoteDetailScreen({
   };
 
   const persistTags = async (next: string[]) => {
-    setSavingTags(true);
+    if (isLocalDeviceNote) {
+      return;
+    }
+    setTags(next);
     setError(null);
     try {
-      const res = await setNoteTags(noteId, next);
+      const res = await tagsMutation.mutateAsync({ id: noteId, tags: next });
       setTags(res.tags ?? []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save tags');
-    } finally {
-      setSavingTags(false);
     }
   };
 
@@ -365,6 +380,25 @@ export function NoteDetailScreen({
             {error ? (
               <View style={styles.errorBanner}>
                 <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            {failure ? (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{failure.message}</Text>
+                <Pressable
+                  onPress={() => {
+                    void retryFailed(failure).catch((err: unknown) => {
+                      setError(
+                        err instanceof Error ? err.message : 'Retry failed',
+                      );
+                    });
+                  }}
+                >
+                  <Text style={[styles.errorText, { marginTop: 8 }]}>
+                    Retry sync
+                  </Text>
+                </Pressable>
               </View>
             ) : null}
 
