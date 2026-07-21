@@ -76,25 +76,36 @@ export function upsertNoteInFeeds(
 ): void {
   const key = notesQueryKeys.feed(userId, filters);
   queryClient.setQueryData<InfiniteData<NotesFeedPage>>(key, (prev) => {
+    // Detail/update responses omit tags; preserve any cached membership.
+    let merged = note;
+    if (prev && (note.tags === undefined || note.tags === null)) {
+      for (const page of prev.pages) {
+        const existing = page.items.find((item) => item.id === note.id);
+        if (existing?.tags?.length) {
+          merged = { ...note, tags: existing.tags };
+          break;
+        }
+      }
+    }
     if (!prev) {
       return {
-        pages: [{ items: [note], nextCursor: undefined }],
+        pages: [{ items: [merged], nextCursor: undefined }],
         pageParams: [undefined],
       };
     }
     const without = mapFeedPages(prev, (items) =>
-      items.filter((item) => item.id !== note.id),
+      items.filter((item) => item.id !== merged.id),
     )!;
     const [first, ...rest] = without.pages;
     if (!first) {
       return {
-        pages: [{ items: [note], nextCursor: undefined }],
+        pages: [{ items: [merged], nextCursor: undefined }],
         pageParams: without.pageParams,
       };
     }
     return {
       ...without,
-      pages: [{ ...first, items: [note, ...first.items] }, ...rest],
+      pages: [{ ...first, items: [merged, ...first.items] }, ...rest],
     };
   });
 }
