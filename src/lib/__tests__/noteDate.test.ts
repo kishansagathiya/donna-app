@@ -1,9 +1,9 @@
 import {
   toDatetimeLocalValue,
   tryFromDatetimeLocalValue,
-} from '../notesApi';
+} from '../noteDate';
 
-describe('note date helpers', () => {
+describe('noteDate helpers', () => {
   it('round-trips a valid ISO timestamp to local datetime', () => {
     const iso = '2026-07-21T08:30:00.000Z';
     const local = toDatetimeLocalValue(iso);
