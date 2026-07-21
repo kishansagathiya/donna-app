@@ -19,8 +19,13 @@ import {
   formatNoteDate,
   getNote,
   getNoteTags,
+  listTagSuggestions,
+  resolveTagSuggestion,
+  toDatetimeLocalValue,
+  tryFromDatetimeLocalValue,
   type Note,
   type NoteSummary,
+  type TagSuggestion,
 } from '../services/notesApi';
 import {
   listDerivedMemories,
@@ -75,8 +80,10 @@ export function NoteDetailScreen({
   const styles = useThemedStyles(createStyles);
   const [item, setItem] = useState<Note | null>(null);
   const [content, setContent] = useState('');
+  const [noteDate, setNoteDate] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<
@@ -91,9 +98,23 @@ export function NoteDetailScreen({
   const failure = failedMutations.find(f => f.noteId === noteId);
   const saving = updateMutation.isPending || autosaveStatus === 'saving';
   const savingTags = tagsMutation.isPending;
-  const lastSavedContent = React.useRef<string | null>(null);
+  const lastSavedRef = React.useRef<{ content: string; noteDate: string } | null>(
+    null,
+  );
   const hydratedRef = React.useRef(false);
   const [derivedMemories, setDerivedMemories] = useState<MemoryItem[]>([]);
+
+  const refreshSuggestions = useCallback(async () => {
+    if (isLocalDeviceNote) {
+      setSuggestions([]);
+      return;
+    }
+    try {
+      setSuggestions(await listTagSuggestions(noteId));
+    } catch {
+      setSuggestions([]);
+    }
+  }, [isLocalDeviceNote, noteId]);
 
   const loadNote = useCallback(async () => {
     setLoading(true);
@@ -107,8 +128,13 @@ export function NoteDetailScreen({
         const loaded = localCaptureToDetail(capture);
         setItem(loaded);
         setContent(loaded.content);
+        setNoteDate(toDatetimeLocalValue(loaded.note_date));
         setTags([]);
-        lastSavedContent.current = loaded.content;
+        setSuggestions([]);
+        lastSavedRef.current = {
+          content: loaded.content,
+          noteDate: toDatetimeLocalValue(loaded.note_date),
+        };
         hydratedRef.current = true;
         return;
       }
@@ -118,16 +144,21 @@ export function NoteDetailScreen({
       ]);
       setItem(loaded);
       setContent(loaded.content);
+      setNoteDate(toDatetimeLocalValue(loaded.note_date));
       setTags(tagRes.tags ?? []);
-      lastSavedContent.current = loaded.content;
+      lastSavedRef.current = {
+        content: loaded.content,
+        noteDate: toDatetimeLocalValue(loaded.note_date),
+      };
       hydratedRef.current = true;
+      void refreshSuggestions();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Note not found');
       setItem(null);
     } finally {
       setLoading(false);
     }
-  }, [isLocalDeviceNote, noteId]);
+  }, [isLocalDeviceNote, noteId, refreshSuggestions]);
 
   useEffect(() => {
     void loadNote();
@@ -147,7 +178,13 @@ export function NoteDetailScreen({
     if (!item || isLocalDeviceNote || !hydratedRef.current) {
       return;
     }
-    if (lastSavedContent.current === content) {
+    const last = lastSavedRef.current;
+    if (last && last.content === content && last.noteDate === noteDate) {
+      return;
+    }
+    const parsedDate = noteDate ? tryFromDatetimeLocalValue(noteDate) : undefined;
+    // Wait until the typed date is valid before autosaving date changes.
+    if (noteDate && !parsedDate && last?.content === content) {
       return;
     }
     setAutosaveStatus('saving');
@@ -158,14 +195,20 @@ export function NoteDetailScreen({
             id: noteId,
             patch: {
               content,
+              note_date: parsedDate,
               content_version: item.content_version,
             },
           });
           setItem(updated);
-          lastSavedContent.current = content;
+          setNoteDate(toDatetimeLocalValue(updated.note_date));
+          lastSavedRef.current = {
+            content,
+            noteDate: toDatetimeLocalValue(updated.note_date),
+          };
           onUpdated?.(toSummary(updated));
           setAutosaveStatus('saved');
           setError(null);
+          void refreshSuggestions();
         } catch (err: unknown) {
           setAutosaveStatus('error');
           setError(err instanceof Error ? err.message : 'Failed to save');
@@ -173,7 +216,15 @@ export function NoteDetailScreen({
       })();
     }, 400);
     return () => clearTimeout(handle);
-  }, [content, isLocalDeviceNote, item?.id, item?.content_version, noteId]);
+  }, [
+    content,
+    noteDate,
+    isLocalDeviceNote,
+    item?.id,
+    item?.content_version,
+    noteId,
+    refreshSuggestions,
+  ]);
 
   const handleSave = async () => {
     if (!item || isLocalDeviceNote) {
@@ -182,20 +233,50 @@ export function NoteDetailScreen({
     setError(null);
     setAutosaveStatus('saving');
     try {
+      const parsedDate = noteDate ? tryFromDatetimeLocalValue(noteDate) : undefined;
+      if (noteDate && !parsedDate) {
+        setAutosaveStatus('error');
+        setError('Invalid date. Use YYYY-MM-DDTHH:mm');
+        return;
+      }
       const updated = await updateMutation.mutateAsync({
         id: noteId,
         patch: {
           content,
+          note_date: parsedDate,
           content_version: item.content_version,
         },
       });
       setItem(updated);
-      lastSavedContent.current = content;
+      setNoteDate(toDatetimeLocalValue(updated.note_date));
+      lastSavedRef.current = {
+        content,
+        noteDate: toDatetimeLocalValue(updated.note_date),
+      };
       onUpdated?.(toSummary(updated));
       setAutosaveStatus('saved');
+      void refreshSuggestions();
     } catch (err: unknown) {
       setAutosaveStatus('error');
       setError(err instanceof Error ? err.message : 'Failed to save');
+    }
+  };
+
+  const handleResolveSuggestion = async (
+    suggestion: TagSuggestion,
+    status: 'accepted' | 'rejected',
+  ) => {
+    try {
+      await resolveTagSuggestion(suggestion.id, status);
+      setSuggestions(prev => prev.filter(s => s.id !== suggestion.id));
+      if (status === 'accepted') {
+        const tagRes = await getNoteTags(noteId);
+        setTags(tagRes.tags ?? []);
+      }
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to update suggestion',
+      );
     }
   };
 
@@ -362,13 +443,38 @@ export function NoteDetailScreen({
               ) : null}
             </View>
 
-            <Text style={styles.meta}>
-              {formatNoteDate(item.note_date)}
-              {item.source_type !== 'manual' &&
-              item.source_type !== 'integration'
-                ? ` · from ${item.source_type.replace('_', ' ')}`
-                : ''}
-            </Text>
+            {!isLocalDeviceNote ? (
+              <View style={styles.dateRow}>
+                <Text style={styles.dateLabel}>Date</Text>
+                <TextInput
+                  style={styles.dateInput}
+                  value={noteDate}
+                  onChangeText={setNoteDate}
+                  placeholder="YYYY-MM-DDTHH:mm"
+                  placeholderTextColor={colors.muted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  accessibilityLabel="Note date"
+                />
+                <Text style={styles.dateHint}>
+                  {formatNoteDate(
+                    tryFromDatetimeLocalValue(noteDate) ?? item.note_date,
+                  )}
+                  {item.source_type !== 'manual' &&
+                  item.source_type !== 'integration'
+                    ? ` · from ${item.source_type.replace('_', ' ')}`
+                    : ''}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.meta}>
+                {formatNoteDate(item.note_date)}
+                {item.source_type !== 'manual' &&
+                item.source_type !== 'integration'
+                  ? ` · from ${item.source_type.replace('_', ' ')}`
+                  : ''}
+              </Text>
+            )}
 
             {derivedMemories.length > 0 ? (
               <View style={{ marginTop: 16 }}>
@@ -421,6 +527,41 @@ export function NoteDetailScreen({
                   >
                     <Text style={styles.suggestionChipText}>+{kw}</Text>
                   </Pressable>
+                ))}
+              </View>
+            ) : null}
+            {suggestions.length > 0 ? (
+              <View style={styles.donnaSuggestBlock}>
+                <Text style={styles.suggestionLabel}>Donna suggests:</Text>
+                {suggestions.map(s => (
+                  <View key={s.id} style={styles.donnaSuggestRow}>
+                    <Text style={styles.donnaSuggestText}>
+                      #{s.payload?.tag ?? 'tag'}
+                      {typeof s.confidence === 'number'
+                        ? ` · ${Math.round(s.confidence * 100)}%`
+                        : ''}
+                    </Text>
+                    <View style={styles.donnaSuggestActions}>
+                      <Pressable
+                        onPress={() =>
+                          void handleResolveSuggestion(s, 'accepted')
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel={`Accept tag ${s.payload?.tag ?? ''}`}
+                      >
+                        <Text style={styles.acceptText}>Accept</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() =>
+                          void handleResolveSuggestion(s, 'rejected')
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel={`Reject tag ${s.payload?.tag ?? ''}`}
+                      >
+                        <Text style={styles.rejectText}>Reject</Text>
+                      </Pressable>
+                    </View>
+                  </View>
                 ))}
               </View>
             ) : null}
@@ -603,6 +744,29 @@ function createStyles(colors: ThemeColors) {
       color: colors.muted,
       marginBottom: 16,
     },
+    dateRow: {
+      marginBottom: 16,
+      gap: 6,
+    },
+    dateLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.muted,
+    },
+    dateInput: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 14,
+      color: colors.text,
+      backgroundColor: colors.background,
+    },
+    dateHint: {
+      fontSize: 12,
+      color: colors.muted,
+    },
     sectionLabel: {
       fontSize: 12,
       fontWeight: '700',
@@ -647,6 +811,39 @@ function createStyles(colors: ThemeColors) {
     suggestionChipText: {
       fontSize: 12,
       color: colors.muted,
+    },
+    donnaSuggestBlock: {
+      marginBottom: 10,
+      gap: 6,
+    },
+    donnaSuggestRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      backgroundColor: colors.surface,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+    },
+    donnaSuggestText: {
+      flex: 1,
+      fontSize: 12,
+      color: colors.text,
+    },
+    donnaSuggestActions: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    acceptText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    rejectText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.destructive,
     },
     tagInput: {
       borderWidth: 1,

@@ -146,7 +146,11 @@ function FactModal({
   );
 }
 
-export function MemoryScreen() {
+type Props = {
+  onOpenNote?: (noteId: string) => void;
+};
+
+export function MemoryScreen({ onOpenNote }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [tab, setTab] = useState<TabId>('grouped');
@@ -161,6 +165,7 @@ export function MemoryScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [newFactText, setNewFactText] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [expandedEvidence, setExpandedEvidence] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -350,40 +355,95 @@ export function MemoryScreen() {
     );
   };
 
-  const renderItem = (item: MemoryItem) => (
-    <Pressable
-      key={item.id}
-      style={styles.factCard}
-      onPress={() => {
-        setSelected(item);
-        setEditText(item.fact);
-      }}
-    >
-      <View style={styles.badgeRow}>
-        {item.memory_kind ? (
-          <Text style={styles.badge}>{item.memory_kind}</Text>
+  const renderItem = (item: MemoryItem) => {
+    const evidence = item.evidence ?? [];
+    const showEvidenceToggle =
+      evidence.length > 0 || !isSuggestionItem(item);
+    const evidenceOpen = expandedEvidence === item.id;
+
+    return (
+      <View key={item.id} style={styles.factCard}>
+        <Pressable
+          onPress={() => {
+            setSelected(item);
+            setEditText(item.fact);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`Edit memory: ${item.fact}`}
+        >
+          <View style={styles.badgeRow}>
+            {item.memory_kind ? (
+              <Text style={styles.badge}>{item.memory_kind}</Text>
+            ) : null}
+            {item.sensitivity && item.sensitivity !== 'normal' ? (
+              <Text style={[styles.badge, styles.badgeWarn]}>
+                {item.sensitivity}
+              </Text>
+            ) : null}
+            {item.conflicting ? (
+              <Text style={[styles.badge, styles.badgeDanger]}>conflict</Text>
+            ) : null}
+            {item.review_status && item.review_status !== 'active' ? (
+              <Text style={styles.badge}>
+                {item.review_status.replace('_', ' ')}
+              </Text>
+            ) : null}
+          </View>
+          <Text style={styles.factText}>{item.fact}</Text>
+          {item.created_at ? (
+            <Text style={styles.factDate}>
+              {formatFactDate(item.created_at)}
+            </Text>
+          ) : null}
+        </Pressable>
+
+        {showEvidenceToggle ? (
+          <Pressable
+            onPress={() =>
+              setExpandedEvidence(cur => (cur === item.id ? null : item.id))
+            }
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={
+              evidenceOpen ? 'Hide source evidence' : 'Show source evidence'
+            }
+          >
+            <Text style={styles.evidenceToggle}>
+              {evidenceOpen ? 'Hide source' : 'Show source'}
+            </Text>
+          </Pressable>
         ) : null}
-        {item.sensitivity && item.sensitivity !== 'normal' ? (
-          <Text style={[styles.badge, styles.badgeWarn]}>
-            {item.sensitivity}
-          </Text>
+
+        {evidenceOpen ? (
+          <View style={styles.evidenceBox}>
+            {evidence.length === 0 ? (
+              <Text style={styles.evidenceEmpty}>No linked evidence yet.</Text>
+            ) : (
+              evidence.map((ev, i) => (
+                <View key={ev.id ?? `${item.id}-${i}`} style={styles.evidenceItem}>
+                  <Text style={styles.evidenceKind}>{ev.source_kind}</Text>
+                  {ev.source_id && ev.source_kind === 'note' && onOpenNote ? (
+                    <Pressable
+                      onPress={() => onOpenNote(ev.source_id!)}
+                      accessibilityRole="link"
+                      accessibilityLabel="Open source note"
+                    >
+                      <Text style={styles.evidenceLink}>Open note</Text>
+                    </Pressable>
+                  ) : null}
+                  {ev.excerpt ? (
+                    <Text style={styles.evidenceExcerpt}>{ev.excerpt}</Text>
+                  ) : null}
+                </View>
+              ))
+            )}
+          </View>
         ) : null}
-        {item.conflicting ? (
-          <Text style={[styles.badge, styles.badgeDanger]}>conflict</Text>
-        ) : null}
+
+        {renderActions(item)}
       </View>
-      <Text style={styles.factText}>{item.fact}</Text>
-      {item.created_at ? (
-        <Text style={styles.factDate}>{formatFactDate(item.created_at)}</Text>
-      ) : null}
-      {(item.evidence?.length ?? 0) > 0 ? (
-        <Text style={styles.evidencePreview} numberOfLines={2}>
-          Source: {item.evidence![0].excerpt || item.evidence![0].source_kind}
-        </Text>
-      ) : null}
-      {renderActions(item)}
-    </Pressable>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -716,10 +776,48 @@ function createStyles(colors: ThemeColors) {
       color: colors.muted,
       fontFamily: colors.fontFamily,
     },
-    evidencePreview: {
-      marginTop: 6,
+    evidenceToggle: {
+      marginTop: 8,
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.muted,
+      fontFamily: colors.fontFamily,
+      textDecorationLine: 'underline',
+    },
+    evidenceBox: {
+      marginTop: 8,
+      borderRadius: 10,
+      backgroundColor: colors.surface,
+      padding: 10,
+      gap: 8,
+    },
+    evidenceEmpty: {
       fontSize: 12,
       color: colors.muted,
+      fontFamily: colors.fontFamily,
+    },
+    evidenceItem: {
+      gap: 4,
+    },
+    evidenceKind: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text,
+      fontFamily: colors.fontFamily,
+      textTransform: 'capitalize',
+    },
+    evidenceLink: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.primary,
+      fontFamily: colors.fontFamily,
+      textDecorationLine: 'underline',
+    },
+    evidenceExcerpt: {
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.text,
+      opacity: 0.85,
       fontFamily: colors.fontFamily,
     },
     actionRow: {

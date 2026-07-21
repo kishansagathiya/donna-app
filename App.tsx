@@ -380,7 +380,7 @@ function AppContent({
           <TodayScreen embedded onOpenNote={openNote} />
         ) : null}
 
-        {tab === 'memory' ? <MemoryScreen /> : null}
+        {tab === 'memory' ? <MemoryScreen onOpenNote={openNote} /> : null}
 
         {tab === 'profile' ? (
           <ProfileScreen
