@@ -16,6 +16,7 @@ import {
   GlobeIcon,
   StickyNoteIcon,
 } from './icons';
+import { postMemoryFeedback } from '../services/memoryApi';
 
 type Props = {
   citations: MemoryCitation[];
@@ -26,6 +27,9 @@ export function MemoryCitations({ citations, onOpenNote }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [expanded, setExpanded] = useState(false);
+  const [feedbackBusy, setFeedbackBusy] = useState<string | null>(null);
+  const [feedbackDone, setFeedbackDone] = useState<Record<string, string>>({});
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   if (!citations.length) {
     return null;
@@ -52,6 +56,33 @@ export function MemoryCitations({ citations, onOpenNote }: Props) {
   }
   const chipLabel = `Used ${labelParts.join(' · ')}`;
 
+  const sendFeedback = async (
+    citation: MemoryCitation,
+    action: 'not_relevant' | 'outdated',
+  ) => {
+    if (
+      !citation.id ||
+      citation.source === 'web' ||
+      citation.source === 'note' ||
+      citation.source === 'granola'
+    ) {
+      return;
+    }
+    const key = `${citation.id}:${action}`;
+    setFeedbackBusy(key);
+    setFeedbackError(null);
+    try {
+      await postMemoryFeedback({ fact_id: citation.id, action });
+      setFeedbackDone(prev => ({ ...prev, [citation.id!]: action }));
+    } catch (err: unknown) {
+      setFeedbackError(
+        err instanceof Error ? err.message : 'Feedback failed',
+      );
+    } finally {
+      setFeedbackBusy(null);
+    }
+  };
+
   return (
     <View style={styles.wrap}>
       <Pressable
@@ -67,11 +98,16 @@ export function MemoryCitations({ citations, onOpenNote }: Props) {
 
       {expanded ? (
         <View style={styles.panel}>
+          {feedbackError ? (
+            <Text style={styles.feedbackError}>{feedbackError}</Text>
+          ) : null}
           {citations.map((citation, index) => {
             const key = `${citation.source}-${citation.id ?? index}`;
             const isNote = citation.source === 'note' && citation.id;
             const isWeb = citation.source === 'web' && citation.url;
             const isGranola = citation.source === 'granola';
+            const isMemoryFact =
+              Boolean(citation.id) && !isNote && !isWeb && !isGranola;
             const Icon = isWeb
               ? GlobeIcon
               : isNote
@@ -95,45 +131,65 @@ export function MemoryCitations({ citations, onOpenNote }: Props) {
               </View>
             );
 
-            if (isNote && citation.id) {
-              return (
-                <Pressable
-                  key={key}
-                  style={({ pressed }) => [
-                    styles.item,
-                    pressed && styles.itemPressed,
-                  ]}
-                  onPress={() => onOpenNote?.(citation.id!)}
-                  accessibilityRole="link"
-                  accessibilityLabel={`Open note: ${label}`}
-                >
-                  {body}
-                </Pressable>
-              );
-            }
-
-            if (isWeb && citation.url) {
-              return (
-                <Pressable
-                  key={key}
-                  style={({ pressed }) => [
-                    styles.item,
-                    pressed && styles.itemPressed,
-                  ]}
-                  onPress={() => {
-                    void Linking.openURL(citation.url!);
-                  }}
-                  accessibilityRole="link"
-                  accessibilityLabel={`Open web source: ${label}`}
-                >
-                  {body}
-                </Pressable>
-              );
-            }
-
             return (
-              <View key={key} style={styles.item}>
-                {body}
+              <View key={key}>
+                {isNote && citation.id ? (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.item,
+                      pressed && styles.itemPressed,
+                    ]}
+                    onPress={() => onOpenNote?.(citation.id!)}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Open note: ${label}`}
+                  >
+                    {body}
+                  </Pressable>
+                ) : isWeb && citation.url ? (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.item,
+                      pressed && styles.itemPressed,
+                    ]}
+                    onPress={() => {
+                      void Linking.openURL(citation.url!);
+                    }}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Open web source: ${label}`}
+                  >
+                    {body}
+                  </Pressable>
+                ) : (
+                  <View style={styles.item}>{body}</View>
+                )}
+                {isMemoryFact && citation.id ? (
+                  <View style={styles.feedbackRow}>
+                    {feedbackDone[citation.id] ? (
+                      <Text style={styles.feedbackDone}>
+                        Marked {feedbackDone[citation.id].replace('_', ' ')}
+                      </Text>
+                    ) : (
+                      <>
+                        <Pressable
+                          disabled={feedbackBusy !== null}
+                          onPress={() =>
+                            void sendFeedback(citation, 'not_relevant')
+                          }
+                        >
+                          <Text style={styles.feedbackAction}>Not relevant</Text>
+                        </Pressable>
+                        <Pressable
+                          disabled={feedbackBusy !== null}
+                          onPress={() =>
+                            void sendFeedback(citation, 'outdated')
+                          }
+                        >
+                          <Text style={styles.feedbackAction}>Outdated</Text>
+                        </Pressable>
+                      </>
+                    )}
+                  </View>
+                ) : null}
               </View>
             );
           })}
@@ -223,6 +279,30 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
       fontSize: 12,
       lineHeight: 17,
+      fontFamily: colors.fontFamily,
+    },
+    feedbackRow: {
+      flexDirection: 'row',
+      gap: 12,
+      paddingHorizontal: 6,
+      paddingBottom: 4,
+    },
+    feedbackAction: {
+      color: colors.muted,
+      fontSize: 11,
+      fontWeight: '600',
+      textDecorationLine: 'underline',
+      fontFamily: colors.fontFamily,
+    },
+    feedbackDone: {
+      color: colors.muted,
+      fontSize: 11,
+      fontFamily: colors.fontFamily,
+    },
+    feedbackError: {
+      color: colors.destructive,
+      fontSize: 11,
+      paddingHorizontal: 6,
       fontFamily: colors.fontFamily,
     },
   });

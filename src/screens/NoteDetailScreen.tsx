@@ -23,6 +23,10 @@ import {
   type NoteSummary,
 } from '../services/notesApi';
 import {
+  listDerivedMemories,
+  type MemoryItem,
+} from '../services/memoryApi';
+import {
   deleteLocalDeviceCapture,
   getLocalDeviceCapture,
   isLocalDeviceNoteId,
@@ -89,6 +93,7 @@ export function NoteDetailScreen({
   const savingTags = tagsMutation.isPending;
   const lastSavedContent = React.useRef<string | null>(null);
   const hydratedRef = React.useRef(false);
+  const [derivedMemories, setDerivedMemories] = useState<MemoryItem[]>([]);
 
   const loadNote = useCallback(async () => {
     setLoading(true);
@@ -127,6 +132,16 @@ export function NoteDetailScreen({
   useEffect(() => {
     void loadNote();
   }, [loadNote]);
+
+  useEffect(() => {
+    if (isLocalDeviceNote) {
+      setDerivedMemories([]);
+      return;
+    }
+    void listDerivedMemories(noteId)
+      .then(setDerivedMemories)
+      .catch(() => setDerivedMemories([]));
+  }, [isLocalDeviceNote, noteId]);
 
   useEffect(() => {
     if (!item || isLocalDeviceNote || !hydratedRef.current) {
@@ -354,6 +369,22 @@ export function NoteDetailScreen({
                 ? ` · from ${item.source_type.replace('_', ' ')}`
                 : ''}
             </Text>
+
+            {derivedMemories.length > 0 ? (
+              <View style={{ marginTop: 16 }}>
+                <Text style={styles.sectionLabel}>Derived memories</Text>
+                {derivedMemories.map(mem => (
+                  <View key={mem.id} style={styles.factCardLite}>
+                    <Text style={styles.factLiteText}>{mem.fact}</Text>
+                    <Text style={styles.mutedText}>
+                      {[mem.memory_kind, mem.review_status]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
             {item.audio_url ? (
               <NoteAudioPlayer url={item.audio_url} />
@@ -649,6 +680,20 @@ function createStyles(colors: ThemeColors) {
     mutedText: {
       fontSize: 13,
       color: colors.muted,
+    },
+    factCardLite: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      padding: 10,
+      marginTop: 8,
+      backgroundColor: colors.surface,
+    },
+    factLiteText: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.text,
+      marginBottom: 4,
     },
     errorBanner: {
       marginTop: 12,

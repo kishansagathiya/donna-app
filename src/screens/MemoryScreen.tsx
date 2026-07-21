@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,16 +15,37 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import {
+  acceptMemoryItem,
+  acceptMemorySuggestion,
   createMemoryFact,
-  deleteMemoryFact,
+  deleteMemoryItem,
   formatFactDate,
-  getMemoryProfile,
-  listMemoryFacts,
-  updateMemoryFact,
-  updateMemoryProfile,
-  type MemoryFact,
+  isSuggestionItem,
+  listMemoryGrouped,
+  listMemoryItems,
+  markMemoryOutdated,
+  rejectMemoryItem,
+  rejectMemorySuggestion,
+  resolveMemoryItem,
+  resolveMemorySuggestion,
+  suggestionIdOf,
+  updateMemoryItem,
+  type MemoryGroup,
+  type MemoryItem,
+  type MemoryListStatus,
 } from '../services/memoryApi';
 import type { ThemeColors } from '../theme/colors';
+
+type TabId = 'grouped' | MemoryListStatus;
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'grouped', label: 'All' },
+  { id: 'pending', label: 'Pending' },
+  { id: 'sensitive', label: 'Sensitive' },
+  { id: 'conflicting', label: 'Conflicts' },
+  { id: 'rejected', label: 'Rejected' },
+  { id: 'outdated', label: 'Outdated' },
+];
 
 type FactModalProps = {
   visible: boolean;
@@ -129,199 +149,259 @@ function FactModal({
 export function MemoryScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [summary, setSummary] = useState('');
-  const [identityFactsText, setIdentityFactsText] = useState('');
-  const [savingProfile, setSavingProfile] = useState(false);
+  const [tab, setTab] = useState<TabId>('grouped');
   const [query, setQuery] = useState('');
-  const [facts, setFacts] = useState<MemoryFact[]>([]);
-  const [searching, setSearching] = useState(true);
+  const [groups, setGroups] = useState<MemoryGroup[]>([]);
+  const [inbox, setInbox] = useState<MemoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFact, setSelectedFact] = useState<MemoryFact | null>(null);
+  const [selected, setSelected] = useState<MemoryItem | null>(null);
   const [editText, setEditText] = useState('');
-  const [savingFact, setSavingFact] = useState(false);
-  const [showAddFact, setShowAddFact] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
   const [newFactText, setNewFactText] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const loadFacts = useCallback(async (searchQuery = '') => {
-    setSearching(true);
+  const load = useCallback(async () => {
+    setLoading(true);
     setError(null);
     try {
-      setFacts(await listMemoryFacts(searchQuery));
+      if (tab === 'grouped') {
+        setGroups(await listMemoryGrouped(query));
+        setInbox([]);
+      } else {
+        setInbox(await listMemoryItems({ status: tab, q: query }));
+        setGroups([]);
+      }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load facts');
-      setFacts([]);
+      setError(err instanceof Error ? err.message : 'Failed to load memory');
+      setGroups([]);
+      setInbox([]);
     } finally {
-      setSearching(false);
+      setLoading(false);
     }
-  }, []);
+  }, [query, tab]);
 
   useEffect(() => {
-    let cancelled = false;
+    void load();
+  }, [load]);
 
-    void (async () => {
-      setLoadingProfile(true);
-      setSearching(true);
-      setError(null);
+  const visibleGroups = useMemo(
+    () => groups.filter(g => g.items.length > 0),
+    [groups],
+  );
 
-      const [profileResult, factsResult] = await Promise.allSettled([
-        getMemoryProfile(),
-        listMemoryFacts(),
-      ]);
-
-      if (cancelled) {
-        return;
-      }
-
-      const failures: string[] = [];
-
-      if (profileResult.status === 'fulfilled') {
-        setSummary(profileResult.value.summary);
-        setIdentityFactsText(profileResult.value.identity_facts.join('\n'));
-      } else {
-        failures.push(
-          profileResult.reason instanceof Error
-            ? profileResult.reason.message
-            : 'Failed to load profile',
-        );
-      }
-
-      if (factsResult.status === 'fulfilled') {
-        setFacts(factsResult.value);
-      } else {
-        setFacts([]);
-        failures.push(
-          factsResult.reason instanceof Error
-            ? factsResult.reason.message
-            : 'Failed to load facts',
-        );
-      }
-
-      if (failures.length > 0) {
-        setError(failures.join(' · '));
-      }
-
-      setLoadingProfile(false);
-      setSearching(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleSaveProfile = async () => {
-    setSavingProfile(true);
+  const runAction = async (id: string, fn: () => Promise<unknown>) => {
+    setBusyId(id);
     setError(null);
     try {
-      const identity_facts = identityFactsText
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean);
-      const updated = await updateMemoryProfile({ summary, identity_facts });
-      setSummary(updated.summary);
-      setIdentityFactsText(updated.identity_facts.join('\n'));
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to save profile');
-    } finally {
-      setSavingProfile(false);
-    }
-  };
-
-  const openFact = (fact: MemoryFact) => {
-    setSelectedFact(fact);
-    setEditText(fact.fact);
-  };
-
-  const handleSaveFact = async () => {
-    if (!selectedFact || !editText.trim()) {
-      return;
-    }
-    setSavingFact(true);
-    setError(null);
-    try {
-      const updated = await updateMemoryFact(selectedFact.id, {
-        fact: editText.trim(),
-      });
-      setFacts(prev =>
-        prev.map(f => (f.id === selectedFact.id ? updated : f)),
-      );
-      setSelectedFact(null);
+      await fn();
+      await load();
+      setSelected(null);
       setEditText('');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to save fact');
+      setError(err instanceof Error ? err.message : 'Action failed');
     } finally {
-      setSavingFact(false);
+      setBusyId(null);
     }
   };
 
-  const handleDeleteFact = () => {
-    if (!selectedFact) {
-      return;
+  const handleSaveEdit = async () => {
+    if (!selected || !editText.trim()) return;
+    setSaving(true);
+    try {
+      const sid = suggestionIdOf(selected);
+      if (sid) {
+        await resolveMemorySuggestion(sid, 'accept_new', editText.trim());
+      } else {
+        await updateMemoryItem(selected.id, { fact: editText.trim() });
+      }
+      await load();
+      setSelected(null);
+      setEditText('');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setSaving(false);
     }
-    Alert.alert(
-      'Delete fact',
-      'Remove this fact from Donna\'s memory?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              setError(null);
-              try {
-                await deleteMemoryFact(selectedFact.id);
-                setFacts(prev => prev.filter(f => f.id !== selectedFact.id));
-                setSelectedFact(null);
-                setEditText('');
-              } catch (err: unknown) {
-                setError(
-                  err instanceof Error ? err.message : 'Failed to delete fact',
-                );
-              }
-            })();
-          },
+  };
+
+  const handleDelete = () => {
+    if (!selected) return;
+    Alert.alert('Delete memory', 'Remove this from Donna’s memory?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            const sid = suggestionIdOf(selected);
+            if (sid) {
+              await runAction(selected.id, () => rejectMemorySuggestion(sid));
+              return;
+            }
+            await runAction(selected.id, () => deleteMemoryItem(selected.id));
+          })();
         },
-      ],
+      },
+    ]);
+  };
+
+  const handleAdd = async () => {
+    if (!newFactText.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await createMemoryFact({ fact: newFactText.trim() });
+      setNewFactText('');
+      setShowAdd(false);
+      setTab('grouped');
+      await load();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to add memory');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const renderActions = (item: MemoryItem) => {
+    const busy = busyId === item.id;
+    return (
+      <View style={styles.actionRow}>
+        {(tab === 'pending' ||
+          tab === 'sensitive' ||
+          tab === 'conflicting' ||
+          item.review_status === 'pending_review') && (
+          <>
+            <Pressable
+              style={[styles.chipButton, busy && styles.buttonDisabled]}
+              disabled={busy}
+              onPress={() => {
+                const sid = suggestionIdOf(item);
+                void runAction(item.id, () =>
+                  sid
+                    ? acceptMemorySuggestion(sid)
+                    : acceptMemoryItem(item.id),
+                );
+              }}
+            >
+              <Text style={styles.chipButtonText}>Accept</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.chipButtonSecondary, busy && styles.buttonDisabled]}
+              disabled={busy}
+              onPress={() => {
+                const sid = suggestionIdOf(item);
+                void runAction(item.id, () =>
+                  sid
+                    ? rejectMemorySuggestion(sid)
+                    : rejectMemoryItem(item.id),
+                );
+              }}
+            >
+              <Text style={styles.chipButtonSecondaryText}>Reject</Text>
+            </Pressable>
+          </>
+        )}
+        {(item.conflicting || tab === 'conflicting') && (
+          <>
+            <Pressable
+              style={[styles.chipButtonSecondary, busy && styles.buttonDisabled]}
+              disabled={busy}
+              onPress={() => {
+                const sid = suggestionIdOf(item);
+                void runAction(item.id, () =>
+                  sid
+                    ? resolveMemorySuggestion(sid, 'accept_new')
+                    : resolveMemoryItem(item.id, 'accept_new'),
+                );
+              }}
+            >
+              <Text style={styles.chipButtonSecondaryText}>Use new</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.chipButtonSecondary, busy && styles.buttonDisabled]}
+              disabled={busy}
+              onPress={() => {
+                const sid = suggestionIdOf(item);
+                void runAction(item.id, () =>
+                  sid
+                    ? resolveMemorySuggestion(sid, 'keep_existing')
+                    : resolveMemoryItem(item.id, 'keep_existing'),
+                );
+              }}
+            >
+              <Text style={styles.chipButtonSecondaryText}>Keep existing</Text>
+            </Pressable>
+          </>
+        )}
+        {!isSuggestionItem(item) ? (
+          <Pressable
+            style={[styles.chipButtonSecondary, busy && styles.buttonDisabled]}
+            disabled={busy}
+            onPress={() =>
+              void runAction(item.id, () => markMemoryOutdated(item.id))
+            }
+          >
+            <Text style={styles.chipButtonSecondaryText}>Outdated</Text>
+          </Pressable>
+        ) : null}
+      </View>
     );
   };
 
-  const handleAddFact = async () => {
-    if (!newFactText.trim()) {
-      return;
-    }
-    setSavingFact(true);
-    setError(null);
-    try {
-      const created = await createMemoryFact({ fact: newFactText.trim() });
-      setFacts(prev => [created, ...prev]);
-      setNewFactText('');
-      setShowAddFact(false);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to add fact');
-    } finally {
-      setSavingFact(false);
-    }
-  };
+  const renderItem = (item: MemoryItem) => (
+    <Pressable
+      key={item.id}
+      style={styles.factCard}
+      onPress={() => {
+        setSelected(item);
+        setEditText(item.fact);
+      }}
+    >
+      <View style={styles.badgeRow}>
+        {item.memory_kind ? (
+          <Text style={styles.badge}>{item.memory_kind}</Text>
+        ) : null}
+        {item.sensitivity && item.sensitivity !== 'normal' ? (
+          <Text style={[styles.badge, styles.badgeWarn]}>
+            {item.sensitivity}
+          </Text>
+        ) : null}
+        {item.conflicting ? (
+          <Text style={[styles.badge, styles.badgeDanger]}>conflict</Text>
+        ) : null}
+      </View>
+      <Text style={styles.factText}>{item.fact}</Text>
+      {item.created_at ? (
+        <Text style={styles.factDate}>{formatFactDate(item.created_at)}</Text>
+      ) : null}
+      {(item.evidence?.length ?? 0) > 0 ? (
+        <Text style={styles.evidencePreview} numberOfLines={2}>
+          Source: {item.evidence![0].excerpt || item.evidence![0].source_kind}
+        </Text>
+      ) : null}
+      {renderActions(item)}
+    </Pressable>
+  );
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Memory</Text>
-          <Text style={styles.subtitle}>What Donna knows about you</Text>
+          <Text style={styles.subtitle}>
+            Review, edit, and trace what Donna knows
+          </Text>
         </View>
-        <View style={styles.headerActions}>
-          <Pressable
-            style={styles.addButton}
-            onPress={() => setShowAddFact(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Add fact"
-          >
-            <Text style={styles.addButtonText}>+</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          style={styles.addButton}
+          onPress={() => setShowAdd(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Add memory"
+        >
+          <Text style={styles.addButtonText}>+</Text>
+        </Pressable>
       </View>
 
       {error ? (
@@ -331,130 +411,106 @@ export function MemoryScreen() {
       ) : null}
 
       <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabs}
+        contentContainerStyle={styles.tabsContent}
+      >
+        {TABS.map(t => (
+          <Pressable
+            key={t.id}
+            style={[styles.tab, tab === t.id && styles.tabActive]}
+            onPress={() => setTab(t.id)}
+          >
+            <Text
+              style={[styles.tabText, tab === t.id && styles.tabTextActive]}
+            >
+              {t.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.profileHeader}>
-          <Text style={[styles.sectionTitle, styles.profileTitle]}>Profile</Text>
-          {loadingProfile ? (
-            <ActivityIndicator size="small" color={colors.muted} />
-          ) : null}
-        </View>
-        <TextInput
-          style={[styles.input, styles.textArea, loadingProfile && styles.inputDisabled]}
-          value={summary}
-          onChangeText={setSummary}
-          placeholder="Summary about you…"
-          placeholderTextColor={colors.muted}
-          multiline
-          editable={!loadingProfile}
-        />
-        <Text style={styles.fieldLabel}>Identity facts (one per line)</Text>
-        <TextInput
-          style={[styles.input, styles.textAreaSmall, loadingProfile && styles.inputDisabled]}
-          value={identityFactsText}
-          onChangeText={setIdentityFactsText}
-          placeholder={"User's name is …"}
-          placeholderTextColor={colors.muted}
-          multiline
-          editable={!loadingProfile}
-        />
-        <Pressable
-          style={[
-            styles.primaryButton,
-            (savingProfile || loadingProfile) && styles.buttonDisabled,
-          ]}
-          onPress={() => void handleSaveProfile()}
-          disabled={savingProfile || loadingProfile}
-        >
-          <Text style={styles.primaryButtonText}>
-            {savingProfile ? 'Saving…' : 'Save profile'}
-          </Text>
-        </Pressable>
-
         <View style={styles.searchRow}>
           <TextInput
             style={[styles.input, styles.searchInput]}
             value={query}
             onChangeText={setQuery}
-            placeholder="Search facts…"
+            placeholder="Search memory…"
             placeholderTextColor={colors.muted}
             returnKeyType="search"
-            onSubmitEditing={() => void loadFacts(query)}
+            onSubmitEditing={() => void load()}
           />
-          <Pressable
-            style={[styles.searchButton, searching && styles.buttonDisabled]}
-            onPress={() => void loadFacts(query)}
-            disabled={searching}
-          >
-            {searching ? (
-              <ActivityIndicator size="small" color={colors.white} />
-            ) : (
-              <Text style={styles.searchButtonText}>Search</Text>
-            )}
+          <Pressable style={styles.searchButton} onPress={() => void load()}>
+            <Text style={styles.searchButtonText}>
+              {loading ? '…' : 'Search'}
+            </Text>
           </Pressable>
         </View>
 
-        <Text style={styles.sectionTitle}>Facts</Text>
-        {searching && facts.length === 0 ? (
+        {loading ? (
           <View style={styles.factsLoading}>
             <ActivityIndicator size="small" color={colors.primary} />
           </View>
         ) : null}
-        {facts.length === 0 && !searching ? (
+
+        {!loading && tab === 'grouped' && visibleGroups.length === 0 ? (
           <Text style={styles.hint}>
-            Donna learns from conversations, or add facts with +.
+            Donna learns from notes and chats, or add memories with +.
           </Text>
         ) : null}
 
-        <FlatList
-          data={facts}
-          keyExtractor={item => item.id}
-          scrollEnabled={false}
-          renderItem={({ item }) => (
-            <Pressable style={styles.factCard} onPress={() => openFact(item)}>
-              <Text style={styles.factText}>{item.fact}</Text>
-              {item.created_at ? (
-                <Text style={styles.factDate}>
-                  {formatFactDate(item.created_at)}
+        {!loading && tab !== 'grouped' && inbox.length === 0 ? (
+          <Text style={styles.hint}>No {tab} memories.</Text>
+        ) : null}
+
+        {tab === 'grouped'
+          ? visibleGroups.map(group => (
+              <View key={group.kind}>
+                <Text style={styles.sectionTitle}>
+                  {group.label} ({group.items.length})
                 </Text>
-              ) : null}
-            </Pressable>
-          )}
-        />
+                {group.items.map(renderItem)}
+              </View>
+            ))
+          : inbox.map(renderItem)}
       </ScrollView>
 
       <FactModal
-        visible={selectedFact !== null}
-        title="Edit fact"
+        visible={selected !== null}
+        title="Edit memory"
         text={editText}
-        saving={savingFact}
+        saving={saving}
         saveLabel="Save"
         savingLabel="Saving…"
         onChangeText={setEditText}
         onClose={() => {
-          setSelectedFact(null);
+          setSelected(null);
           setEditText('');
         }}
-        onSave={() => void handleSaveFact()}
-        onDelete={handleDeleteFact}
+        onSave={() => void handleSaveEdit()}
+        onDelete={handleDelete}
       />
 
       <FactModal
-        visible={showAddFact}
-        title="New fact"
+        visible={showAdd}
+        title="New memory"
         text={newFactText}
         placeholder="Something Donna should remember…"
-        saving={savingFact}
+        saving={saving}
         saveLabel="Add"
         savingLabel="Adding…"
         onChangeText={setNewFactText}
         onClose={() => {
-          setShowAddFact(false);
+          setShowAdd(false);
           setNewFactText('');
         }}
-        onSave={() => void handleAddFact()}
+        onSave={() => void handleAdd()}
       />
     </View>
   );
@@ -464,12 +520,6 @@ function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.background,
-    },
-    centered: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
       backgroundColor: colors.background,
     },
     header: {
@@ -486,15 +536,13 @@ function createStyles(colors: ThemeColors) {
       fontSize: 22,
       fontWeight: '700',
       color: colors.text,
+      fontFamily: colors.fontFamily,
     },
     subtitle: {
       marginTop: 2,
       fontSize: 14,
       color: colors.muted,
-    },
-    headerActions: {
-      flexDirection: 'row',
-      gap: 8,
+      fontFamily: colors.fontFamily,
     },
     addButton: {
       width: 36,
@@ -517,10 +565,38 @@ function createStyles(colors: ThemeColors) {
       paddingHorizontal: 20,
       paddingTop: 8,
       fontSize: 14,
+      fontFamily: colors.fontFamily,
     },
-    scroll: {
-      flex: 1,
+    tabs: {
+      maxHeight: 48,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
     },
+    tabsContent: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      gap: 6,
+      alignItems: 'center',
+    },
+    tab: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      marginHorizontal: 2,
+    },
+    tabActive: {
+      backgroundColor: colors.surface,
+    },
+    tabText: {
+      fontSize: 13,
+      color: colors.muted,
+      fontWeight: '500',
+      fontFamily: colors.fontFamily,
+    },
+    tabTextActive: {
+      color: colors.text,
+    },
+    scroll: { flex: 1 },
     scrollContent: {
       paddingHorizontal: 20,
       paddingBottom: 32,
@@ -531,29 +607,11 @@ function createStyles(colors: ThemeColors) {
       fontSize: 15,
       fontWeight: '600',
       color: colors.text,
-    },
-    profileHeader: {
-      marginTop: 16,
-      marginBottom: 8,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    profileTitle: {
-      marginTop: 0,
-      marginBottom: 0,
-    },
-    inputDisabled: {
-      opacity: 0.6,
+      fontFamily: colors.fontFamily,
     },
     factsLoading: {
       alignItems: 'center',
       paddingVertical: 24,
-    },
-    fieldLabel: {
-      marginTop: 8,
-      fontSize: 12,
-      color: colors.muted,
     },
     input: {
       borderWidth: 1,
@@ -564,13 +622,10 @@ function createStyles(colors: ThemeColors) {
       fontSize: 16,
       color: colors.text,
       backgroundColor: colors.surface,
+      fontFamily: colors.fontFamily,
     },
     textArea: {
       minHeight: 88,
-      textAlignVertical: 'top',
-    },
-    textAreaSmall: {
-      minHeight: 64,
       textAlignVertical: 'top',
     },
     primaryButton: {
@@ -584,18 +639,16 @@ function createStyles(colors: ThemeColors) {
       color: colors.white,
       fontWeight: '600',
       fontSize: 15,
+      fontFamily: colors.fontFamily,
     },
-    buttonDisabled: {
-      opacity: 0.6,
-    },
+    buttonDisabled: { opacity: 0.6 },
     searchRow: {
       flexDirection: 'row',
       gap: 8,
-      marginTop: 20,
+      marginTop: 16,
+      marginBottom: 8,
     },
-    searchInput: {
-      flex: 1,
-    },
+    searchInput: { flex: 1 },
     searchButton: {
       backgroundColor: colors.primary,
       borderRadius: 12,
@@ -608,12 +661,14 @@ function createStyles(colors: ThemeColors) {
       color: colors.white,
       fontWeight: '600',
       fontSize: 15,
+      fontFamily: colors.fontFamily,
     },
     hint: {
       fontSize: 15,
       lineHeight: 22,
       color: colors.muted,
       marginBottom: 8,
+      fontFamily: colors.fontFamily,
     },
     factCard: {
       borderWidth: 1,
@@ -623,19 +678,83 @@ function createStyles(colors: ThemeColors) {
       marginBottom: 10,
       backgroundColor: colors.background,
     },
+    badgeRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginBottom: 6,
+    },
+    badge: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.muted,
+      backgroundColor: colors.surface,
+      overflow: 'hidden',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+      textTransform: 'uppercase',
+      fontFamily: colors.fontFamily,
+    },
+    badgeWarn: {
+      color: '#92400e',
+      backgroundColor: '#fffbeb',
+    },
+    badgeDanger: {
+      color: '#9f1239',
+      backgroundColor: '#fff1f2',
+    },
     factText: {
       fontSize: 15,
       lineHeight: 22,
       color: colors.text,
+      fontFamily: colors.fontFamily,
     },
     factDate: {
       marginTop: 8,
       fontSize: 12,
       color: colors.muted,
+      fontFamily: colors.fontFamily,
     },
-    modalAvoiding: {
-      flex: 1,
+    evidencePreview: {
+      marginTop: 6,
+      fontSize: 12,
+      color: colors.muted,
+      fontFamily: colors.fontFamily,
     },
+    actionRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginTop: 10,
+    },
+    chipButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    chipButtonText: {
+      color: colors.white,
+      fontSize: 12,
+      fontWeight: '600',
+      fontFamily: colors.fontFamily,
+    },
+    chipButtonSecondary: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      backgroundColor: colors.surface,
+    },
+    chipButtonSecondaryText: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: '500',
+      fontFamily: colors.fontFamily,
+    },
+    modalAvoiding: { flex: 1 },
     modalBackdrop: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.4)',
@@ -647,47 +766,39 @@ function createStyles(colors: ThemeColors) {
       borderTopRightRadius: 16,
       paddingHorizontal: 20,
       paddingTop: 20,
-      maxHeight: '85%',
     },
     modalHeader: {
       flexDirection: 'row',
-      alignItems: 'center',
       justifyContent: 'space-between',
+      alignItems: 'center',
       marginBottom: 12,
     },
     modalTitle: {
       fontSize: 18,
-      fontWeight: '600',
+      fontWeight: '700',
       color: colors.text,
+      fontFamily: colors.fontFamily,
     },
     modalCloseText: {
-      fontSize: 16,
-      fontWeight: '600',
       color: colors.primary,
+      fontSize: 16,
+      fontFamily: colors.fontFamily,
     },
-    modalScroll: {
-      flexGrow: 0,
-      flexShrink: 1,
-    },
-    modalTextArea: {
-      minHeight: 120,
-      maxHeight: 200,
-    },
-    modalActions: {
-      marginTop: 12,
-      gap: 8,
-    },
+    modalScroll: { maxHeight: 220 },
+    modalTextArea: { minHeight: 120 },
+    modalActions: { marginTop: 8, gap: 8 },
     destructiveButton: {
       borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.destructive,
       paddingVertical: 12,
       alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.destructive,
     },
     destructiveButtonText: {
       color: colors.destructive,
       fontWeight: '600',
       fontSize: 15,
+      fontFamily: colors.fontFamily,
     },
   });
 }
