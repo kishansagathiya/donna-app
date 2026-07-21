@@ -23,6 +23,7 @@ import {
 import type { ThemeColors } from '../theme/colors';
 import { ArrowUpIcon } from '../components/icons';
 import { NoteDetailScreen } from './NoteDetailScreen';
+import { TagTaxonomyPanel } from '../components/TagTaxonomyPanel';
 import {
   useCreateNoteMutation,
   useFailedNoteMutations,
@@ -356,6 +357,13 @@ export function NotesScreen({
           clearButtonMode="while-editing"
         />
       </View>
+
+      <TagTaxonomyPanel
+        onChanged={() => {
+          void feedQuery.refetch();
+          void tagsQuery.refetch();
+        }}
+      />
 
       <View style={styles.composeRow}>
         <TextInput

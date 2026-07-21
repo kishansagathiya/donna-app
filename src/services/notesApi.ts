@@ -30,6 +30,30 @@ export type Note = NoteSummary & {
 export type NoteTags = {
   note_id: string;
   tags: string[];
+  items?: NoteTagDetail[];
+};
+
+export type NoteTagDetail = {
+  tag: string;
+  origin: string;
+  locked: boolean;
+};
+
+export type TaxonomyTag = {
+  name: string;
+  count: number;
+  normalized_name?: string;
+  alias_of?: string | null;
+  pinned: boolean;
+};
+
+export type TagSuggestion = {
+  id: string;
+  suggestion_kind: string;
+  status: string;
+  target_note_id?: string | null;
+  payload: { tag?: string };
+  confidence?: number | null;
 };
 
 export type NoteSearchResult = NoteSummary;
@@ -234,6 +258,65 @@ export async function setNoteTags(id: string, tags: string[]): Promise<NoteTags>
     body: JSON.stringify({ tags }),
   });
   return parseJSON(res);
+}
+
+export async function listTaxonomy(limit = 100): Promise<TaxonomyTag[]> {
+  const res = await authorizedFetch(`/notes/taxonomy?limit=${limit}`);
+  return parseJSON(res);
+}
+
+export async function pinTag(tag: string, pinned: boolean): Promise<void> {
+  const res = await authorizedFetch(`/notes/tags/pin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tag, pinned }),
+  });
+  await parseJSON(res);
+}
+
+export async function aliasTag(source: string, canonical: string): Promise<void> {
+  const res = await authorizedFetch(`/notes/tags/alias`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source, canonical }),
+  });
+  await parseJSON(res);
+}
+
+export async function renameTag(from: string, to: string): Promise<void> {
+  const res = await authorizedFetch(`/notes/tags/rename`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to }),
+  });
+  await parseJSON(res);
+}
+
+export async function mergeTags(source: string, canonical: string): Promise<void> {
+  const res = await authorizedFetch(`/notes/tags/merge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source, canonical }),
+  });
+  await parseJSON(res);
+}
+
+export async function listTagSuggestions(noteId?: string): Promise<TagSuggestion[]> {
+  const qs = noteId ? `?note_id=${encodeURIComponent(noteId)}` : '';
+  const res = await authorizedFetch(`/notes/tag-suggestions${qs}`);
+  return parseJSON(res);
+}
+
+export async function resolveTagSuggestion(
+  id: string,
+  status: 'accepted' | 'rejected',
+): Promise<void> {
+  const res = await authorizedFetch(`/notes/tag-suggestions/${id}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  await parseJSON(res);
 }
 
 export function extractHashtags(text: string): string[] {
