@@ -26,7 +26,12 @@ import {
 import { signOut } from '../services/auth';
 import type { ThemeColors } from '../theme/colors';
 
-const DEFAULT_PERSONAS = ['companion', 'boss', 'coach', 'therapist', 'custom'];
+const DEFAULT_PERSONAS = ['companion', 'boss', 'coach', 'listener', 'custom'];
+
+function normalizePersona(persona: string): string {
+  if (persona === 'therapist') return 'listener';
+  return persona || 'companion';
+}
 
 function shortenId(id: string): string {
   if (id.length <= 12) return id;
@@ -86,7 +91,7 @@ export function ProfileScreen({
         setModels(preferences.available_models);
         setSelectedModel(preferences.llm_model);
         setPersonas(preferences.available_personas ?? []);
-        setPersona(preferences.persona ?? 'companion');
+        setPersona(normalizePersona(preferences.persona ?? 'companion'));
         setPersonaCustom(preferences.persona_custom ?? '');
       })
       .catch(error => {
