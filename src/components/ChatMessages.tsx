@@ -174,7 +174,6 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
           <MessageContent
             content={turn.assistant}
             variant="assistant"
-            streaming={isStreaming}
             textStyle={styles.assistantText}
           />
         </View>

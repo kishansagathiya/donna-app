@@ -23,8 +23,6 @@ import type { ThemeColors } from '../theme/colors';
 type Props = {
   content: string;
   variant: 'user' | 'assistant';
-  /** While streaming, skip markdown parse for cheaper per-token updates. */
-  streaming?: boolean;
   textStyle?: StyleProp<TextStyle>;
 };
 
@@ -202,26 +200,22 @@ function CodeBlock({
   );
 }
 
-export function MessageContent({
-  content,
-  variant,
-  streaming = false,
-  textStyle,
-}: Props) {
+export function MessageContent({ content, variant, textStyle }: Props) {
   const styles = useThemedStyles(createStyles);
 
+  // Parse while streaming so formatting appears as tokens arrive (parity with web).
   const blocks = useMemo(() => {
-    if (!content || variant === 'user' || streaming) {
+    if (!content || variant === 'user') {
       return null;
     }
     return parseMarkdownBlocks(content);
-  }, [content, variant, streaming]);
+  }, [content, variant]);
 
   if (!content) {
     return null;
   }
 
-  if (variant === 'user' || streaming || !blocks) {
+  if (variant === 'user' || !blocks) {
     return <Text style={textStyle}>{content}</Text>;
   }
 
