@@ -11,10 +11,12 @@ import {
 import { Text } from './ThemedText';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
-import type { GranolaOAuthResult } from '../hooks/useGranolaOAuthReturn';
+import type { IntegrationOAuthResult } from '../hooks/useIntegrationOAuthReturn';
 import {
+  authorizeGoogle,
   authorizeGranola,
   deleteGranolaImports,
+  disconnectGoogle,
   disconnectGranola,
   listIntegrations,
   patchGranola,
@@ -25,7 +27,7 @@ import type { ThemeColors } from '../theme/colors';
 
 type Props = {
   refreshToken?: number;
-  oauthResult?: GranolaOAuthResult | null;
+  oauthResult?: IntegrationOAuthResult | null;
   onOauthResultConsumed?: () => void;
 };
 
@@ -109,16 +111,20 @@ export function IntegrationsSection({
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [granola, setGranola] = useState<IntegrationStatus | null>(null);
+  const [google, setGoogle] = useState<IntegrationStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [oauthNotice, setOauthNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const integrations = await listIntegrations();
-    const next =
+    const nextGranola =
       integrations.find(item => item.provider === 'granola') ?? null;
-    setGranola(next);
-    return next;
+    const nextGoogle =
+      integrations.find(item => item.provider === 'google') ?? null;
+    setGranola(nextGranola);
+    setGoogle(nextGoogle);
+    return { granola: nextGranola, google: nextGoogle };
   }, []);
 
   useEffect(() => {
@@ -147,13 +153,19 @@ export function IntegrationsSection({
     if (!oauthResult) {
       return;
     }
+    const label =
+      oauthResult.provider === 'google' ? 'Google Calendar' : 'Granola';
     if (oauthResult.ok) {
-      setOauthNotice('Connected to Granola. Importing meetings…');
+      setOauthNotice(
+        oauthResult.provider === 'google'
+          ? 'Connected to Google Calendar.'
+          : 'Connected to Granola. Importing meetings…',
+      );
     } else {
       setOauthNotice(
         oauthResult.error
-          ? `Granola connection failed: ${oauthResult.error}`
-          : 'Granola connection failed.',
+          ? `${label} connection failed: ${oauthResult.error}`
+          : `${label} connection failed.`,
       );
     }
     void refresh().catch(error => {
@@ -166,7 +178,7 @@ export function IntegrationsSection({
   }, [oauthResult, onOauthResultConsumed, refresh]);
 
   useEffect(() => {
-    if (!shouldPoll(granola)) {
+    if (!shouldPoll(granola) && !shouldPoll(google)) {
       return;
     }
     const id = setInterval(() => {
@@ -175,7 +187,7 @@ export function IntegrationsSection({
       });
     }, 4000);
     return () => clearInterval(id);
-  }, [granola, refresh]);
+  }, [granola, google, refresh]);
 
   if (loading) {
     return (
@@ -186,25 +198,35 @@ export function IntegrationsSection({
     );
   }
 
-  if (!granola || !granola.enabled) {
+  const granolaEnabled = Boolean(granola?.enabled);
+  const googleEnabled = Boolean(google?.enabled);
+  if (!granolaEnabled && !googleEnabled) {
     return null;
   }
 
-  const connected = isActiveConnection(granola.status);
-  const needsReconnect = granola.status === 'reauth_required';
-  const connecting = granola.status === 'connecting';
+  const connected = granola ? isActiveConnection(granola.status) : false;
+  const needsReconnect = granola?.status === 'reauth_required';
+  const connecting = granola?.status === 'connecting';
   const syncing =
-    granola.status === 'syncing' || granola.initial_sync_status === 'running';
-  const lastSync = formatSyncTime(granola.last_sync_at);
-  const syncProgress = initialSyncLabel(granola.initial_sync_status);
-  const caps = granola.capabilities;
-  const hasTranscripts = caps.transcripts || caps.live_get_transcript;
-  const historyDays = caps.history_days;
-  const planHint = caps.plan_hint;
-  const showDeleteImports =
-    connected ||
-    granola.imported_meeting_count > 0 ||
-    granola.status === 'disconnected';
+    granola?.status === 'syncing' || granola?.initial_sync_status === 'running';
+  const lastSync = formatSyncTime(granola?.last_sync_at);
+  const syncProgress = granola
+    ? initialSyncLabel(granola.initial_sync_status)
+    : null;
+  const caps = granola?.capabilities;
+  const hasTranscripts = Boolean(
+    caps?.transcripts || caps?.live_get_transcript,
+  );
+  const historyDays = caps?.history_days;
+  const planHint = caps?.plan_hint;
+  const showDeleteImports = Boolean(
+    granola &&
+      (connected ||
+        granola.imported_meeting_count > 0 ||
+        granola.status === 'disconnected'),
+  );
+  const googleConnected = google ? isActiveConnection(google.status) : false;
+  const googleNeedsReconnect = google?.status === 'reauth_required';
 
   async function handleConnect() {
     setBusy(true);
@@ -215,6 +237,52 @@ export function IntegrationsSection({
     } catch (error) {
       Alert.alert(
         'Could Not Connect',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleConnectGoogle() {
+    setBusy(true);
+    setOauthNotice(null);
+    try {
+      const { authorization_url } = await authorizeGoogle('mobile');
+      await Linking.openURL(authorization_url);
+    } catch (error) {
+      Alert.alert(
+        'Could Not Connect',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function confirmDisconnectGoogle() {
+    Alert.alert(
+      'Disconnect Google Calendar?',
+      'Donna will stop creating calendar events until you reconnect.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: () => void handleDisconnectGoogle(),
+        },
+      ],
+    );
+  }
+
+  async function handleDisconnectGoogle() {
+    setBusy(true);
+    try {
+      const updated = await disconnectGoogle();
+      setGoogle(updated);
+    } catch (error) {
+      Alert.alert(
+        'Disconnect Failed',
         error instanceof Error ? error.message : 'Please try again.',
       );
     } finally {
@@ -316,13 +384,78 @@ export function IntegrationsSection({
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Integrations</Text>
       <Text style={styles.sectionDescription}>
-        Connect meeting tools so Donna can recall notes and transcripts in chat.
+        Connect tools so Donna can take actions and recall meeting context.
       </Text>
 
       {oauthNotice ? (
         <Text style={styles.noticeText}>{oauthNotice}</Text>
       ) : null}
 
+      {googleEnabled && google ? (
+        <View style={[styles.card, { marginBottom: 12 }]}>
+          <Text style={styles.cardHeading}>Google Calendar</Text>
+          <Text style={styles.cardRow}>
+            {statusLabel(google.status)}
+            {google.account_label ? ` · ${google.account_label}` : ''}
+          </Text>
+          <Text style={styles.cardRow}>
+            Create calendar events from confirmed Actions.
+          </Text>
+
+          {!googleConnected && !googleNeedsReconnect ? (
+            <Pressable
+              style={[
+                styles.button,
+                styles.secondaryButton,
+                busy && styles.buttonDisabled,
+              ]}
+              onPress={() => void handleConnectGoogle()}
+              disabled={busy}
+              accessibilityRole="button"
+            >
+              {busy ? (
+                <ActivityIndicator color={colors.text} size="small" />
+              ) : (
+                <Text style={styles.secondaryButtonText}>
+                  Connect Google Calendar
+                </Text>
+              )}
+            </Pressable>
+          ) : null}
+
+          {googleNeedsReconnect ? (
+            <Pressable
+              style={[
+                styles.button,
+                styles.secondaryButton,
+                busy && styles.buttonDisabled,
+              ]}
+              onPress={() => void handleConnectGoogle()}
+              disabled={busy}
+              accessibilityRole="button"
+            >
+              <Text style={styles.secondaryButtonText}>Reconnect</Text>
+            </Pressable>
+          ) : null}
+
+          {googleConnected ? (
+            <Pressable
+              style={[
+                styles.button,
+                styles.secondaryButton,
+                busy && styles.buttonDisabled,
+              ]}
+              onPress={confirmDisconnectGoogle}
+              disabled={busy}
+              accessibilityRole="button"
+            >
+              <Text style={styles.secondaryButtonText}>Disconnect</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {granolaEnabled && granola ? (
       <View style={styles.card}>
         <Text style={styles.cardHeading}>Granola</Text>
         <Text style={styles.cardRow}>
@@ -509,6 +642,7 @@ export function IntegrationsSection({
           </View>
         ) : null}
       </View>
+      ) : null}
     </View>
   );
 }

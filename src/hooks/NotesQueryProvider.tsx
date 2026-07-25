@@ -15,7 +15,9 @@ function shouldDehydrateQuery(query: {
   state: { status: string };
 }): boolean {
   const key = query.queryKey;
-  if (!Array.isArray(key) || key[0] !== 'notes') return false;
+  if (!Array.isArray(key) || (key[0] !== 'notes' && key[0] !== 'intents')) {
+    return false;
+  }
   return query.state.status === 'success';
 }
 

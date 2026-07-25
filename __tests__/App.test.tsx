@@ -164,7 +164,8 @@ jest.mock('../src/hooks/useIncomingShare', () => ({
   }),
 }));
 
-jest.mock('../src/hooks/useGranolaOAuthReturn', () => ({
+jest.mock('../src/hooks/useIntegrationOAuthReturn', () => ({
+  useIntegrationOAuthReturn: () => {},
   useGranolaOAuthReturn: () => {},
 }));
 

@@ -30,9 +30,9 @@ import { IngestToast } from './src/components/IngestToast';
 import { MicButton, type MicState } from './src/components/MicButton';
 import { useAssetIngest } from './src/hooks/useAssetIngest';
 import {
-  useGranolaOAuthReturn,
-  type GranolaOAuthResult,
-} from './src/hooks/useGranolaOAuthReturn';
+  useIntegrationOAuthReturn,
+  type IntegrationOAuthResult,
+} from './src/hooks/useIntegrationOAuthReturn';
 import { useIncomingShare } from './src/hooks/useIncomingShare';
 import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import { NotesQueryProvider } from './src/hooks/NotesQueryProvider';
@@ -184,8 +184,8 @@ function AppContent({
   const [tab, setTab] = useState<AppTab>('chat');
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const [integrationsRefreshToken, setIntegrationsRefreshToken] = useState(0);
-  const [granolaOauthResult, setGranolaOauthResult] =
-    useState<GranolaOAuthResult | null>(null);
+  const [integrationOauthResult, setIntegrationOauthResult] =
+    useState<IntegrationOAuthResult | null>(null);
   const {
     state,
     toggleTalk,
@@ -298,17 +298,20 @@ function AppContent({
 
   useIncomingShare(handleShare);
 
-  const handleGranolaOAuthReturn = useCallback((result: GranolaOAuthResult) => {
-    setTab('profile');
-    setGranolaOauthResult(result);
-    setIntegrationsRefreshToken(token => token + 1);
+  const handleIntegrationOAuthReturn = useCallback(
+    (result: IntegrationOAuthResult) => {
+      setTab('profile');
+      setIntegrationOauthResult(result);
+      setIntegrationsRefreshToken(token => token + 1);
+    },
+    [],
+  );
+
+  const handleIntegrationOAuthResultConsumed = useCallback(() => {
+    setIntegrationOauthResult(null);
   }, []);
 
-  const handleGranolaOAuthResultConsumed = useCallback(() => {
-    setGranolaOauthResult(null);
-  }, []);
-
-  useGranolaOAuthReturn(handleGranolaOAuthReturn);
+  useIntegrationOAuthReturn(handleIntegrationOAuthReturn);
 
   useEffect(() => {
     const showEvent =
@@ -374,7 +377,9 @@ function AppContent({
           />
         </View>
 
-        {tab === 'actions' ? <ActionsScreen /> : null}
+        <View style={{ flex: 1, display: tab === 'actions' ? 'flex' : 'none' }}>
+          <ActionsScreen isVisible={tab === 'actions'} />
+        </View>
 
         {tab === 'today' ? (
           <TodayScreen embedded onOpenNote={openNote} />
@@ -389,8 +394,10 @@ function AppContent({
             onOpenPrivacy={() => onOpenLegal('privacy')}
             onOpenSupport={() => onOpenLegal('support')}
             integrationsRefreshToken={integrationsRefreshToken}
-            granolaOauthResult={granolaOauthResult}
-            onGranolaOauthResultConsumed={handleGranolaOAuthResultConsumed}
+            integrationOauthResult={integrationOauthResult}
+            onIntegrationOauthResultConsumed={
+              handleIntegrationOAuthResultConsumed
+            }
           />
         ) : null}
 

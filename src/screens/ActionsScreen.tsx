@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,20 +10,17 @@ import {
 import { Text } from '../components/ThemedText';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
-import {
-  cancelActionRun,
-  confirmActionRun,
-  dismissIntent,
-  listIntents,
-  type Intent,
-} from '../services/intentsApi';
+import { useIntentActions, useOpenIntents } from '../hooks/useIntents';
+import type { Intent } from '../services/intentsApi';
 import type { ThemeColors } from '../theme/colors';
 
 function kindLabel(kind: string) {
   return kind.replace(/_/g, ' ');
 }
 
-function riskMeta(risk?: string | null): { label: string; tone: 'internal' | 'external' | 'default' } | null {
+function riskMeta(
+  risk?: string | null,
+): { label: string; tone: 'internal' | 'external' | 'default' } | null {
   if (!risk) {
     return null;
   }
@@ -34,6 +31,17 @@ function riskMeta(risk?: string | null): { label: string; tone: 'internal' | 'ex
     return { label: 'Needs confirm', tone: 'external' };
   }
   return { label: risk, tone: 'default' };
+}
+
+function integrationHint(message: string): string | null {
+  const lower = message.toLowerCase();
+  if (
+    lower.includes('needs_integration:google') ||
+    lower.includes('reauth_required')
+  ) {
+    return 'Connect Google Calendar in Profile → Integrations, then confirm again.';
+  }
+  return null;
 }
 
 function IntentCard({
@@ -137,45 +145,52 @@ function IntentCard({
   );
 }
 
-export function ActionsScreen() {
+type Props = {
+  isVisible?: boolean;
+};
+
+export function ActionsScreen({ isVisible = true }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
-  const [intents, setIntents] = useState<Intent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const {
+    data: intents = [],
+    isLoading,
+    isFetching,
+    error: queryError,
+    refetch,
+  } = useOpenIntents(isVisible);
+  const { confirmMutation, cancelMutation, dismissMutation } =
+    useIntentActions();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const refresh = useCallback(async (isPull = false) => {
-    if (isPull) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError(null);
+  const error =
+    actionError ??
+    (queryError instanceof Error
+      ? queryError.message
+      : queryError
+        ? 'Failed to load intents'
+        : null);
+  const hint = error ? integrationHint(error) : null;
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setActionError(null);
     try {
-      const rows = await listIntents('open');
-      setIntents(rows);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load intents');
+      await refetch();
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
-  }, []);
-
-  useEffect(() => {
-    void refresh(false);
-  }, [refresh]);
+  };
 
   const handleConfirm = async (runId: string) => {
     setBusyId(runId);
-    setError(null);
+    setActionError(null);
     try {
-      await confirmActionRun(runId);
-      await refresh(false);
+      await confirmMutation.mutateAsync(runId);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Confirm failed');
+      setActionError(err instanceof Error ? err.message : 'Confirm failed');
     } finally {
       setBusyId(null);
     }
@@ -183,12 +198,11 @@ export function ActionsScreen() {
 
   const handleDismiss = async (intentId: string) => {
     setBusyId(intentId);
-    setError(null);
+    setActionError(null);
     try {
-      await dismissIntent(intentId);
-      setIntents(prev => prev.filter(item => item.id !== intentId));
+      await dismissMutation.mutateAsync(intentId);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Dismiss failed');
+      setActionError(err instanceof Error ? err.message : 'Dismiss failed');
     } finally {
       setBusyId(null);
     }
@@ -196,12 +210,11 @@ export function ActionsScreen() {
 
   const handleCancel = async (runId: string) => {
     setBusyId(runId);
-    setError(null);
+    setActionError(null);
     try {
-      await cancelActionRun(runId);
-      await refresh(false);
+      await cancelMutation.mutateAsync(runId);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Cancel failed');
+      setActionError(err instanceof Error ? err.message : 'Cancel failed');
     } finally {
       setBusyId(null);
     }
@@ -221,10 +234,10 @@ export function ActionsScreen() {
             styles.refreshButton,
             pressed && styles.buttonPressed,
           ]}
-          onPress={() => void refresh(true)}
-          disabled={loading || refreshing}
+          onPress={() => void handleRefresh()}
+          disabled={isLoading || isFetching || refreshing}
         >
-          {loading || refreshing ? (
+          {isFetching || refreshing ? (
             <ActivityIndicator size="small" color={colors.white} />
           ) : (
             <Text style={styles.refreshButtonText}>Refresh</Text>
@@ -235,10 +248,11 @@ export function ActionsScreen() {
       {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
+          {hint ? <Text style={styles.errorHint}>{hint}</Text> : null}
         </View>
       ) : null}
 
-      {loading && intents.length === 0 ? (
+      {isLoading && intents.length === 0 ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -253,7 +267,7 @@ export function ActionsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => void refresh(true)}
+              onRefresh={() => void handleRefresh()}
               tintColor={colors.primary}
             />
           }
@@ -343,10 +357,16 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 10,
       paddingHorizontal: 12,
       paddingVertical: 10,
+      gap: 4,
     },
     errorText: {
       color: colors.destructive,
       fontSize: 14,
+      fontFamily: colors.fontFamily,
+    },
+    errorHint: {
+      color: colors.muted,
+      fontSize: 13,
       fontFamily: colors.fontFamily,
     },
     centered: {

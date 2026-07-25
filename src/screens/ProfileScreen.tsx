@@ -15,7 +15,7 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
 import type { DeviceSyncStatus } from '../hooks/useDeviceSync';
 import { IntegrationsSection } from '../components/IntegrationsSection';
-import type { GranolaOAuthResult } from '../hooks/useGranolaOAuthReturn';
+import type { IntegrationOAuthResult } from '../hooks/useIntegrationOAuthReturn';
 import {
   deleteAccount,
   downloadAccountExport,
@@ -48,8 +48,8 @@ type ProfileScreenProps = {
   onOpenPrivacy?: () => void;
   onOpenSupport?: () => void;
   integrationsRefreshToken?: number;
-  granolaOauthResult?: GranolaOAuthResult | null;
-  onGranolaOauthResultConsumed?: () => void;
+  integrationOauthResult?: IntegrationOAuthResult | null;
+  onIntegrationOauthResultConsumed?: () => void;
 };
 
 export function ProfileScreen({
@@ -58,8 +58,8 @@ export function ProfileScreen({
   onOpenPrivacy,
   onOpenSupport,
   integrationsRefreshToken = 0,
-  granolaOauthResult = null,
-  onGranolaOauthResultConsumed,
+  integrationOauthResult = null,
+  onIntegrationOauthResultConsumed,
 }: ProfileScreenProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -330,8 +330,8 @@ export function ProfileScreen({
 
       <IntegrationsSection
         refreshToken={integrationsRefreshToken}
-        oauthResult={granolaOauthResult}
-        onOauthResultConsumed={onGranolaOauthResultConsumed}
+        oauthResult={integrationOauthResult}
+        onOauthResultConsumed={onIntegrationOauthResultConsumed}
       />
 
       <Text style={styles.sectionTitle}>Help & legal</Text>

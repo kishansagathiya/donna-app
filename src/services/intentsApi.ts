@@ -6,7 +6,7 @@ export type ActionRun = {
   intent_id?: string | null;
   action_id: string;
   status: string;
-  input: Record<string, unknown>;
+  input?: Record<string, unknown>;
   output?: Record<string, unknown> | null;
   error?: string | null;
   confirmed_at?: string | null;
@@ -25,7 +25,7 @@ export type Intent = {
   kind: string;
   status: string;
   summary: string;
-  slots: Record<string, unknown>;
+  slots?: Record<string, unknown>;
   source_type: string;
   source_id?: string | null;
   source_turn_index?: number | null;

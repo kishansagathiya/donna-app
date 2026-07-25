@@ -7,6 +7,7 @@ export type IntegrationCapabilities = {
   get_meetings: boolean;
   transcripts: boolean;
   folders: boolean;
+  calendar_write?: boolean;
   history_days?: number;
   plan_hint?: string;
 };
@@ -81,4 +82,26 @@ export async function deleteGranolaImports(): Promise<void> {
     body: JSON.stringify({ confirm: true }),
   });
   await parseJSON<{ deleted?: boolean }>(res);
+}
+
+export async function authorizeGoogle(
+  returnTo: 'web' | 'mobile' = 'mobile',
+): Promise<{ authorization_url: string }> {
+  const res = await authorizedFetch('/integrations/google/authorize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ return_to: returnTo }),
+  });
+  const body = await parseJSON<{ authorization_url?: string }>(res);
+  if (!body.authorization_url) {
+    throw new Error('Authorize failed: missing authorization_url');
+  }
+  return { authorization_url: body.authorization_url };
+}
+
+export async function disconnectGoogle(): Promise<IntegrationStatus> {
+  const res = await authorizedFetch('/integrations/google', {
+    method: 'DELETE',
+  });
+  return parseJSON<IntegrationStatus>(res);
 }
