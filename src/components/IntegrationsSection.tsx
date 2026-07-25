@@ -153,12 +153,11 @@ export function IntegrationsSection({
     if (!oauthResult) {
       return;
     }
-    const label =
-      oauthResult.provider === 'google' ? 'Google Calendar' : 'Granola';
+    const label = oauthResult.provider === 'google' ? 'Google' : 'Granola';
     if (oauthResult.ok) {
       setOauthNotice(
         oauthResult.provider === 'google'
-          ? 'Connected to Google Calendar.'
+          ? 'Connected to Google (Calendar + Gmail).'
           : 'Connected to Granola. Importing meetings…',
       );
     } else {
@@ -262,8 +261,8 @@ export function IntegrationsSection({
 
   function confirmDisconnectGoogle() {
     Alert.alert(
-      'Disconnect Google Calendar?',
-      'Donna will stop creating calendar events until you reconnect.',
+      'Disconnect Google?',
+      'Donna will stop creating calendar events and sending email until you reconnect.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -393,13 +392,14 @@ export function IntegrationsSection({
 
       {googleEnabled && google ? (
         <View style={[styles.card, { marginBottom: 12 }]}>
-          <Text style={styles.cardHeading}>Google Calendar</Text>
+          <Text style={styles.cardHeading}>Google</Text>
           <Text style={styles.cardRow}>
             {statusLabel(google.status)}
             {google.account_label ? ` · ${google.account_label}` : ''}
           </Text>
           <Text style={styles.cardRow}>
-            Create calendar events from confirmed Actions.
+            Create calendar events and send email from confirmed Actions.
+            Reconnect if you connected before email support was added.
           </Text>
 
           {!googleConnected && !googleNeedsReconnect ? (
@@ -416,9 +416,7 @@ export function IntegrationsSection({
               {busy ? (
                 <ActivityIndicator color={colors.text} size="small" />
               ) : (
-                <Text style={styles.secondaryButtonText}>
-                  Connect Google Calendar
-                </Text>
+                <Text style={styles.secondaryButtonText}>Connect Google</Text>
               )}
             </Pressable>
           ) : null}

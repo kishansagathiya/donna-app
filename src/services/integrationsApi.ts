@@ -8,6 +8,7 @@ export type IntegrationCapabilities = {
   transcripts: boolean;
   folders: boolean;
   calendar_write?: boolean;
+  gmail_send?: boolean;
   history_days?: number;
   plan_hint?: string;
 };

@@ -30,6 +30,9 @@ function riskMeta(
   if (risk === 'external') {
     return { label: 'Needs confirm', tone: 'external' };
   }
+  if (risk === 'irreversible') {
+    return { label: 'Sends for real', tone: 'external' };
+  }
   return { label: risk, tone: 'default' };
 }
 
@@ -39,7 +42,7 @@ function integrationHint(message: string): string | null {
     lower.includes('needs_integration:google') ||
     lower.includes('reauth_required')
   ) {
-    return 'Connect Google Calendar in Profile → Integrations, then confirm again.';
+    return 'Connect Google (Calendar + Gmail) in Profile → Integrations, then confirm again. If you connected earlier, reconnect to grant Gmail send.';
   }
   return null;
 }
