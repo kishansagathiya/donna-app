@@ -485,13 +485,13 @@ function createStyles(colors: ThemeColors) {
       marginBottom: 8,
     },
     bubble: {
-      maxWidth: '85%',
       borderRadius: 16,
       paddingHorizontal: 14,
       paddingVertical: 10,
       marginBottom: 8,
     },
     userBubble: {
+      maxWidth: '85%',
       alignSelf: 'flex-end',
       backgroundColor: colors.primary,
       borderBottomRightRadius: 4,
@@ -525,7 +525,7 @@ function createStyles(colors: ThemeColors) {
       fontFamily: colors.fontFamily,
     },
     assistantBubble: {
-      alignSelf: 'flex-start',
+      alignSelf: 'stretch',
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
