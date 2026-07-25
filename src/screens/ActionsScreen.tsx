@@ -38,11 +38,17 @@ function riskMeta(
 
 function integrationHint(message: string): string | null {
   const lower = message.toLowerCase();
+  if (lower.includes('google_api_not_enabled:calendar')) {
+    return 'Enable Google Calendar API in Google Cloud Console for this project, then try again.';
+  }
+  if (lower.includes('google_api_not_enabled:gmail')) {
+    return 'Enable Gmail API in Google Cloud Console for this project, then try again.';
+  }
   if (
     lower.includes('needs_integration:google') ||
     lower.includes('reauth_required')
   ) {
-    return 'Connect Google (Calendar + Gmail) in Profile → Integrations, then confirm again. If you connected earlier, reconnect to grant Gmail send.';
+    return 'Disconnect and reconnect Google in Profile → Integrations so Calendar/Gmail scopes are granted, then confirm again.';
   }
   return null;
 }
