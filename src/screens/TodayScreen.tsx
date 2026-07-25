@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -14,10 +14,8 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
 import {
   checkDailyNotes,
-  formatNoteDate,
   type DailyBriefing,
   type DailyTask,
-  type OutdatedNote,
 } from '../services/notesApi';
 import {
   getDailyBriefingNotificationsEnabled,
@@ -25,11 +23,27 @@ import {
 } from '../services/dailyBriefingNotifications';
 import type { ThemeColors } from '../theme/colors';
 
-const PRIORITY_LABELS: Record<string, string> = {
-  do_first: 'Do first',
-  schedule: 'Schedule',
-  delegate: 'Quick win',
-};
+const PRIORITY_SECTIONS: Array<{
+  key: string;
+  title: string;
+  subtitle: string;
+}> = [
+  {
+    key: 'do_first',
+    title: 'Do first',
+    subtitle: 'Urgent and important',
+  },
+  {
+    key: 'schedule',
+    title: 'Schedule',
+    subtitle: 'Important, not urgent',
+  },
+  {
+    key: 'delegate',
+    title: 'Delegate',
+    subtitle: 'Urgent, less important',
+  },
+];
 
 type Props = {
   embedded?: boolean;
@@ -47,24 +61,16 @@ function TaskRow({
   styles: ReturnType<typeof createStyles>;
   colors: ThemeColors;
 }) {
-  const priorityLabel = PRIORITY_LABELS[task.priority] ?? 'Schedule';
-
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={onPress}
     >
-      <View style={styles.priorityBadge}>
-        <Text style={styles.priorityText}>{priorityLabel}</Text>
-      </View>
       <Text style={styles.cardTitle}>{task.title}</Text>
       {task.preview ? (
         <Text style={styles.cardPreview} numberOfLines={2}>
           {task.preview}
         </Text>
-      ) : null}
-      {task.reason ? (
-        <Text style={styles.cardReason}>{task.reason}</Text>
       ) : null}
       <View style={styles.flagRow}>
         {task.is_urgent ? (
@@ -74,33 +80,6 @@ function TaskRow({
           <Text style={[styles.flag, { color: colors.primary }]}>Important</Text>
         ) : null}
       </View>
-    </Pressable>
-  );
-}
-
-function OutdatedRow({
-  note,
-  onPress,
-  styles,
-}: {
-  note: OutdatedNote;
-  onPress: () => void;
-  styles: ReturnType<typeof createStyles>;
-}) {
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.card, styles.outdatedCard, pressed && styles.cardPressed]}
-      onPress={onPress}
-    >
-      <Text style={styles.cardTitle}>{note.title}</Text>
-      {note.preview ? (
-        <Text style={styles.cardPreview} numberOfLines={2}>
-          {note.preview}
-        </Text>
-      ) : null}
-      {note.reason ? (
-        <Text style={styles.cardReason}>{note.reason}</Text>
-      ) : null}
     </Pressable>
   );
 }
@@ -123,10 +102,6 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
     onOpenNote?.(task.note_id);
   };
 
-  const openOutdated = (note: OutdatedNote) => {
-    onOpenNote?.(note.note_id);
-  };
-
   const runCheck = useCallback(async (withNotification = false) => {
     if (withNotification) {
       setRefreshing(true);
@@ -141,7 +116,7 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
         await showDailyBriefingNotification(result);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to check notes');
+      setError(err instanceof Error ? err.message : 'Failed to load today');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -158,114 +133,84 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
     day: 'numeric',
   });
 
+  const tasksByPriority = useMemo(() => {
+    const grouped: Record<string, DailyTask[]> = {
+      do_first: [],
+      schedule: [],
+      delegate: [],
+    };
+    for (const task of briefing?.tasks ?? []) {
+      if (!Object.prototype.hasOwnProperty.call(grouped, task.priority)) {
+        continue;
+      }
+      grouped[task.priority].push(task);
+    }
+    return grouped;
+  }, [briefing]);
+
   const listData: Array<
     | { type: 'summary'; id: string; text: string }
-    | { type: 'section'; id: string; title: string }
+    | { type: 'section'; id: string; title: string; subtitle: string }
     | { type: 'task'; id: string; task: DailyTask }
-    | { type: 'outdated'; id: string; note: OutdatedNote }
-    | { type: 'footer'; id: string; date: string }
   > = [];
 
   if (briefing?.summary) {
     listData.push({ type: 'summary', id: 'summary', text: briefing.summary });
   }
-  if (briefing && briefing.tasks.length > 0) {
+  for (const section of PRIORITY_SECTIONS) {
+    const tasks = tasksByPriority[section.key] ?? [];
+    if (tasks.length === 0) {
+      continue;
+    }
     listData.push({
       type: 'section',
-      id: 'tasks-header',
-      title: `Focus today (${briefing.tasks.length})`,
+      id: `section-${section.key}`,
+      title: `${section.title} (${tasks.length})`,
+      subtitle: section.subtitle,
     });
-    for (const task of briefing.tasks) {
-      listData.push({ type: 'task', id: task.note_id, task });
+    for (const task of tasks) {
+      listData.push({ type: 'task', id: `${section.key}-${task.note_id}`, task });
     }
   }
-  if (briefing && briefing.outdated.length > 0) {
-    listData.push({
-      type: 'section',
-      id: 'outdated-header',
-      title: `May be outdated (${briefing.outdated.length})`,
-    });
-    for (const note of briefing.outdated) {
-      listData.push({ type: 'outdated', id: note.note_id, note });
-    }
-  }
-  if (briefing?.date) {
-    listData.push({
-      type: 'footer',
-      id: 'footer',
-      date: formatNoteDate(`${briefing.date}T12:00:00.000Z`),
-    });
-  }
+
+  const header = (
+    <View style={styles.header}>
+      <View style={styles.headerText}>
+        <Text style={styles.title}>Today</Text>
+        <Text style={styles.subtitle}>{todayLabel}</Text>
+      </View>
+      <View style={styles.headerActions}>
+        {!alertsEnabled ? (
+          <EnableBriefingAlertsButton
+            onEnabled={() => {
+              setAlertsEnabled(true);
+              if (briefing) {
+                void showDailyBriefingNotification(briefing);
+              }
+            }}
+          />
+        ) : null}
+        <Pressable
+          style={({ pressed }) => [
+            styles.checkButton,
+            pressed && styles.checkButtonPressed,
+          ]}
+          onPress={() => void runCheck(true)}
+          disabled={loading || refreshing}
+        >
+          {loading || refreshing ? (
+            <ActivityIndicator size="small" color={colors.white} />
+          ) : (
+            <Text style={styles.checkButtonText}>Refresh</Text>
+          )}
+        </Pressable>
+      </View>
+    </View>
+  );
 
   return (
     <View style={[styles.container, !embedded && { paddingTop: insets.top }]}>
-      {!embedded ? (
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.title}>Today</Text>
-            <Text style={styles.subtitle}>{todayLabel}</Text>
-          </View>
-          <View style={styles.headerActions}>
-            {!alertsEnabled ? (
-              <EnableBriefingAlertsButton
-                onEnabled={() => {
-                  setAlertsEnabled(true);
-                  if (briefing) {
-                    void showDailyBriefingNotification(briefing);
-                  }
-                }}
-              />
-            ) : null}
-            <Pressable
-              style={({ pressed }) => [
-                styles.checkButton,
-                pressed && styles.checkButtonPressed,
-              ]}
-              onPress={() => void runCheck(true)}
-              disabled={loading || refreshing}
-            >
-              {loading || refreshing ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <Text style={styles.checkButtonText}>Check notes</Text>
-              )}
-            </Pressable>
-          </View>
-        </View>
-      ) : (
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.title}>Today</Text>
-            <Text style={styles.subtitle}>{todayLabel}</Text>
-          </View>
-          <View style={styles.headerActions}>
-            {!alertsEnabled ? (
-              <EnableBriefingAlertsButton
-                onEnabled={() => {
-                  setAlertsEnabled(true);
-                  if (briefing) {
-                    void showDailyBriefingNotification(briefing);
-                  }
-                }}
-              />
-            ) : null}
-            <Pressable
-              style={({ pressed }) => [
-                styles.checkButton,
-                pressed && styles.checkButtonPressed,
-              ]}
-              onPress={() => void runCheck(true)}
-              disabled={loading || refreshing}
-            >
-              {loading || refreshing ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <Text style={styles.checkButtonText}>Check notes</Text>
-              )}
-            </Pressable>
-          </View>
-        </View>
-      )}
+      {header}
 
       {error ? (
         <View style={styles.errorBanner}>
@@ -294,7 +239,8 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
               <View style={styles.empty}>
                 <Text style={styles.emptyTitle}>All clear for today</Text>
                 <Text style={styles.emptyBody}>
-                  Add notes from chat, links, or documents and Donna will build your daily list.
+                  Mark notes as urgent or important and they will show up here,
+                  with do-first items at the top.
                 </Text>
               </View>
             ) : null
@@ -308,28 +254,21 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
               );
             }
             if (item.type === 'section') {
-              return <Text style={styles.sectionTitle}>{item.title}</Text>;
-            }
-            if (item.type === 'task') {
               return (
-                <TaskRow
-                  task={item.task}
-                  onPress={() => openTask(item.task)}
-                  styles={styles}
-                  colors={colors}
-                />
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>{item.title}</Text>
+                  <Text style={styles.sectionSubtitle}>{item.subtitle}</Text>
+                </View>
               );
             }
-            if (item.type === 'outdated') {
-              return (
-                <OutdatedRow
-                  note={item.note}
-                  onPress={() => openOutdated(item.note)}
-                  styles={styles}
-                />
-              );
-            }
-            return <Text style={styles.footer}>Last checked for {item.date}</Text>;
+            return (
+              <TaskRow
+                task={item.task}
+                onPress={() => openTask(item.task)}
+                styles={styles}
+                colors={colors}
+              />
+            );
           }}
         />
       )}
@@ -364,15 +303,6 @@ function createStyles(colors: ThemeColors) {
       flexWrap: 'wrap',
       justifyContent: 'flex-end',
     },
-    embeddedHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
     title: {
       fontSize: 22,
       fontWeight: '700',
@@ -388,7 +318,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 12,
       paddingHorizontal: 14,
       paddingVertical: 10,
-      minWidth: 108,
+      minWidth: 88,
       alignItems: 'center',
     },
     checkButtonPressed: {
@@ -433,14 +363,21 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 22,
       color: colors.text,
     },
+    sectionHeader: {
+      marginTop: 8,
+      marginBottom: 2,
+    },
     sectionTitle: {
       fontSize: 12,
       fontWeight: '700',
       letterSpacing: 0.6,
       textTransform: 'uppercase',
       color: colors.muted,
-      marginTop: 8,
-      marginBottom: 4,
+    },
+    sectionSubtitle: {
+      marginTop: 2,
+      fontSize: 12,
+      color: colors.muted,
     },
     card: {
       backgroundColor: colors.background,
@@ -449,25 +386,8 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 14,
       padding: 14,
     },
-    outdatedCard: {
-      opacity: 0.85,
-    },
     cardPressed: {
       backgroundColor: colors.surface,
-    },
-    priorityBadge: {
-      alignSelf: 'flex-start',
-      backgroundColor: colors.primaryLight,
-      borderRadius: 6,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      marginBottom: 8,
-    },
-    priorityText: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: colors.primary,
-      textTransform: 'uppercase',
     },
     cardTitle: {
       fontSize: 16,
@@ -478,12 +398,6 @@ function createStyles(colors: ThemeColors) {
       marginTop: 6,
       fontSize: 14,
       lineHeight: 20,
-      color: colors.muted,
-    },
-    cardReason: {
-      marginTop: 8,
-      fontSize: 12,
-      fontStyle: 'italic',
       color: colors.muted,
     },
     flagRow: {
@@ -511,12 +425,6 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 20,
       color: colors.muted,
       textAlign: 'center',
-    },
-    footer: {
-      textAlign: 'center',
-      fontSize: 12,
-      color: colors.muted,
-      marginTop: 8,
     },
   });
 }
