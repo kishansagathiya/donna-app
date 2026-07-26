@@ -96,7 +96,7 @@ Restart Metro after changing `.env`. Release builds always use production.
 ## How it works
 
 1. Tap mic → WebSocket session + 16 kHz PCM streaming
-2. Client VAD (~500 ms silence) → `turn.end`
-3. Server STT → LLM → TTS → `audio.out` chunks
-4. App plays reply; mic stays on for the next utterance
-5. Tap again to end the session
+2. Tap again when done speaking → `turn.end`
+3. Server STT → `turn.transcript`
+4. App sends the transcript through the same text chat harness as typed messages
+5. Chat reply streams back over `POST /chat` (SSE)

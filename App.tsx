@@ -1,8 +1,8 @@
 /**
- * Donna — tap to talk with the voice backend.
+ * Donna — chat with text or voice.
  *
- * Mic on → stream PCM to donna-server-go → client VAD commits turns →
- * play Donna's reply audio. Tap again to end the session.
+ * Voice mic captures speech, the server transcribes it, and the transcript
+ * goes through the same text chat harness as typed messages.
  *
  * @format
  */
@@ -37,7 +37,6 @@ import { useIncomingShare } from './src/hooks/useIncomingShare';
 import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import { NotesQueryProvider } from './src/hooks/NotesQueryProvider';
 import { useDeviceSync } from './src/hooks/useDeviceSync';
-import { useVoiceSession } from './src/hooks/useVoiceSession';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { AIDataConsentScreen } from './src/screens/AIDataConsentScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
@@ -186,18 +185,6 @@ function AppContent({
   const [integrationsRefreshToken, setIntegrationsRefreshToken] = useState(0);
   const [integrationOauthResult, setIntegrationOauthResult] =
     useState<IntegrationOAuthResult | null>(null);
-  const {
-    state,
-    toggleTalk,
-    clearChat,
-    turns,
-    transcript,
-    reply,
-    phaseLabel,
-    sessionLabel,
-    errorMsg,
-    disabled,
-  } = useVoiceSession();
   const deviceSync = useDeviceSync();
   const [pairSheetOpen, setPairSheetOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -346,20 +333,8 @@ function AppContent({
       >
         {tab === 'chat' ? (
           <ChatScreen
-            micState={state}
-            onMicPress={toggleTalk}
-            micDisabled={disabled}
-            turns={turns}
-            liveTranscript={transcript}
-            liveReply={reply}
-            phaseLabel={phaseLabel}
-            sessionLabel={sessionLabel}
-            errorMsg={errorMsg}
             onOpenProfile={() => setTab('profile')}
             onOpenNote={openNote}
-            onClearVoiceChat={() => {
-              void clearChat();
-            }}
             onToast={showToast}
           />
         ) : null}

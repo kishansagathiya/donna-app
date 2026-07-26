@@ -11,11 +11,6 @@ import {
 } from '../config';
 import type { MicState } from '../components/MicButton';
 import { computeRms, floatToPcm16, pcm16ToBase64 } from '../voice/pcm';
-import {
-  createStreamingPlayback,
-  resetPlaybackSession,
-  stopActivePlayback,
-} from '../voice/playback';
 import type { ServerMessage, TurnPhase } from '../voice/protocol';
 import { getAccessToken } from '../services/auth';
 import { DONNA_THINKING_PHASE } from '../lib/thinkingPhrases';
@@ -24,22 +19,15 @@ import { VoiceClient } from '../voice/voiceClient';
 
 type VoiceStatus = {
   transcript: string | null;
-  reply: string | null;
   phase: TurnPhase | null;
 };
 
-export type VoiceTurn = {
-  id: string;
-  user: string;
-  assistant: string | null;
-};
+const BUSY_PHASES: TurnPhase[] = ['busy', 'transcribing'];
 
-const BUSY_PHASES: TurnPhase[] = [
-  'busy',
-  'transcribing',
-  'generating',
-  'synthesizing',
-];
+export type UseVoiceSessionOptions = {
+  /** Called with STT text so the shared text chat harness can send it. */
+  onTranscript?: (text: string) => void;
+};
 
 function formatStartSessionError(message: string): string {
   if (message === 'Session setup timed out') {
@@ -61,29 +49,22 @@ function formatStartSessionError(message: string): string {
   return message || "Couldn't start listening. Please try again.";
 }
 
-export function useVoiceSession() {
+export function useVoiceSession(options: UseVoiceSessionOptions = {}) {
+  const onTranscriptRef = useRef(options.onTranscript);
+  onTranscriptRef.current = options.onTranscript;
+
   const [state, setState] = useState<MicState>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [status, setStatus] = useState<VoiceStatus>({
     transcript: null,
-    reply: null,
     phase: null,
   });
-  const [turns, setTurns] = useState<VoiceTurn[]>([]);
-  const turnSeqRef = useRef(0);
   const transcriptRef = useRef<string | null>(null);
-  const replyRef = useRef<string | null>(null);
-  const statusRef = useRef(status);
-  statusRef.current = status;
 
   const clientRef = useRef<VoiceClient | null>(null);
   const recorderRef = useRef<AudioRecorder | null>(null);
   const chunkSeqRef = useRef(0);
   const sessionReadyRef = useRef(false);
-  const playbackRef = useRef<ReturnType<typeof createStreamingPlayback> | null>(
-    null,
-  );
-  const pendingReplyRef = useRef<string | null>(null);
   const activeRef = useRef(false);
   /** When true, mic PCM is streamed to the server for the current utterance. */
   const captureEnabledRef = useRef(false);
@@ -91,7 +72,6 @@ export function useVoiceSession() {
   const hadSpeechRef = useRef(false);
   const readyResolverRef = useRef<(() => void) | null>(null);
   const rejectReadyRef = useRef<((err: Error) => void) | null>(null);
-  const isPlayingRef = useRef(false);
   const messageChainRef = useRef(Promise.resolve());
   const stopSessionRef = useRef<() => Promise<void>>(async () => {});
 
@@ -100,14 +80,9 @@ export function useVoiceSession() {
     captureEnabledRef.current = false;
     hadSpeechRef.current = false;
     sessionReadyRef.current = false;
-    isPlayingRef.current = false;
     readyResolverRef.current = null;
     chunkSeqRef.current = 0;
-    stopActivePlayback();
-    playbackRef.current = null;
-    pendingReplyRef.current = null;
     transcriptRef.current = null;
-    replyRef.current = null;
     messageChainRef.current = Promise.resolve();
     recorderRef.current?.stop();
   }, []);
@@ -128,123 +103,59 @@ export function useVoiceSession() {
     [stopRecorder],
   );
 
-  const handleServerMessage = useCallback(async (message: ServerMessage) => {
-    switch (message.type) {
-      case 'session.ready':
-        sessionReadyRef.current = true;
-        readyResolverRef.current?.();
-        readyResolverRef.current = null;
-        break;
-      case 'turn.phase':
-        setStatus((prev) => ({ ...prev, phase: message.phase }));
-        if (BUSY_PHASES.includes(message.phase)) {
-          captureEnabledRef.current = false;
-          setState('processing');
-        }
-        // Push-to-talk: never auto-resume listening on idle — only the mic
-        // button starts the next utterance.
-        break;
-      case 'turn.transcript':
-        transcriptRef.current = message.text;
-        setStatus((prev) => ({ ...prev, transcript: message.text }));
-        break;
-      case 'turn.reply':
-        replyRef.current = message.text;
-        pendingReplyRef.current = message.text;
-        setStatus((prev) => ({ ...prev, reply: message.text }));
-        break;
-      case 'audio.out': {
-        if (!playbackRef.current) {
-          const session = createStreamingPlayback();
-          session.setOnPlaybackStart(() => {
-            if (pendingReplyRef.current) {
-              const reply = pendingReplyRef.current;
-              pendingReplyRef.current = null;
-              replyRef.current = reply;
-              setStatus((prev) => ({ ...prev, reply }));
-            }
-          });
-          playbackRef.current = session;
-          isPlayingRef.current = true;
-        }
-        playbackRef.current.enqueue({
-          data: message.data,
-          format: message.format,
-          sampleRate: message.sampleRate,
-          channels: message.channels,
-        });
-        break;
-      }
-      case 'turn.done': {
-        if (message.skipped) {
-          stopActivePlayback();
-          playbackRef.current = null;
-          pendingReplyRef.current = null;
+  const handleServerMessage = useCallback(
+    async (message: ServerMessage) => {
+      switch (message.type) {
+        case 'session.ready':
+          sessionReadyRef.current = true;
+          readyResolverRef.current?.();
+          readyResolverRef.current = null;
+          break;
+        case 'turn.phase':
+          setStatus(prev => ({ ...prev, phase: message.phase }));
+          if (BUSY_PHASES.includes(message.phase)) {
+            captureEnabledRef.current = false;
+            setState('processing');
+          }
+          break;
+        case 'turn.transcript':
+          transcriptRef.current = message.text;
+          setStatus(prev => ({ ...prev, transcript: message.text }));
+          break;
+        case 'turn.done': {
+          const transcript = transcriptRef.current?.trim() ?? '';
           transcriptRef.current = null;
-          replyRef.current = null;
           await stopSessionRef.current();
+          if (!message.skipped && transcript) {
+            onTranscriptRef.current?.(transcript);
+          }
           break;
         }
-        try {
-          if (playbackRef.current) {
-            await playbackRef.current.finish();
+        case 'error':
+          console.warn('[donna-app] voice error', message.code, message.message);
+          if (message.code === 'empty_audio') {
+            await stopSessionRef.current();
+            break;
           }
-          if (pendingReplyRef.current && !replyRef.current) {
-            replyRef.current = pendingReplyRef.current;
-            pendingReplyRef.current = null;
-          }
-        } catch (err) {
-          setVoiceError(
-            err instanceof Error ? err.message : 'Playback failed',
-          );
-          return;
-        } finally {
-          isPlayingRef.current = false;
-          playbackRef.current = null;
-          const transcript = transcriptRef.current;
-          const reply = replyRef.current;
-          if (transcript || reply) {
-            turnSeqRef.current += 1;
-            setTurns(prev => [
-              ...prev,
-              {
-                id: String(turnSeqRef.current),
-                user: transcript ?? '',
-                assistant: reply,
-              },
-            ]);
-          }
-          transcriptRef.current = null;
-          replyRef.current = null;
-          pendingReplyRef.current = null;
-          // One utterance per mic press — end the session like sending a text prompt.
-          await stopSessionRef.current();
-        }
-        break;
-      }
-      case 'error':
-        console.warn('[donna-app] voice error', message.code, message.message);
-        if (message.code === 'empty_audio') {
-          await stopSessionRef.current();
+          setVoiceError(voiceErrorMessage(message.code, message.message));
           break;
-        }
-        setVoiceError(voiceErrorMessage(message.code, message.message));
-        break;
-      default:
-        break;
-    }
-  }, [setVoiceError]);
+        default:
+          break;
+      }
+    },
+    [setVoiceError],
+  );
 
   const ensureClient = useCallback(() => {
     if (!clientRef.current) {
       const client = new VoiceClient(VOICE_WS_URL);
       client.setHandlers({
-        onMessage: (message) => {
+        onMessage: message => {
           messageChainRef.current = messageChainRef.current
             .then(() => handleServerMessage(message))
             .catch(() => {});
         },
-        onError: (message) => {
+        onError: message => {
           if (rejectReadyRef.current) {
             rejectReadyRef.current(new Error(message));
             return;
@@ -284,7 +195,6 @@ export function useVoiceSession() {
           if (!activeRef.current || !sessionReadyRef.current) return;
           if (!captureEnabledRef.current) return;
           if (!clientRef.current?.isConnected) return;
-          if (isPlayingRef.current) return;
 
           const channel = buffer.getChannelData(0);
           if (
@@ -322,9 +232,8 @@ export function useVoiceSession() {
       clientRef.current.disconnect();
     }
 
-    await resetPlaybackSession();
     setState('idle');
-    setStatus({ transcript: null, reply: null, phase: null });
+    setStatus({ transcript: null, phase: null });
   }, [stopRecorder]);
   stopSessionRef.current = stopSession;
 
@@ -354,7 +263,7 @@ export function useVoiceSession() {
   const startSession = useCallback(async () => {
     setState('requesting');
     setErrorMsg(null);
-    setStatus({ transcript: null, reply: null, phase: null });
+    setStatus({ transcript: null, phase: null });
     sessionReadyRef.current = false;
 
     AudioManager.setAudioSessionOptions({
@@ -397,7 +306,7 @@ export function useVoiceSession() {
           rejectReadyRef.current = null;
           resolve();
         };
-        rejectReadyRef.current = (err) => {
+        rejectReadyRef.current = err => {
           clearTimeout(timeout);
           readyResolverRef.current = null;
           rejectReadyRef.current = null;
@@ -450,24 +359,13 @@ export function useVoiceSession() {
     await startSession();
   }, [endTurn, startSession, state, stopSession]);
 
-  const clearChat = useCallback(async () => {
-    if (state === 'listening' || state === 'processing' || state === 'requesting') {
-      await stopSession();
-    }
-    setTurns([]);
-    setStatus({ transcript: null, reply: null, phase: null });
-    setErrorMsg(null);
-    turnSeqRef.current = 0;
-  }, [state, stopSession]);
-
   useEffect(() => {
     return () => {
       void stopSession();
     };
   }, [stopSession]);
 
-  const phaseLabel =
-    state === 'processing' ? DONNA_THINKING_PHASE : null;
+  const phaseLabel = state === 'processing' ? DONNA_THINKING_PHASE : null;
 
   const sessionLabel =
     state === 'error'
@@ -483,13 +381,11 @@ export function useVoiceSession() {
   return {
     state,
     toggleTalk,
-    clearChat,
-    turns,
     transcript: status.transcript,
-    reply: status.reply,
     phaseLabel,
     sessionLabel,
     errorMsg: state === 'error' ? (errorMsg ?? 'Something went wrong') : null,
     disabled: state === 'requesting',
+    sessionActive: state === 'listening' || state === 'processing',
   };
 }

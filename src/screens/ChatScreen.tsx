@@ -14,9 +14,9 @@ import { ChatHero } from '../components/ChatHero';
 import { ChatHistorySheet } from '../components/ChatHistorySheet';
 import { ChatInput } from '../components/ChatInput';
 import { ChatMessages, type ChatTurn } from '../components/ChatMessages';
-import type { MicState } from '../components/MicButton';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useCreateNoteMutation } from '../hooks/useNotes';
+import { useVoiceSession } from '../hooks/useVoiceSession';
 import {
   assertAttachmentBudget,
   displayUserContent,
@@ -62,18 +62,8 @@ const QUICK_ACTIONS = [
 ] as const;
 
 type Props = {
-  micState: MicState;
-  onMicPress: () => void;
-  micDisabled?: boolean;
-  turns: ChatTurn[];
-  liveTranscript?: string | null;
-  liveReply?: string | null;
-  phaseLabel?: string | null;
-  sessionLabel?: string | null;
-  errorMsg?: string | null;
   onOpenProfile: () => void;
   onOpenNote?: (noteId: string) => void;
-  onClearVoiceChat?: () => void;
   onToast?: (message: string, isError?: boolean) => void;
 };
 
@@ -94,18 +84,8 @@ function historyFromTurns(turns: ChatTurn[]): ChatTurnMessage[] {
 }
 
 export function ChatScreen({
-  micState,
-  onMicPress,
-  micDisabled,
-  turns,
-  liveTranscript,
-  liveReply,
-  phaseLabel,
-  sessionLabel,
-  errorMsg,
   onOpenProfile,
   onOpenNote,
-  onClearVoiceChat,
   onToast,
 }: Props) {
   const styles = useThemedStyles(createStyles);
@@ -128,27 +108,30 @@ export function ChatScreen({
   const chunkRafRef = useRef<number | null>(null);
   const streamingTurnIdRef = useRef<string | null>(null);
   const streamHasTextRef = useRef(false);
+  const sendFromVoiceRef = useRef<(text: string) => void>(() => {});
 
   textMessagesRef.current = textMessages;
   textSessionIdRef.current = textSessionId;
   isSendingRef.current = isSending;
   streamHasTextRef.current = streamHasText;
 
-  const messages: ChatTurn[] = [...textMessages, ...turns];
+  const {
+    state: micState,
+    toggleTalk,
+    phaseLabel: voicePhaseLabel,
+    sessionLabel,
+    errorMsg: voiceError,
+    disabled: micDisabled,
+    sessionActive: voiceSessionActive,
+  } = useVoiceSession({
+    onTranscript: text => {
+      sendFromVoiceRef.current(text);
+    },
+  });
 
-  if (liveTranscript || liveReply) {
-    messages.push({
-      id: 'live',
-      user: liveTranscript ?? '',
-      assistant: liveReply ?? null,
-    });
-  }
-
-  const hasMessages = messages.length > 0;
-  const sessionActive =
-    micState === 'listening' ||
-    micState === 'processing' ||
-    micState === 'requesting';
+  const messages = textMessages;
+  const hasThread = messages.length > 0;
+  const sessionActive = voiceSessionActive || micState === 'requesting';
 
   const actionableTurnIds = useMemo(
     () => new Set(textMessages.map(t => t.id)),
@@ -157,7 +140,7 @@ export function ChatScreen({
 
   const displayPhase =
     textPhase ??
-    (isSending && !streamHasText ? DONNA_THINKING_PHASE : phaseLabel);
+    (isSending && !streamHasText ? DONNA_THINKING_PHASE : voicePhaseLabel);
 
   function cancelChunkRaf() {
     if (chunkRafRef.current != null) {
@@ -364,6 +347,10 @@ export function ChatScreen({
       options?.webSearch,
     );
   }
+
+  sendFromVoiceRef.current = (text: string) => {
+    void handleSend(text);
+  };
 
   function handleStop() {
     flushPendingChunk();
@@ -632,7 +619,6 @@ export function ChatScreen({
     setTextPhase(null);
     setIsSending(false);
     setStreamHasText(false);
-    onClearVoiceChat?.();
   }
 
   return (
@@ -645,7 +631,7 @@ export function ChatScreen({
       />
 
       <View style={styles.main}>
-        {hasMessages ? (
+        {hasThread ? (
           <ChatMessages
             turns={messages}
             phaseLabel={displayPhase}
@@ -677,17 +663,17 @@ export function ChatScreen({
 
         <ChatHero
           micState={micState}
-          onMicPress={onMicPress}
+          onMicPress={() => void toggleTalk()}
           micDisabled={micDisabled}
-          compact={hasMessages}
-          showMic={!hasMessages}
-          sessionLabel={hasMessages ? null : sessionLabel}
+          compact={hasThread}
+          showMic={!hasThread}
+          sessionLabel={hasThread ? null : sessionLabel}
         />
 
-        {textError || errorMsg ? (
+        {textError || voiceError ? (
           <View style={styles.errorRow}>
             <Text style={styles.error} accessibilityRole="alert">
-              {textError ?? errorMsg}
+              {textError ?? voiceError}
             </Text>
             {textError ? (
               <Pressable
@@ -712,20 +698,20 @@ export function ChatScreen({
         onRemoveAttachment={id =>
           setPendingAttachments(prev => prev.filter(a => a.id !== id))
         }
-        disabled={micDisabled || isSending}
+        disabled={micDisabled || isSending || sessionActive}
         busy={isSending}
         placeholder="Message Donna…"
-        showMic={hasMessages}
+        showMic={hasThread}
         micState={micState}
-        onMicPress={onMicPress}
+        onMicPress={() => void toggleTalk()}
         micDisabled={micDisabled}
         sessionLabel={
-          hasMessages && !isDonnaThinkingPhase(sessionLabel)
+          hasThread && sessionLabel && !isDonnaThinkingPhase(sessionLabel)
             ? sessionLabel
             : null
         }
         quickActions={
-          !hasMessages && !isSending && !sessionActive
+          !hasThread && !isSending && !sessionActive
             ? QUICK_ACTIONS.map(action => ({
                 label: action.label,
                 onPress: () => void handleSend(action.prompt),
