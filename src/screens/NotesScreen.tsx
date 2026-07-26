@@ -196,6 +196,9 @@ export function NotesScreen({
     if (activeTag || debouncedSearch) {
       return serverNotes;
     }
+    // Local device placeholders use `device:…` ids; server notes use UUIDs.
+    // listLocalDeviceNoteSummaries already drops uploaded captures, so this
+    // only needs to avoid colliding ids if one ever appears in both lists.
     const serverIds = new Set(serverNotes.map(n => n.id));
     const locals = localNotes.filter(n => !serverIds.has(n.id));
     return [...locals, ...serverNotes].sort(

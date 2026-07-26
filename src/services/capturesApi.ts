@@ -22,8 +22,13 @@ const PCM_CHUNK_BYTES = (AUDIO_SAMPLE_RATE / 10) * AUDIO_CHANNELS * 2;
 const WAV_HEADER_BYTES = 44;
 
 export type CaptureUploadResult =
-  | { ok: true; transcript: string }
+  | { ok: true; transcript: string; noteId: string | null }
   | { ok: false; error: string };
+
+export type CaptureUploadOptions = {
+  /** Stable UUID for idempotent note creation across upload retries. */
+  clientNoteId?: string | null;
+};
 
 function validateWavHeader(wavBytes: Uint8Array): string | null {
   if (wavBytes.length <= WAV_HEADER_BYTES) {
@@ -71,7 +76,10 @@ function refreshJwt(): Promise<string | null> {
  * PCM16 framed inside base64 JSON; the 44-byte WAV header is stripped
  * locally first.
  */
-export async function uploadCapture(wavBytes: Uint8Array): Promise<CaptureUploadResult> {
+export async function uploadCapture(
+  wavBytes: Uint8Array,
+  opts: CaptureUploadOptions = {},
+): Promise<CaptureUploadResult> {
   const wavError = validateWavHeader(wavBytes);
   if (wavError) {
     return { ok: false, error: wavError };
@@ -88,6 +96,7 @@ export async function uploadCapture(wavBytes: Uint8Array): Promise<CaptureUpload
   }
 
   const sessionId = `device:${randomSessionId()}`;
+  const clientNoteId = opts.clientNoteId?.trim() || undefined;
 
   const pcmBytes = Math.max(0, wavBytes.length - WAV_HEADER_BYTES);
   const audioDurationMs = (pcmBytes / (AUDIO_SAMPLE_RATE * AUDIO_CHANNELS * 2)) * 1000;
@@ -97,6 +106,7 @@ export async function uploadCapture(wavBytes: Uint8Array): Promise<CaptureUpload
     let settled = false;
     let seq = 0;
     let transcript = '';
+    let noteId: string | null = null;
     let sessionReady = false;
     let timeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -125,7 +135,7 @@ export async function uploadCapture(wavBytes: Uint8Array): Promise<CaptureUpload
       settled = true;
       if (timeout) clearTimeout(timeout);
       try { ws.close(); } catch { /* ignore */ }
-      resolve({ ok: true, transcript });
+      resolve({ ok: true, transcript, noteId });
     };
     const settleErr = (msg: string) => {
       if (settled) return;
@@ -144,6 +154,7 @@ export async function uploadCapture(wavBytes: Uint8Array): Promise<CaptureUpload
         type: 'session.start',
         mode: 'notes',
         sessionId,
+        ...(clientNoteId ? { clientNoteId } : {}),
       });
     };
 
@@ -158,6 +169,9 @@ export async function uploadCapture(wavBytes: Uint8Array): Promise<CaptureUpload
         if (message.type === 'turn.transcript' && typeof message.text === 'string') {
           transcript = message.text;
         } else if (message.type === 'turn.done') {
+          if (typeof message.noteId === 'string' && message.noteId.trim()) {
+            noteId = message.noteId.trim();
+          }
           if (message.skipped) {
             settleErr(
               'Capture was too quiet or unclear to save as a cloud note.',

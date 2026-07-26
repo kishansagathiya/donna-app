@@ -8,7 +8,14 @@ export type TurnPhase =
   | 'error';
 
 export type ClientMessage =
-  | { type: 'session.start'; userId?: string; sessionId?: string; mode?: 'notes' | 'talk' }
+  | {
+      type: 'session.start';
+      userId?: string;
+      sessionId?: string;
+      mode?: 'notes' | 'talk';
+      /** Optional client UUID for idempotent notes-mode creates. */
+      clientNoteId?: string;
+    }
   | {
       type: 'audio.chunk';
       seq: number;
@@ -37,6 +44,8 @@ export type ServerMessage =
       type: 'turn.done';
       timings: Record<string, number>;
       skipped?: boolean;
+      /** Present when notes-mode successfully created/returned a note. */
+      noteId?: string;
     }
   | { type: 'error'; code: string; message: string };
 

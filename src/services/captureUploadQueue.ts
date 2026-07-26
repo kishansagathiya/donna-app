@@ -5,6 +5,7 @@
 
 import { uploadCapture } from './capturesApi';
 import {
+  ensureCaptureClientNoteId,
   listPendingUploadCaptures,
   markCaptureUploaded,
   markCaptureUploadFailed,
@@ -59,8 +60,9 @@ export async function drainCaptureUploadQueue(): Promise<UploadQueueResult> {
     for (const capture of pending) {
       await markCaptureUploading(capture.id);
       try {
+        const clientNoteId = await ensureCaptureClientNoteId(capture.id);
         const wav = await readCaptureWav(capture);
-        const result = await uploadCapture(wav);
+        const result = await uploadCapture(wav, { clientNoteId });
         if (!result.ok) {
           failed++;
           lastError = result.error ?? 'Upload failed.';
@@ -68,7 +70,11 @@ export async function drainCaptureUploadQueue(): Promise<UploadQueueResult> {
           console.log(`[captureUploadQueue] failed ${capture.deviceName}:`, lastError);
           continue;
         }
-        await markCaptureUploaded(capture.id, result.transcript);
+        await markCaptureUploaded(
+          capture.id,
+          result.transcript,
+          result.noteId ?? clientNoteId,
+        );
         uploaded++;
         console.log(`[captureUploadQueue] uploaded ${capture.deviceName}`);
       } catch (err) {

@@ -24,8 +24,33 @@ export type LocalDeviceCapture = {
   uploadStatus: 'pending' | 'uploading' | 'uploaded' | 'failed';
   transcript: string | null;
   serverNoteId: string | null;
+  /**
+   * Stable client UUID used for idempotent cloud note creates. Retries of the
+   * same capture must reuse this so the server does not insert duplicates.
+   */
+  clientNoteId: string | null;
   lastUploadError: string | null;
 };
+
+function newClientNoteId(): string {
+  const g = globalThis as { crypto?: { randomUUID?: () => string } };
+  if (g.crypto?.randomUUID) {
+    return g.crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/** Local placeholders that still need a cloud note (or a retry). */
+export function shouldShowLocalDeviceCapture(
+  capture: LocalDeviceCapture,
+): boolean {
+  if (capture.serverNoteId) return false;
+  return capture.uploadStatus !== 'uploaded';
+}
 
 function captureDir(): string {
   return `${ReactNativeBlobUtil.fs.dirs.DocumentDir}/${CAPTURE_DIR}`;
@@ -95,7 +120,10 @@ export async function listLocalDeviceCaptures(): Promise<LocalDeviceCapture[]> {
 
 export async function listLocalDeviceNoteSummaries(): Promise<NoteSummary[]> {
   const captures = await listLocalDeviceCaptures();
-  return captures.map(localCaptureToSummary);
+  // Once uploaded, the server note is canonical. Keeping uploaded locals in the
+  // Notes list made every hardware capture appear twice (local device:* id +
+  // server UUID) because the merge key never matches across those id spaces.
+  return captures.filter(shouldShowLocalDeviceCapture).map(localCaptureToSummary);
 }
 
 export async function getLocalDeviceCapture(
@@ -147,6 +175,7 @@ export async function saveDeviceCapture(opts: {
     uploadStatus: 'pending',
     transcript: null,
     serverNoteId: null,
+    clientNoteId: newClientNoteId(),
     lastUploadError: null,
   };
   entries.push(entry);
@@ -170,6 +199,7 @@ export async function markCaptureUploading(id: string): Promise<void> {
 export async function markCaptureUploaded(
   id: string,
   transcript: string,
+  serverNoteId?: string | null,
 ): Promise<void> {
   const entries = await readIndex();
   const idx = entries.findIndex(e => e.id === id);
@@ -178,9 +208,26 @@ export async function markCaptureUploaded(
     ...entries[idx],
     uploadStatus: 'uploaded',
     transcript: transcript.trim() || entries[idx].transcript,
+    serverNoteId:
+      (serverNoteId && serverNoteId.trim()) || entries[idx].serverNoteId,
     lastUploadError: null,
   };
   await writeIndex(entries);
+}
+
+/** Ensure a capture has a stable client note id before cloud upload. */
+export async function ensureCaptureClientNoteId(
+  id: string,
+): Promise<string | null> {
+  const entries = await readIndex();
+  const idx = entries.findIndex(e => e.id === id);
+  if (idx < 0) return null;
+  const existing = entries[idx].clientNoteId?.trim();
+  if (existing) return existing;
+  const clientNoteId = newClientNoteId();
+  entries[idx] = { ...entries[idx], clientNoteId };
+  await writeIndex(entries);
+  return clientNoteId;
 }
 
 export async function markCaptureUploadFailed(

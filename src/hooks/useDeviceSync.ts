@@ -137,6 +137,12 @@ export function useDeviceSync(): DeviceSyncStatus & {
   const bleStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const drainLockRef = useRef(false);
+  /**
+   * Held from capture end-frame through local save + device ack. Prevents a
+   * second START while the just-received capture is still pending on device
+   * (which re-synced the same note).
+   */
+  const commitLockRef = useRef(false);
   const bleStartPendingRef = useRef(false);
   /** Authoritative pending count from the device (not locally guessed). */
   const pendingCountRef = useRef(0);
@@ -295,6 +301,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
         !session ||
         inflightRef.current ||
         drainLockRef.current ||
+        commitLockRef.current ||
         bleStartPendingRef.current
       ) {
         return;
@@ -486,6 +493,9 @@ export function useDeviceSync(): DeviceSyncStatus & {
           }, 2000);
           return;
         }
+        // Lock drain until save+ack finish so pending notifies cannot START
+        // the same still-unacked capture again.
+        commitLockRef.current = true;
         setStatus(s => ({
           ...s,
           uploadState: 'uploading',
@@ -495,6 +505,7 @@ export function useDeviceSync(): DeviceSyncStatus & {
         try {
           wav = await captureBytesToWav(raw, inflight.format);
         } catch (err) {
+          commitLockRef.current = false;
           await sendStopCommand(session).catch(() => {});
           setStatus(s => ({
             ...s,
@@ -536,6 +547,8 @@ export function useDeviceSync(): DeviceSyncStatus & {
             if (!cancelled) maybeStartDrain({ force: true });
           }, 2000);
           return;
+        } finally {
+          commitLockRef.current = false;
         }
         scheduleCaptureUploads();
         return;
