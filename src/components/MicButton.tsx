@@ -168,9 +168,11 @@ export function MicButton({
   const isListening = state === 'listening';
   const isProcessing = state === 'processing';
   const accessibilityLabel =
-    state === 'listening' || state === 'processing'
-      ? 'Stop listening'
-      : 'Start listening';
+    state === 'listening'
+      ? 'Done talking'
+      : state === 'processing'
+        ? 'Cancel'
+        : 'Start listening';
 
   useEffect(() => {
     if (!isRequesting) {
