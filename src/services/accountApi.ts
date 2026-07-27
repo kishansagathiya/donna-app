@@ -91,16 +91,24 @@ export async function updatePersona(
   }
 }
 
-export async function updateTimezone(timezone: string): Promise<void> {
+export async function updateTimezone(timezone: string): Promise<string> {
   const res = await authorizedFetch('/account', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ timezone }),
   });
-  const body = (await res.json()) as { error?: string; message?: string };
+  const body = (await res.json()) as {
+    timezone?: string;
+    error?: string;
+    message?: string;
+  };
   if (!res.ok) {
     throw new Error(body.message ?? body.error ?? `Save failed (${res.status})`);
   }
+  if (typeof body.timezone !== 'string') {
+    throw new Error('Timezone was not saved. Refresh and try again.');
+  }
+  return body.timezone;
 }
 
 export async function downloadAccountExport(): Promise<void> {
