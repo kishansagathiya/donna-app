@@ -353,7 +353,10 @@ function AppContent({
         </View>
 
         <View style={{ flex: 1, display: tab === 'actions' ? 'flex' : 'none' }}>
-          <ActionsScreen isVisible={tab === 'actions'} />
+          <ActionsScreen
+            isVisible={tab === 'actions'}
+            onOpenProfile={() => setTab('profile')}
+          />
         </View>
 
         {tab === 'today' ? (

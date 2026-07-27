@@ -281,7 +281,7 @@ export function ProfileScreen({
 
       <Text style={styles.sectionTitle}>AI model</Text>
       <Text style={styles.sectionDescription}>
-        Choose the model Donna uses for your text and voice replies.
+        Used for both text and voice replies.
       </Text>
       {loadingModels ? (
         <ActivityIndicator color={colors.primary} style={styles.modelLoader} />
@@ -302,6 +302,37 @@ export function ProfileScreen({
                 accessibilityState={{ checked: selected }}
               >
                 <Text style={styles.modelName}>{model}</Text>
+                <Text style={styles.modelCheck}>{selected ? '✓' : ''}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
+      <Text style={styles.sectionTitle}>Timezone</Text>
+      <Text style={styles.sectionDescription}>
+        Used when Donna schedules calendar meetings (for example “tomorrow at
+        4pm”).
+      </Text>
+      {loadingModels ? (
+        <ActivityIndicator color={colors.primary} style={styles.modelLoader} />
+      ) : (
+        <View style={styles.modelList}>
+          {timezoneSelectOptions(timezone).map(option => {
+            const selected = option.value === timezone;
+            return (
+              <Pressable
+                key={option.value}
+                style={[
+                  styles.modelOption,
+                  selected && styles.modelOptionSelected,
+                ]}
+                onPress={() => void handleTimezoneChange(option.value)}
+                disabled={busy}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+              >
+                <Text style={styles.modelName}>{option.label}</Text>
                 <Text style={styles.modelCheck}>{selected ? '✓' : ''}</Text>
               </Pressable>
             );
@@ -365,37 +396,6 @@ export function ProfileScreen({
           </Pressable>
         </View>
       ) : null}
-
-      <Text style={styles.sectionTitle}>Timezone</Text>
-      <Text style={styles.sectionDescription}>
-        Used when Donna schedules calendar meetings (for example “tomorrow at
-        4pm”).
-      </Text>
-      {loadingModels ? (
-        <ActivityIndicator color={colors.primary} style={styles.modelLoader} />
-      ) : (
-        <View style={styles.modelList}>
-          {timezoneSelectOptions(timezone).map(option => {
-            const selected = option.value === timezone;
-            return (
-              <Pressable
-                key={option.value}
-                style={[
-                  styles.modelOption,
-                  selected && styles.modelOptionSelected,
-                ]}
-                onPress={() => void handleTimezoneChange(option.value)}
-                disabled={busy}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: selected }}
-              >
-                <Text style={styles.modelName}>{option.label}</Text>
-                <Text style={styles.modelCheck}>{selected ? '✓' : ''}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
 
       <ThemeToggle />
 

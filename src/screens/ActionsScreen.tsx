@@ -159,9 +159,13 @@ function IntentCard({
 
 type Props = {
   isVisible?: boolean;
+  onOpenProfile?: () => void;
 };
 
-export function ActionsScreen({ isVisible = true }: Props) {
+export function ActionsScreen({
+  isVisible = true,
+  onOpenProfile,
+}: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const {
@@ -261,6 +265,19 @@ export function ActionsScreen({ isVisible = true }: Props) {
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
           {hint ? <Text style={styles.errorHint}>{hint}</Text> : null}
+          {hint && onOpenProfile ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.profileLink,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={onOpenProfile}
+              accessibilityRole="link"
+              accessibilityLabel="Open Profile"
+            >
+              <Text style={styles.profileLinkText}>Open Profile</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -379,6 +396,18 @@ function createStyles(colors: ThemeColors) {
     errorHint: {
       color: colors.muted,
       fontSize: 13,
+      fontFamily: colors.fontFamily,
+    },
+    profileLink: {
+      alignSelf: 'flex-start',
+      marginTop: 4,
+      paddingVertical: 2,
+    },
+    profileLinkText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: '600',
+      textDecorationLine: 'underline',
       fontFamily: colors.fontFamily,
     },
     centered: {
