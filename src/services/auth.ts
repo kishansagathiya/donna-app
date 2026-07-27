@@ -197,6 +197,25 @@ export async function signInWithGoogle(): Promise<void> {
   }
 }
 
+/** Email/password login (no public signup — accounts are created by admins). */
+export async function signInWithPassword(
+  email: string,
+  password: string,
+): Promise<void> {
+  const trimmedEmail = email.trim();
+  if (!trimmedEmail || !password) {
+    throw new Error('Enter an email and password.');
+  }
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: trimmedEmail,
+    password,
+  });
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function signInWithDevCredentials(): Promise<void> {
   const email = DEV_EMAIL;
   const password = DEV_PASSWORD;
@@ -204,10 +223,7 @@ export async function signInWithDevCredentials(): Promise<void> {
     throw new Error('Dev credentials are not configured.');
   }
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) {
-    throw new Error(error.message);
-  }
+  await signInWithPassword(email, password);
 }
 
 export async function signOut(): Promise<void> {

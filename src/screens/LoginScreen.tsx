@@ -5,6 +5,7 @@ import {
   Image,
   Pressable,
   StyleSheet,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -16,7 +17,7 @@ import { DEV_EMAIL, DEV_PASSWORD } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { logoForTheme } from '../lib/logo';
-import { signInWithDevCredentials } from '../services/auth';
+import { signInWithDevCredentials, signInWithPassword } from '../services/auth';
 import type { ThemeColors } from '../theme/colors';
 
 type Props = {
@@ -29,6 +30,9 @@ export function LoginScreen({ onSuccess, onOpenPrivacy }: Props) {
   const { theme, colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [devLoading, setDevLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   const hasDevCredentials = __DEV__ && !!DEV_EMAIL && !!DEV_PASSWORD;
 
@@ -47,6 +51,20 @@ export function LoginScreen({ onSuccess, onOpenPrivacy }: Props) {
       Alert.alert('Dev Sign In Failed', message);
     } finally {
       setDevLoading(false);
+    }
+  }
+
+  async function handlePasswordSignIn() {
+    setPasswordLoading(true);
+    try {
+      await signInWithPassword(email, password);
+      onSuccess();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Sign in failed.';
+      handleError(message);
+    } finally {
+      setPasswordLoading(false);
     }
   }
 
@@ -74,6 +92,50 @@ export function LoginScreen({ onSuccess, onOpenPrivacy }: Props) {
         <Text style={styles.signInLabel}>Sign in to continue</Text>
         <SignInButton onSuccess={onSuccess} onError={handleError} />
         <SignInWithGoogleButton onSuccess={onSuccess} onError={handleError} />
+
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={setEmail}
+          placeholder="Email"
+          placeholderTextColor={colors.muted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          textContentType="username"
+          autoComplete="username"
+          editable={!passwordLoading}
+        />
+        <TextInput
+          style={styles.input}
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Password"
+          placeholderTextColor={colors.muted}
+          secureTextEntry
+          textContentType="password"
+          autoComplete="password"
+          editable={!passwordLoading}
+          onSubmitEditing={() => void handlePasswordSignIn()}
+        />
+        <TouchableOpacity
+          style={styles.emailButton}
+          onPress={() => void handlePasswordSignIn()}
+          disabled={passwordLoading}
+          activeOpacity={0.7}
+        >
+          {passwordLoading ? (
+            <ActivityIndicator color={colors.text} size="small" />
+          ) : (
+            <Text style={styles.emailButtonText}>Sign in with email</Text>
+          )}
+        </TouchableOpacity>
 
         {hasDevCredentials && (
           <TouchableOpacity
@@ -152,6 +214,52 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '500',
       color: colors.muted,
       textAlign: 'center',
+      fontFamily: colors.fontFamily,
+    },
+    dividerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    dividerLine: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+    },
+    dividerText: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: colors.muted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+      fontFamily: colors.fontFamily,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 16,
+      color: colors.text,
+      backgroundColor: colors.surface,
+      fontFamily: colors.fontFamily,
+    },
+    emailButton: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 48,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+    },
+    emailButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
       fontFamily: colors.fontFamily,
     },
     devButton: {
