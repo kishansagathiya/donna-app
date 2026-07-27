@@ -50,6 +50,9 @@ function integrationHint(message: string): string | null {
   ) {
     return 'Disconnect and reconnect Google in Profile → Integrations so Calendar/Gmail scopes are granted, then confirm again.';
   }
+  if (lower.includes('timezone_required')) {
+    return 'Set your timezone in Profile, then confirm again.';
+  }
   return null;
 }
 

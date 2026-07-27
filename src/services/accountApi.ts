@@ -42,6 +42,7 @@ export type AccountPreferences = {
   persona: string;
   persona_custom: string;
   available_personas: string[] | null;
+  timezone: string;
 };
 
 export async function getAccountPreferences(): Promise<AccountPreferences> {
@@ -53,7 +54,10 @@ export async function getAccountPreferences(): Promise<AccountPreferences> {
   if (!res.ok) {
     throw new Error(body.message ?? body.error ?? `Load failed (${res.status})`);
   }
-  return body;
+  return {
+    ...body,
+    timezone: body.timezone ?? '',
+  };
 }
 
 export async function updateLLMModel(llmModel: string): Promise<void> {
@@ -80,6 +84,18 @@ export async function updatePersona(
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+  });
+  const body = (await res.json()) as { error?: string; message?: string };
+  if (!res.ok) {
+    throw new Error(body.message ?? body.error ?? `Save failed (${res.status})`);
+  }
+}
+
+export async function updateTimezone(timezone: string): Promise<void> {
+  const res = await authorizedFetch('/account', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ timezone }),
   });
   const body = (await res.json()) as { error?: string; message?: string };
   if (!res.ok) {

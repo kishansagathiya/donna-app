@@ -22,9 +22,14 @@ import {
   getAccountPreferences,
   updateLLMModel,
   updatePersona,
+  updateTimezone,
 } from '../services/accountApi';
 import { signOut } from '../services/auth';
 import type { ThemeColors } from '../theme/colors';
+import {
+  detectDeviceTimezone,
+  timezoneSelectOptions,
+} from '../lib/timezones';
 
 const DEFAULT_PERSONAS = ['companion', 'boss', 'coach', 'listener', 'custom'];
 
@@ -76,8 +81,15 @@ export function ProfileScreen({
   const [persona, setPersona] = useState('companion');
   const [personaCustom, setPersonaCustom] = useState('');
   const [savingPersona, setSavingPersona] = useState(false);
+  const [timezone, setTimezone] = useState('');
+  const [savingTimezone, setSavingTimezone] = useState(false);
   const busy =
-    signingOut || deleting || savingModel || savingPersona || exporting;
+    signingOut ||
+    deleting ||
+    savingModel ||
+    savingPersona ||
+    savingTimezone ||
+    exporting;
 
   const email = session?.user.email ?? '';
   const name =
@@ -87,12 +99,22 @@ export function ProfileScreen({
   useEffect(() => {
     setLoadingModels(true);
     getAccountPreferences()
-      .then(preferences => {
+      .then(async preferences => {
         setModels(preferences.available_models);
         setSelectedModel(preferences.llm_model);
         setPersonas(preferences.available_personas ?? []);
         setPersona(normalizePersona(preferences.persona ?? 'companion'));
         setPersonaCustom(preferences.persona_custom ?? '');
+        let tz = (preferences.timezone ?? '').trim();
+        if (!tz) {
+          tz = detectDeviceTimezone();
+          try {
+            await updateTimezone(tz);
+          } catch {
+            // Keep detected value visible; user can retry via the list.
+          }
+        }
+        setTimezone(tz);
       })
       .catch(error => {
         Alert.alert(
@@ -157,6 +179,26 @@ export function ProfileScreen({
       );
     } finally {
       setSavingPersona(false);
+    }
+  }
+
+  async function handleTimezoneChange(next: string) {
+    if (next === timezone || savingTimezone) {
+      return;
+    }
+    const previous = timezone;
+    setTimezone(next);
+    setSavingTimezone(true);
+    try {
+      await updateTimezone(next);
+    } catch (error) {
+      setTimezone(previous);
+      Alert.alert(
+        'Could Not Save Timezone',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setSavingTimezone(false);
     }
   }
 
@@ -323,6 +365,37 @@ export function ProfileScreen({
           </Pressable>
         </View>
       ) : null}
+
+      <Text style={styles.sectionTitle}>Timezone</Text>
+      <Text style={styles.sectionDescription}>
+        Used when Donna schedules calendar meetings (for example “tomorrow at
+        4pm”).
+      </Text>
+      {loadingModels ? (
+        <ActivityIndicator color={colors.primary} style={styles.modelLoader} />
+      ) : (
+        <View style={styles.modelList}>
+          {timezoneSelectOptions(timezone).map(option => {
+            const selected = option.value === timezone;
+            return (
+              <Pressable
+                key={option.value}
+                style={[
+                  styles.modelOption,
+                  selected && styles.modelOptionSelected,
+                ]}
+                onPress={() => void handleTimezoneChange(option.value)}
+                disabled={busy}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+              >
+                <Text style={styles.modelName}>{option.label}</Text>
+                <Text style={styles.modelCheck}>{selected ? '✓' : ''}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
 
       <ThemeToggle />
 
