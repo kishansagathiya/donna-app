@@ -1,4 +1,5 @@
 import { getAccessToken } from './auth';
+import { reportError } from './errorReporting';
 import { API_BASE_URL } from '../config';
 
 const DONNA_CLIENT_HEADER = 'X-Donna-Client';
@@ -31,6 +32,7 @@ export async function authorizedFetch(
       headers,
     });
   } catch (err) {
+    reportError(err, { path });
     const detail =
       err instanceof Error ? err.message : 'Could not reach Donna server';
     throw new Error(

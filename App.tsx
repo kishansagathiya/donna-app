@@ -26,6 +26,7 @@ import {
 } from 'react-native-safe-area-context';
 import { AddMemorySheet } from './src/components/AddMemorySheet';
 import { BottomTabBar, type AppTab } from './src/components/BottomTabBar';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { IngestToast } from './src/components/IngestToast';
 import { MicButton, type MicState } from './src/components/MicButton';
 import { useAssetIngest } from './src/hooks/useAssetIngest';
@@ -52,7 +53,10 @@ import { SCREENSHOT_MODE } from './src/config';
 import { useAiDataConsent } from './src/hooks/useAiDataConsent';
 import { ThemeProvider, useTheme } from './src/hooks/useTheme';
 import { useThemedStyles } from './src/hooks/useThemedStyles';
+import { initErrorReporting } from './src/services/errorReporting';
 import type { ThemeColors } from './src/theme/colors';
+
+initErrorReporting();
 
 type LegalDoc = 'privacy' | 'support' | null;
 
@@ -60,7 +64,9 @@ function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <ThemedApp />
+        <ErrorBoundary>
+          <ThemedApp />
+        </ErrorBoundary>
       </ThemeProvider>
     </SafeAreaProvider>
   );
