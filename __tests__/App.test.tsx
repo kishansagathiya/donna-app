@@ -12,6 +12,26 @@ jest.mock('react-native-blob-util', () => ({
   },
 }));
 
+jest.mock('react-native-audio-api', () => ({
+  AudioBuffer: jest.fn(),
+  AudioBufferSourceNode: jest.fn(),
+  AudioContext: jest.fn(() => ({
+    createBufferSource: jest.fn(() => ({
+      connect: jest.fn(),
+      start: jest.fn(),
+      stop: jest.fn(),
+      disconnect: jest.fn(),
+    })),
+    decodeAudioData: jest.fn(async () => ({ duration: 0 })),
+    close: jest.fn(),
+    destination: {},
+  })),
+  AudioManager: {
+    setAudioSessionOptions: jest.fn(),
+    getDevicePreferredSampleRate: jest.fn(() => 48000),
+  },
+}));
+
 jest.mock('react-native-document-picker', () => ({
   __esModule: true,
   default: {
