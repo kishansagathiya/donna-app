@@ -10,6 +10,7 @@ import {
 import { Text, TextInput } from '../components/ThemedText';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { DailyBriefingAlertsToggle } from '../components/DailyBriefingAlertsToggle';
+import { ExperimentalSection } from '../components/ExperimentalSection';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
@@ -408,6 +409,8 @@ export function ProfileScreen({
       <ThemeToggle />
 
       <DailyBriefingAlertsToggle />
+
+      <ExperimentalSection />
 
       <IntegrationsSection
         refreshToken={integrationsRefreshToken}
