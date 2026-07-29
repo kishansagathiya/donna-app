@@ -596,6 +596,56 @@ export function VolumeOffIcon({
   );
 }
 
+export function PlayIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Path
+        d="M6 4.5v15l13-7.5L6 4.5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill={color}
+      />
+    </IconFrame>
+  );
+}
+
+export function PauseIcon({
+  size = 24,
+  color = 'currentColor',
+  strokeWidth = 1.75,
+}: IconProps) {
+  return (
+    <IconFrame size={size}>
+      <Rect
+        x="6"
+        y="5"
+        width="4"
+        height="14"
+        rx="1"
+        fill={color}
+        stroke={color}
+        strokeWidth={strokeWidth}
+      />
+      <Rect
+        x="14"
+        y="5"
+        width="4"
+        height="14"
+        rx="1"
+        fill={color}
+        stroke={color}
+        strokeWidth={strokeWidth}
+      />
+    </IconFrame>
+  );
+}
+
 export function ThumbsUpIcon({
   size = 24,
   color = 'currentColor',

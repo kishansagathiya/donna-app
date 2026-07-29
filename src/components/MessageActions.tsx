@@ -1,4 +1,4 @@
-import React, { useState, useSyncExternalStore } from 'react';
+import React, { useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -9,11 +9,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import type { ThemeColors } from '../theme/colors';
 import type { ChatTurn } from './ChatMessages';
-import {
-  getSpeakingId,
-  speakText,
-  subscribeSpeaking,
-} from '../lib/speak';
+import { ReplyAudioControls } from './ReplyAudioControls';
 import {
   CheckIcon,
   CopyIcon,
@@ -22,8 +18,6 @@ import {
   StickyNoteIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
-  VolumeIcon,
-  VolumeOffIcon,
 } from './icons';
 
 type Props = {
@@ -58,9 +52,6 @@ export function MessageActions({
   const [saved, setSaved] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(turn.user);
-  const [speakError, setSpeakError] = useState(false);
-  const speakingId = useSyncExternalStore(subscribeSpeaking, getSpeakingId);
-  const isSpeaking = speakingId === turn.id;
 
   const saveContent = (content: string) => {
     if (!onSaveAsNote || !content.trim()) return;
@@ -208,31 +199,11 @@ export function MessageActions({
         </Pressable>
       ) : null}
       {turn.assistant.trim() ? (
-        <Pressable
-          style={styles.btn}
-          disabled={busy}
-          accessibilityRole="button"
-          accessibilityLabel={isSpeaking ? 'Stop reading aloud' : 'Read aloud'}
-          accessibilityState={{ selected: isSpeaking }}
-          onPress={() => {
-            setSpeakError(false);
-            void speakText(turn.id, turn.assistant ?? '').catch(() => {
-              setSpeakError(true);
-            });
-          }}
-        >
-          {isSpeaking ? (
-            <VolumeOffIcon
-              size={14}
-              color={speakError ? colors.destructive : colors.primary}
-            />
-          ) : (
-            <VolumeIcon
-              size={14}
-              color={speakError ? colors.destructive : colors.muted}
-            />
-          )}
-        </Pressable>
+        <ReplyAudioControls
+          messageId={turn.id}
+          content={turn.assistant}
+          busy={busy}
+        />
       ) : null}
       {isLatest && onRegenerate ? (
         <Pressable
@@ -296,6 +267,7 @@ function createStyles(colors: ThemeColors) {
     row: {
       flexDirection: 'row',
       alignItems: 'center',
+      flexWrap: 'wrap',
       gap: 2,
     },
     userRow: {
