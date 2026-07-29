@@ -34,6 +34,7 @@ import {
 } from '../hooks/useNotes';
 import {
   enrichmentLabel,
+  noteCardGrey,
   noteTagList,
   sourceLabel,
 } from '../lib/noteDisplay';
@@ -60,15 +61,18 @@ function NoteCard({
   const source = sourceLabel(note.source_type);
   const enrichment = enrichmentLabel(note.enrichment_status);
   const tagsForNote = noteTagList(note);
+  const cardGrey = noteCardGrey(note.id);
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [
+        styles.card,
+        { backgroundColor: cardGrey },
+        pressed && styles.cardPressed,
+      ]}
       onPress={onPress}
     >
       <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle} numberOfLines={2}>
-          {note.title}
-        </Text>
+        <Text style={styles.cardTitle}>{note.title}</Text>
         <View style={styles.flagActions}>
           {note.source_type !== 'device' ? (
             <>
@@ -109,9 +113,7 @@ function NoteCard({
         </View>
       </View>
       {note.preview ? (
-        <Text style={styles.cardPreview} numberOfLines={3}>
-          {note.preview}
-        </Text>
+        <Text style={styles.cardPreview}>{note.preview}</Text>
       ) : null}
       <View style={styles.metaRow}>
         <Text style={styles.cardDate}>{formatNoteDate(note.note_date)}</Text>
@@ -749,14 +751,15 @@ function createStyles(colors: ThemeColors) {
       gap: 12,
     },
     card: {
-      backgroundColor: colors.background,
+      alignSelf: 'flex-start',
+      width: '100%',
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 14,
       padding: 14,
     },
     cardPressed: {
-      backgroundColor: colors.surface,
+      opacity: 0.88,
     },
     cardHeader: {
       flexDirection: 'row',
@@ -799,7 +802,7 @@ function createStyles(colors: ThemeColors) {
     metaTag: {
       fontSize: 11,
       color: colors.muted,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.background,
       borderRadius: 999,
       paddingHorizontal: 8,
       paddingVertical: 3,
