@@ -42,24 +42,3 @@ export function noteTagList(note: NoteSummary): string[] {
   if (note.tags?.length) return note.tags;
   return [];
 }
-
-/** Soft grey shades so each note card reads as its own tile. */
-const NOTE_CARD_GREYS = [
-  '#F3F3F3',
-  '#EBEBEB',
-  '#E4E4E4',
-  '#F0F0F0',
-  '#E8E8E8',
-  '#DEDEDE',
-  '#F6F6F6',
-  '#E1E1E1',
-] as const;
-
-/** Stable grey background for a note card, derived from its id. */
-export function noteCardGrey(noteId: string): string {
-  let hash = 0;
-  for (let i = 0; i < noteId.length; i++) {
-    hash = (hash * 31 + noteId.charCodeAt(i)) >>> 0;
-  }
-  return NOTE_CARD_GREYS[hash % NOTE_CARD_GREYS.length];
-}

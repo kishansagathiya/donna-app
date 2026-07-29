@@ -34,7 +34,6 @@ import {
 } from '../hooks/useNotes';
 import {
   enrichmentLabel,
-  noteCardGrey,
   noteTagList,
   sourceLabel,
 } from '../lib/noteDisplay';
@@ -61,14 +60,9 @@ function NoteCard({
   const source = sourceLabel(note.source_type);
   const enrichment = enrichmentLabel(note.enrichment_status);
   const tagsForNote = noteTagList(note);
-  const cardGrey = noteCardGrey(note.id);
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.card,
-        { backgroundColor: cardGrey },
-        pressed && styles.cardPressed,
-      ]}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={onPress}
     >
       <View style={styles.cardHeader}>
@@ -652,8 +646,8 @@ function createStyles(colors: ThemeColors) {
     },
     composeInput: {
       flex: 1,
-      minHeight: 44,
-      maxHeight: 128,
+      minHeight: 96,
+      maxHeight: 220,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 12,
@@ -753,13 +747,14 @@ function createStyles(colors: ThemeColors) {
     card: {
       alignSelf: 'flex-start',
       width: '100%',
+      backgroundColor: colors.background,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 14,
       padding: 14,
     },
     cardPressed: {
-      opacity: 0.88,
+      backgroundColor: colors.surface,
     },
     cardHeader: {
       flexDirection: 'row',
@@ -802,7 +797,7 @@ function createStyles(colors: ThemeColors) {
     metaTag: {
       fontSize: 11,
       color: colors.muted,
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
       borderRadius: 999,
       paddingHorizontal: 8,
       paddingVertical: 3,
