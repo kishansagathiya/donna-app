@@ -16,7 +16,7 @@ import { ArrowDownIcon } from './icons';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { isGeneratingPhase } from '../lib/chatPhaseLabel';
-import { formatFirstTokenMs } from '../lib/formatFirstTokenMs';
+import { formatChatTiming } from '../lib/formatFirstTokenMs';
 import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
 import { AssistantThinkingBlock } from './ThinkingIndicator';
@@ -48,6 +48,8 @@ export type ChatTurn = {
   citations?: import('../types/citations').MemoryCitation[];
   /** Client-measured ms from request start to first streamed token. */
   firstTokenMs?: number;
+  /** Client-measured ms from request start to stream completion. */
+  totalMs?: number;
 };
 
 type Props = {
@@ -190,10 +192,13 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
         </View>
       ) : null}
 
-      {turn.firstTokenMs != null && turn.assistant ? (
+      {(turn.firstTokenMs != null || turn.totalMs != null) && turn.assistant ? (
         <View style={styles.turnSection}>
           <Text style={styles.firstTokenMeta}>
-            {formatFirstTokenMs(turn.firstTokenMs)}
+            {formatChatTiming({
+              firstTokenMs: turn.firstTokenMs,
+              totalMs: turn.totalMs,
+            })}
           </Text>
         </View>
       ) : null}

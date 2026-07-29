@@ -261,6 +261,7 @@ export function ChatScreen({
           },
           onDone: result => {
             flushPendingChunk();
+            const totalMs = Math.round(performance.now() - startedAt);
             setTextSessionId(result.sessionId);
             setTextMessages(prev =>
               prev.map(t =>
@@ -273,6 +274,7 @@ export function ChatScreen({
                       error: false,
                       cancelled: Boolean(result.aborted),
                       citations: result.citations ?? t.citations,
+                      totalMs,
                     }
                   : t,
               ),
@@ -285,7 +287,13 @@ export function ChatScreen({
             setTextMessages(prev =>
               prev.map(t =>
                 t.id === turnId
-                  ? { ...t, error: true, cancelled: false, streaming: false }
+                  ? {
+                      ...t,
+                      error: true,
+                      cancelled: false,
+                      streaming: false,
+                      totalMs: Math.round(performance.now() - startedAt),
+                    }
                   : t,
               ),
             );
@@ -305,7 +313,13 @@ export function ChatScreen({
       setTextMessages(prev =>
         prev.map(t =>
           t.id === turnId
-            ? { ...t, error: true, cancelled: false, streaming: false }
+            ? {
+                ...t,
+                error: true,
+                cancelled: false,
+                streaming: false,
+                totalMs: Math.round(performance.now() - startedAt),
+              }
             : t,
         ),
       );
