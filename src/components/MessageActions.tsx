@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -10,6 +10,11 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import type { ThemeColors } from '../theme/colors';
 import type { ChatTurn } from './ChatMessages';
 import {
+  getSpeakingId,
+  speakText,
+  subscribeSpeaking,
+} from '../lib/speak';
+import {
   CheckIcon,
   CopyIcon,
   PencilIcon,
@@ -17,6 +22,8 @@ import {
   StickyNoteIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
+  VolumeIcon,
+  VolumeOffIcon,
 } from './icons';
 
 type Props = {
@@ -51,6 +58,9 @@ export function MessageActions({
   const [saved, setSaved] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(turn.user);
+  const [speakError, setSpeakError] = useState(false);
+  const speakingId = useSyncExternalStore(subscribeSpeaking, getSpeakingId);
+  const isSpeaking = speakingId === turn.id;
 
   const saveContent = (content: string) => {
     if (!onSaveAsNote || !content.trim()) return;
@@ -194,6 +204,33 @@ export function MessageActions({
             <CheckIcon size={14} color={colors.muted} />
           ) : (
             <StickyNoteIcon size={14} color={colors.muted} />
+          )}
+        </Pressable>
+      ) : null}
+      {turn.assistant.trim() ? (
+        <Pressable
+          style={styles.btn}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={isSpeaking ? 'Stop reading aloud' : 'Read aloud'}
+          accessibilityState={{ selected: isSpeaking }}
+          onPress={() => {
+            setSpeakError(false);
+            void speakText(turn.id, turn.assistant ?? '').catch(() => {
+              setSpeakError(true);
+            });
+          }}
+        >
+          {isSpeaking ? (
+            <VolumeOffIcon
+              size={14}
+              color={speakError ? colors.destructive : colors.primary}
+            />
+          ) : (
+            <VolumeIcon
+              size={14}
+              color={speakError ? colors.destructive : colors.muted}
+            />
           )}
         </Pressable>
       ) : null}
