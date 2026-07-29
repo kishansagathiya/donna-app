@@ -13,82 +13,26 @@ import {
   getExperimentalUiEnabled,
   setExperimentalUiEnabled,
 } from '../services/experimentalSettings';
-import {
-  getAccountPreferences,
-  updateExperimentalFeatures,
-  type ExperimentalFeatures,
-} from '../services/accountApi';
 import type { ThemeColors } from '../theme/colors';
 
-type FeatureKey = keyof ExperimentalFeatures;
-
+/** Features shown only while Experimental is on. Empty until something ships. */
 const FEATURES: {
-  key: FeatureKey;
+  key: string;
   title: string;
   description: string;
-}[] = [
-  {
-    key: 'notesFeed',
-    title: 'Notes V2 feed',
-    description: 'Use the faster Notes feed with richer metadata.',
-  },
-  {
-    key: 'smartTagging',
-    title: 'Smart tagging',
-    description: 'Automatically suggest tags when notes are saved.',
-  },
-  {
-    key: 'memoryExtraction',
-    title: 'Memory extraction',
-    description: 'Extract durable facts from notes and conversations.',
-  },
-  {
-    key: 'memoryRetrieval',
-    title: 'Memory retrieval',
-    description: 'Recall extracted memories when chatting with Donna.',
-  },
-];
-
-const DEFAULT_FEATURES: ExperimentalFeatures = {
-  notesFeed: false,
-  smartTagging: false,
-  memoryExtraction: false,
-  memoryRetrieval: false,
-};
+}[] = [];
 
 export function ExperimentalSection() {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [uiEnabled, setUiEnabled] = useState(false);
-  const [features, setFeatures] =
-    useState<ExperimentalFeatures>(DEFAULT_FEATURES);
   const [loadingUi, setLoadingUi] = useState(true);
-  const [loadingFeatures, setLoadingFeatures] = useState(false);
-  const [savingKey, setSavingKey] = useState<FeatureKey | null>(null);
 
   useEffect(() => {
     void getExperimentalUiEnabled()
       .then(setUiEnabled)
       .finally(() => setLoadingUi(false));
   }, []);
-
-  useEffect(() => {
-    if (!uiEnabled) {
-      return;
-    }
-    setLoadingFeatures(true);
-    void getAccountPreferences()
-      .then(preferences => {
-        setFeatures(preferences.experimental ?? DEFAULT_FEATURES);
-      })
-      .catch(error => {
-        Alert.alert(
-          'Could Not Load Experimental Features',
-          error instanceof Error ? error.message : 'Please try again.',
-        );
-      })
-      .finally(() => setLoadingFeatures(false));
-  }, [uiEnabled]);
 
   async function handleUiToggle(next: boolean) {
     setUiEnabled(next);
@@ -100,27 +44,6 @@ export function ExperimentalSection() {
         'Could Not Save',
         'Experimental preference could not be saved on this device.',
       );
-    }
-  }
-
-  async function handleFeatureToggle(key: FeatureKey, next: boolean) {
-    if (savingKey) {
-      return;
-    }
-    const previous = features;
-    setFeatures({ ...features, [key]: next });
-    setSavingKey(key);
-    try {
-      const saved = await updateExperimentalFeatures({ [key]: next });
-      setFeatures(saved);
-    } catch (error) {
-      setFeatures(previous);
-      Alert.alert(
-        'Could Not Save Feature',
-        error instanceof Error ? error.message : 'Please try again.',
-      );
-    } finally {
-      setSavingKey(null);
     }
   }
 
@@ -150,43 +73,19 @@ export function ExperimentalSection() {
 
       {uiEnabled ? (
         <View style={styles.featureList}>
-          {loadingFeatures ? (
-            <ActivityIndicator
-              color={colors.primary}
-              style={styles.featureLoader}
-            />
+          {FEATURES.length === 0 ? (
+            <Text style={styles.emptyText}>
+              No experimental features right now.
+            </Text>
           ) : (
-            FEATURES.map(feature => {
-              const enabled = features[feature.key];
-              const saving = savingKey === feature.key;
-              return (
-                <View key={feature.key} style={styles.featureCard}>
-                  <View style={styles.featureHeader}>
-                    <Text style={styles.featureTitle}>{feature.title}</Text>
-                    {saving ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                      <Switch
-                        value={enabled}
-                        onValueChange={value =>
-                          void handleFeatureToggle(feature.key, value)
-                        }
-                        disabled={savingKey !== null}
-                        trackColor={{
-                          false: colors.border,
-                          true: colors.primaryLight,
-                        }}
-                        thumbColor={enabled ? colors.primary : colors.muted}
-                        accessibilityLabel={feature.title}
-                      />
-                    )}
-                  </View>
-                  <Text style={styles.featureDescription}>
-                    {feature.description}
-                  </Text>
-                </View>
-              );
-            })
+            FEATURES.map(feature => (
+              <View key={feature.key} style={styles.featureCard}>
+                <Text style={styles.featureTitle}>{feature.title}</Text>
+                <Text style={styles.featureDescription}>
+                  {feature.description}
+                </Text>
+              </View>
+            ))
           )}
         </View>
       ) : null}
@@ -231,8 +130,11 @@ function createStyles(colors: ThemeColors) {
       marginTop: 12,
       gap: 8,
     },
-    featureLoader: {
-      marginVertical: 12,
+    emptyText: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.muted,
+      paddingVertical: 4,
     },
     featureCard: {
       borderWidth: 1,
@@ -242,18 +144,11 @@ function createStyles(colors: ThemeColors) {
       paddingHorizontal: 14,
       paddingVertical: 12,
     },
-    featureHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 12,
-      marginBottom: 4,
-    },
     featureTitle: {
-      flex: 1,
       fontSize: 15,
       fontWeight: '600',
       color: colors.text,
+      marginBottom: 4,
     },
     featureDescription: {
       fontSize: 13,

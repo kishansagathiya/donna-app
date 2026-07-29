@@ -36,13 +36,6 @@ export async function deleteAccount(): Promise<void> {
   await signOut();
 }
 
-export type ExperimentalFeatures = {
-  notesFeed: boolean;
-  smartTagging: boolean;
-  memoryExtraction: boolean;
-  memoryRetrieval: boolean;
-};
-
 export type AccountPreferences = {
   llm_model: string;
   available_models: string[];
@@ -50,14 +43,6 @@ export type AccountPreferences = {
   persona_custom: string;
   available_personas: string[] | null;
   timezone: string;
-  experimental?: ExperimentalFeatures;
-};
-
-const DEFAULT_EXPERIMENTAL: ExperimentalFeatures = {
-  notesFeed: false,
-  smartTagging: false,
-  memoryExtraction: false,
-  memoryRetrieval: false,
 };
 
 export async function getAccountPreferences(): Promise<AccountPreferences> {
@@ -72,10 +57,6 @@ export async function getAccountPreferences(): Promise<AccountPreferences> {
   return {
     ...body,
     timezone: body.timezone ?? '',
-    experimental: {
-      ...DEFAULT_EXPERIMENTAL,
-      ...(body.experimental ?? {}),
-    },
   };
 }
 
@@ -128,28 +109,6 @@ export async function updateTimezone(timezone: string): Promise<string> {
     throw new Error('Timezone was not saved. Refresh and try again.');
   }
   return body.timezone;
-}
-
-export async function updateExperimentalFeatures(
-  patch: Partial<ExperimentalFeatures>,
-): Promise<ExperimentalFeatures> {
-  const res = await authorizedFetch('/account', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ experimental: patch }),
-  });
-  const body = (await res.json()) as {
-    experimental?: ExperimentalFeatures;
-    error?: string;
-    message?: string;
-  };
-  if (!res.ok) {
-    throw new Error(body.message ?? body.error ?? `Save failed (${res.status})`);
-  }
-  return {
-    ...DEFAULT_EXPERIMENTAL,
-    ...(body.experimental ?? {}),
-  };
 }
 
 export async function downloadAccountExport(): Promise<void> {
