@@ -16,6 +16,7 @@ import { ArrowDownIcon } from './icons';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { isGeneratingPhase } from '../lib/chatPhaseLabel';
+import { formatFirstTokenMs } from '../lib/formatFirstTokenMs';
 import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
 import { AssistantThinkingBlock } from './ThinkingIndicator';
@@ -45,6 +46,8 @@ export type ChatTurn = {
   streaming?: boolean;
   feedback?: 'up' | 'down';
   citations?: import('../types/citations').MemoryCitation[];
+  /** Client-measured ms from request start to first streamed token. */
+  firstTokenMs?: number;
 };
 
 type Props = {
@@ -184,6 +187,14 @@ const ChatTurnRow = React.memo(function ChatTurnRow({
       ) : turn.cancelled ? (
         <View style={[styles.bubble, styles.assistantBubble]}>
           <Text style={styles.cancelledText}>Generation stopped</Text>
+        </View>
+      ) : null}
+
+      {turn.firstTokenMs != null && turn.assistant ? (
+        <View style={styles.turnSection}>
+          <Text style={styles.firstTokenMeta}>
+            {formatFirstTokenMs(turn.firstTokenMs)}
+          </Text>
         </View>
       ) : null}
 
@@ -555,6 +566,13 @@ function createStyles(colors: ThemeColors) {
       fontSize: 14,
       fontStyle: 'italic',
       fontFamily: colors.fontFamily,
+    },
+    firstTokenMeta: {
+      color: colors.muted,
+      fontSize: 12,
+      lineHeight: 16,
+      fontFamily: colors.fontFamily,
+      paddingLeft: 4,
     },
     phase: {
       alignSelf: 'flex-start',

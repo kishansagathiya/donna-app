@@ -204,6 +204,8 @@ export function ChatScreen({
     streamingTurnIdRef.current = turnId;
     pendingChunkRef.current = null;
     cancelChunkRaf();
+    const startedAt = performance.now();
+    let recordedFirstToken = false;
 
     let handle: ChatStreamHandle | null = null;
     try {
@@ -239,6 +241,17 @@ export function ChatScreen({
           },
           onChunk: replyText => {
             setTextPhase(null);
+            if (!recordedFirstToken && replyText) {
+              recordedFirstToken = true;
+              const firstTokenMs = Math.round(performance.now() - startedAt);
+              setTextMessages(prev =>
+                prev.map(t =>
+                  t.id === turnId && t.firstTokenMs == null
+                    ? { ...t, firstTokenMs }
+                    : t,
+                ),
+              );
+            }
             scheduleChunk(turnId, replyText);
           },
           onCitations: citations => {
