@@ -60,84 +60,97 @@ function NoteCard({
   const source = sourceLabel(note.source_type);
   const enrichment = enrichmentLabel(note.enrichment_status);
   const tagsForNote = noteTagList(note);
+  const statusPill = enrichment ?? (source
+    ? { label: source, tone: 'muted' as const }
+    : null);
+  const body = note.preview?.trim() || note.title;
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={onPress}
     >
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{note.title}</Text>
-        <View style={styles.flagActions}>
-          {note.source_type !== 'device' ? (
-            <>
-              <Pressable
-                onPress={onToggleUrgent}
-                hitSlop={8}
-                accessibilityLabel={
-                  note.is_urgent ? 'Mark not urgent' : 'Mark urgent'
-                }
-              >
-                <Text
-                  style={[
-                    styles.flagButton,
-                    note.is_urgent && { color: colors.destructive },
-                  ]}
+      <View style={styles.cardBody}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardBodyText} numberOfLines={5}>
+            {body}
+          </Text>
+          <View style={styles.flagActions}>
+            {note.source_type !== 'device' ? (
+              <>
+                <Pressable
+                  onPress={onToggleUrgent}
+                  hitSlop={8}
+                  accessibilityLabel={
+                    note.is_urgent ? 'Mark not urgent' : 'Mark urgent'
+                  }
                 >
-                  !
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={onToggleImportant}
-                hitSlop={8}
-                accessibilityLabel={
-                  note.is_important ? 'Mark not important' : 'Mark important'
-                }
-              >
-                <Text
-                  style={[
-                    styles.flagButton,
-                    note.is_important && { color: colors.primary },
-                  ]}
+                  <Text
+                    style={[
+                      styles.flagButton,
+                      note.is_urgent && { color: colors.destructive },
+                    ]}
+                  >
+                    !
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={onToggleImportant}
+                  hitSlop={8}
+                  accessibilityLabel={
+                    note.is_important ? 'Mark not important' : 'Mark important'
+                  }
                 >
-                  ★
-                </Text>
-              </Pressable>
-            </>
+                  <Text
+                    style={[
+                      styles.flagButton,
+                      note.is_important && { color: colors.primary },
+                    ]}
+                  >
+                    ★
+                  </Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        </View>
+        {tagsForNote.length > 0 ? (
+          <View style={styles.tagRow}>
+            {tagsForNote.slice(0, 4).map(tag => (
+              <Text key={tag} style={styles.metaTag}>
+                #{tag}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.cardFooter}>
+        <Text style={styles.cardDate}>{formatNoteDate(note.note_date)}</Text>
+        <View style={styles.cardFooterRight}>
+          {syncFailed ? (
+            <Text style={{ color: colors.destructive }} onPress={onRetrySync}>
+              Sync failed
+            </Text>
+          ) : null}
+          {statusPill ? (
+            <Text
+              style={[
+                styles.statusPill,
+                statusPill.tone === 'error' && {
+                  borderColor: colors.destructive,
+                  color: colors.destructive,
+                },
+                statusPill.tone === 'warn' && {
+                  borderColor: colors.primary,
+                  color: colors.primary,
+                },
+              ]}
+            >
+              {statusPill.label}
+            </Text>
           ) : null}
         </View>
       </View>
-      {note.preview ? (
-        <Text style={styles.cardPreview}>{note.preview}</Text>
-      ) : null}
-      <View style={styles.metaRow}>
-        <Text style={styles.cardDate}>{formatNoteDate(note.note_date)}</Text>
-        {source ? <Text style={styles.metaTag}>{source}</Text> : null}
-        {enrichment ? (
-          <Text
-            style={[
-              styles.metaTag,
-              enrichment.tone === 'error' && { color: colors.destructive },
-              enrichment.tone === 'warn' && { color: colors.primary },
-            ]}
-          >
-            {enrichment.label}
-          </Text>
-        ) : null}
-        {syncFailed ? (
-          <Text style={{ color: colors.destructive }} onPress={onRetrySync}>
-            Sync failed · Retry
-          </Text>
-        ) : null}
-      </View>
-      {tagsForNote.length > 0 ? (
-        <View style={styles.tagRow}>
-          {tagsForNote.slice(0, 6).map(tag => (
-            <Text key={tag} style={styles.metaTag}>
-              #{tag}
-            </Text>
-          ))}
-        </View>
-      ) : null}
     </Pressable>
   );
 }
@@ -364,72 +377,77 @@ export function NotesScreen({
         }}
       />
 
-      <View style={styles.composeRow}>
-        <TextInput
-          style={styles.composeInput}
-          value={draft}
-          onChangeText={setDraft}
-          placeholder="Jot down a note…"
-          placeholderTextColor={colors.muted}
-          multiline
-          editable={!createMutation.isPending}
-          returnKeyType="default"
-          blurOnSubmit={false}
-        />
-        <Pressable
-          style={({ pressed }) => [
-            styles.composeSend,
-            draft.trim().length > 0 &&
-              !createMutation.isPending &&
-              styles.composeSendActive,
-            pressed && styles.composeSendPressed,
-          ]}
-          onPress={() => void handleCreateNote()}
-          disabled={!draft.trim() || createMutation.isPending}
-          accessibilityRole="button"
-          accessibilityLabel="Save note"
-        >
-          {createMutation.isPending ? (
-            <ActivityIndicator size="small" color={colors.white} />
-          ) : (
-            <ArrowUpIcon
-              size={18}
-              color={draft.trim() ? colors.white : colors.muted}
-            />
-          )}
-        </Pressable>
-      </View>
-
-      {onAddLink || onSaveToMemory ? (
-        <View style={styles.ingestActions}>
-          {onAddLink ? (
+      <View style={styles.composeWrap}>
+        <View style={styles.composeBox}>
+          <TextInput
+            style={styles.composeInput}
+            value={draft}
+            onChangeText={setDraft}
+            placeholder="Jot down a note…"
+            placeholderTextColor={colors.muted}
+            multiline
+            editable={!createMutation.isPending}
+            returnKeyType="default"
+            blurOnSubmit={false}
+          />
+          <View style={styles.composeToolbar}>
+            {onAddLink || onSaveToMemory ? (
+              <View style={styles.ingestActions}>
+                {onAddLink ? (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.ingestButton,
+                      pressed && styles.ingestButtonPressed,
+                    ]}
+                    onPress={onAddLink}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add link"
+                  >
+                    <Text style={styles.ingestButtonText}>Add link</Text>
+                  </Pressable>
+                ) : null}
+                {onSaveToMemory ? (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.ingestButton,
+                      pressed && styles.ingestButtonPressed,
+                    ]}
+                    onPress={onSaveToMemory}
+                    accessibilityRole="button"
+                    accessibilityLabel="Save to memory"
+                  >
+                    <Text style={styles.ingestButtonText}>Save to memory</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : (
+              <View style={styles.ingestActions} />
+            )}
             <Pressable
               style={({ pressed }) => [
-                styles.ingestButton,
-                pressed && styles.ingestButtonPressed,
+                styles.composeSend,
+                draft.trim().length > 0 &&
+                  !createMutation.isPending &&
+                  styles.composeSendActive,
+                pressed && styles.composeSendPressed,
               ]}
-              onPress={onAddLink}
+              onPress={() => void handleCreateNote()}
+              disabled={!draft.trim() || createMutation.isPending}
               accessibilityRole="button"
-              accessibilityLabel="Add link"
+              accessibilityLabel="Save note"
             >
-              <Text style={styles.ingestButtonText}>Add link</Text>
+              {createMutation.isPending ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <ArrowUpIcon
+                  size={18}
+                  color={draft.trim() ? colors.primary : colors.muted}
+                />
+              )}
             </Pressable>
-          ) : null}
-          {onSaveToMemory ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.ingestButton,
-                pressed && styles.ingestButtonPressed,
-              ]}
-              onPress={onSaveToMemory}
-              accessibilityRole="button"
-              accessibilityLabel="Save to memory"
-            >
-              <Text style={styles.ingestButtonText}>Save to memory</Text>
-            </Pressable>
-          ) : null}
+          </View>
         </View>
-      ) : null}
+      </View>
 
           {visibleTags.length > 0 || pinnedOnly ? (
             <ScrollView
@@ -628,64 +646,63 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
       backgroundColor: colors.background,
     },
-    metaRow: {
-      marginTop: 8,
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
-      alignItems: 'center',
-    },
-    composeRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      gap: 8,
+    composeWrap: {
       paddingHorizontal: 16,
       paddingVertical: 12,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    composeInput: {
-      flex: 1,
-      minHeight: 96,
-      maxHeight: 220,
+    composeBox: {
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+      backgroundColor: colors.background,
+      overflow: 'hidden',
+    },
+    composeInput: {
+      minHeight: 120,
+      maxHeight: 240,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
       fontSize: 16,
       lineHeight: 22,
       color: colors.text,
-      backgroundColor: colors.background,
+      backgroundColor: 'transparent',
+    },
+    composeToolbar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
     },
     composeSend: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.surface,
     },
     composeSendActive: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.surface,
     },
     composeSendPressed: {
       opacity: 0.85,
     },
     ingestActions: {
+      flex: 1,
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 8,
-      paddingHorizontal: 16,
-      paddingBottom: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
     },
     ingestButton: {
       borderRadius: 999,
       borderWidth: 1,
       borderColor: colors.border,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.background,
       paddingHorizontal: 12,
       paddingVertical: 8,
     },
@@ -695,7 +712,7 @@ function createStyles(colors: ThemeColors) {
     ingestButtonText: {
       fontSize: 12,
       fontWeight: '600',
-      color: colors.muted,
+      color: colors.text,
     },
     tagFilterRow: {
       paddingHorizontal: 16,
@@ -745,16 +762,20 @@ function createStyles(colors: ThemeColors) {
       gap: 12,
     },
     card: {
-      alignSelf: 'flex-start',
       width: '100%',
-      backgroundColor: colors.background,
+      minHeight: 140,
+      backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 14,
-      padding: 14,
+      padding: 16,
     },
     cardPressed: {
-      backgroundColor: colors.surface,
+      opacity: 0.92,
+    },
+    cardBody: {
+      flexGrow: 1,
+      gap: 8,
     },
     cardHeader: {
       flexDirection: 'row',
@@ -762,10 +783,10 @@ function createStyles(colors: ThemeColors) {
       justifyContent: 'space-between',
       gap: 8,
     },
-    cardTitle: {
+    cardBodyText: {
       flex: 1,
-      fontSize: 16,
-      fontWeight: '600',
+      fontSize: 15,
+      lineHeight: 22,
       color: colors.text,
     },
     flagActions: {
@@ -773,31 +794,53 @@ function createStyles(colors: ThemeColors) {
       gap: 4,
     },
     flagButton: {
-      fontSize: 18,
+      fontSize: 16,
       color: colors.muted,
       paddingHorizontal: 4,
+      opacity: 0.55,
     },
-    cardPreview: {
-      marginTop: 6,
-      fontSize: 14,
-      lineHeight: 20,
-      color: colors.muted,
+    cardFooter: {
+      marginTop: 12,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    cardFooterRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
     },
     cardDate: {
-      marginTop: 8,
       fontSize: 12,
       color: colors.muted,
+    },
+    statusPill: {
+      fontSize: 11,
+      color: colors.muted,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      overflow: 'hidden',
+      textTransform: 'capitalize',
     },
     tagRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 6,
-      marginTop: 8,
     },
     metaTag: {
       fontSize: 11,
       color: colors.muted,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
       borderRadius: 999,
       paddingHorizontal: 8,
       paddingVertical: 3,
