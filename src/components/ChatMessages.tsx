@@ -17,6 +17,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { isGeneratingPhase } from '../lib/chatPhaseLabel';
 import { formatChatTiming } from '../lib/formatFirstTokenMs';
+import { prefetchSpeak } from '../lib/speak';
 import { isDonnaThinkingPhase } from '../lib/thinkingPhrases';
 import type { ThemeColors } from '../theme/colors';
 import { AssistantThinkingBlock } from './ThinkingIndicator';
@@ -267,6 +268,20 @@ export function ChatMessages({
       [...turns].reverse().find(turn => actionableTurnIds?.has(turn.id))?.id,
     [turns, actionableTurnIds],
   );
+
+  // Warm TTS as soon as the latest reply finishes so speak is instant.
+  useEffect(() => {
+    const latest = [...turns]
+      .reverse()
+      .find(
+        turn =>
+          Boolean(turn.assistant?.trim()) &&
+          !turn.streaming &&
+          !turn.error,
+      );
+    if (!latest?.assistant) return;
+    prefetchSpeak(latest.id, latest.assistant);
+  }, [turns]);
 
   const enableStickToBottom = () => {
     stickToBottomRef.current = true;

@@ -9,6 +9,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import type { ThemeColors } from '../theme/colors';
 import type { ChatTurn } from './ChatMessages';
+import { ReplyAudioControls } from './ReplyAudioControls';
 import {
   CheckIcon,
   CopyIcon,
@@ -197,6 +198,13 @@ export function MessageActions({
           )}
         </Pressable>
       ) : null}
+      {turn.assistant.trim() ? (
+        <ReplyAudioControls
+          messageId={turn.id}
+          content={turn.assistant}
+          busy={busy}
+        />
+      ) : null}
       {isLatest && onRegenerate ? (
         <Pressable
           style={styles.btn}
@@ -259,6 +267,7 @@ function createStyles(colors: ThemeColors) {
     row: {
       flexDirection: 'row',
       alignItems: 'center',
+      flexWrap: 'wrap',
       gap: 2,
     },
     userRow: {
