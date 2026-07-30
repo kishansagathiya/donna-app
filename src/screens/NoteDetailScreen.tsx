@@ -364,7 +364,7 @@ export function NoteDetailScreen({
       .slice(0, 8) ?? [];
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <Pressable
           onPress={onClose}

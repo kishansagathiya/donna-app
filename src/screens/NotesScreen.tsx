@@ -8,7 +8,6 @@ import {
   View,
 } from 'react-native';
 import { Text, TextInput } from '../components/ThemedText';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
 import {
@@ -170,7 +169,6 @@ export function NotesScreen({
   onAddLink?: () => void;
   onSaveToMemory?: () => void;
 }) {
-  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -332,31 +330,8 @@ export function NotesScreen({
     actionError ??
     (feedQuery.error instanceof Error ? feedQuery.error.message : null);
 
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Notes</Text>
-        <Pressable
-          style={({ pressed }) => [
-            styles.pinToggle,
-            pinnedOnly && styles.pinToggleActive,
-            pressed && styles.iconButtonPressed,
-          ]}
-          onPress={() => setPinnedOnly(prev => !prev)}
-          accessibilityRole="button"
-          accessibilityLabel="Show pinned tags"
-        >
-          <Text
-            style={[
-              styles.pinToggleText,
-              pinnedOnly && styles.pinToggleTextActive,
-            ]}
-          >
-            Pinned
-          </Text>
-        </Pressable>
-      </View>
-
+  const listHeader = (
+    <View>
       <View style={styles.searchWrap}>
         <TextInput
           style={styles.searchInput}
@@ -449,46 +424,50 @@ export function NotesScreen({
         </View>
       </View>
 
-          {visibleTags.length > 0 || pinnedOnly ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.tagFilterRow}
+      {visibleTags.length > 0 || pinnedOnly ? (
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tagFilterRow}
+        >
+          <Pressable
+            style={[
+              styles.filterChip,
+              activeTag === null && styles.filterChipActive,
+            ]}
+            onPress={() => setActiveTag(null)}
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                activeTag === null && styles.filterChipTextActive,
+              ]}
             >
-              <Pressable
-                style={[styles.filterChip, activeTag === null && styles.filterChipActive]}
-                onPress={() => setActiveTag(null)}
+              All
+            </Text>
+          </Pressable>
+          {visibleTags.map(t => (
+            <Pressable
+              key={t.tag}
+              style={[
+                styles.filterChip,
+                activeTag === t.tag && styles.filterChipActive,
+              ]}
+              onPress={() => setActiveTag(t.tag)}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  activeTag === t.tag && styles.filterChipTextActive,
+                ]}
               >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    activeTag === null && styles.filterChipTextActive,
-                  ]}
-                >
-                  All
-                </Text>
-              </Pressable>
-              {visibleTags.map(t => (
-                <Pressable
-                  key={t.tag}
-                  style={[
-                    styles.filterChip,
-                    activeTag === t.tag && styles.filterChipActive,
-                  ]}
-                  onPress={() => setActiveTag(t.tag)}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      activeTag === t.tag && styles.filterChipTextActive,
-                    ]}
-                  >
-                    {t.pinned ? '* ' : ''}#{t.tag} {t.count}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : null}
+                {t.pinned ? '* ' : ''}#{t.tag} {t.count}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
 
       {error ? (
         <View style={styles.errorBanner}>
@@ -520,69 +499,98 @@ export function NotesScreen({
           ))}
         </View>
       ) : null}
+    </View>
+  );
 
-      {showInitialSpinner ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={notes}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContent}
-          onEndReachedThreshold={0.4}
-          onEndReached={() => {
-            if (feedQuery.hasNextPage && !feedQuery.isFetchingNextPage) {
-              void feedQuery.fetchNextPage();
-            }
-          }}
-          ListEmptyComponent={
-            !error ? (
-              <View style={styles.empty}>
-                <Text style={styles.emptyTitle}>No notes yet</Text>
-                <Text style={styles.emptyBody}>
-                  Jot a note above, or save links and documents for Donna to turn
-                  into notes.
-                </Text>
-              </View>
-            ) : null
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Notes</Text>
+        <Pressable
+          style={({ pressed }) => [
+            styles.pinToggle,
+            pinnedOnly && styles.pinToggleActive,
+            pressed && styles.iconButtonPressed,
+          ]}
+          onPress={() => setPinnedOnly(prev => !prev)}
+          accessibilityRole="button"
+          accessibilityLabel="Show pinned tags"
+        >
+          <Text
+            style={[
+              styles.pinToggleText,
+              pinnedOnly && styles.pinToggleTextActive,
+            ]}
+          >
+            Pinned
+          </Text>
+        </Pressable>
+      </View>
+
+      <FlatList
+        style={styles.list}
+        data={showInitialSpinner ? [] : notes}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        ListHeaderComponent={listHeader}
+        onEndReachedThreshold={0.4}
+        onEndReached={() => {
+          if (feedQuery.hasNextPage && !feedQuery.isFetchingNextPage) {
+            void feedQuery.fetchNextPage();
           }
-          renderItem={({ item }) => {
-            const failure = failedByNoteId.get(item.id);
-            return (
-              <NoteCard
-                note={item}
-                onPress={() => openNote(item)}
-                onToggleUrgent={() => void toggleFlag(item, 'is_urgent')}
-                onToggleImportant={() => void toggleFlag(item, 'is_important')}
-                syncFailed={Boolean(failure)}
-                onRetrySync={
-                  failure
-                    ? () => {
-                        void retryFailed(failure).catch((err: unknown) => {
-                          setActionError(
-                            err instanceof Error ? err.message : 'Retry failed',
-                          );
-                        });
-                      }
-                    : undefined
-                }
-                styles={styles}
-                colors={colors}
-              />
-            );
-          }}
-          ListFooterComponent={
-            feedQuery.isFetchingNextPage ? (
-              <ActivityIndicator
-                style={{ marginVertical: 12 }}
-                size="small"
-                color={colors.primary}
-              />
-            ) : null
-          }
-        />
-      )}
+        }}
+        ListEmptyComponent={
+          showInitialSpinner ? (
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : !error ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>No notes yet</Text>
+              <Text style={styles.emptyBody}>
+                Jot a note above, or save links and documents for Donna to turn
+                into notes.
+              </Text>
+            </View>
+          ) : null
+        }
+        renderItem={({ item }) => {
+          const failure = failedByNoteId.get(item.id);
+          return (
+            <NoteCard
+              note={item}
+              onPress={() => openNote(item)}
+              onToggleUrgent={() => void toggleFlag(item, 'is_urgent')}
+              onToggleImportant={() => void toggleFlag(item, 'is_important')}
+              syncFailed={Boolean(failure)}
+              onRetrySync={
+                failure
+                  ? () => {
+                      void retryFailed(failure).catch((err: unknown) => {
+                        setActionError(
+                          err instanceof Error ? err.message : 'Retry failed',
+                        );
+                      });
+                    }
+                  : undefined
+              }
+              styles={styles}
+              colors={colors}
+            />
+          );
+        }}
+        ListFooterComponent={
+          feedQuery.isFetchingNextPage ? (
+            <ActivityIndicator
+              style={{ marginVertical: 12 }}
+              size="small"
+              color={colors.primary}
+            />
+          ) : null
+        }
+      />
     </View>
   );
 }
@@ -592,6 +600,9 @@ function createStyles(colors: ThemeColors) {
     container: {
       flex: 1,
       backgroundColor: colors.background,
+    },
+    list: {
+      flex: 1,
     },
     header: {
       flexDirection: 'row',
@@ -632,6 +643,7 @@ function createStyles(colors: ThemeColors) {
     },
     searchWrap: {
       paddingHorizontal: 16,
+      paddingTop: 16,
       paddingBottom: 12,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
@@ -753,16 +765,18 @@ function createStyles(colors: ThemeColors) {
     },
     centered: {
       flex: 1,
+      minHeight: 160,
       alignItems: 'center',
       justifyContent: 'center',
     },
     listContent: {
-      padding: 16,
+      flexGrow: 1,
       paddingBottom: 24,
       gap: 12,
     },
     card: {
-      width: '100%',
+      width: 'auto',
+      marginHorizontal: 16,
       minHeight: 140,
       backgroundColor: colors.surface,
       borderWidth: 1,
