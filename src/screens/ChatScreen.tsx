@@ -652,7 +652,6 @@ export function ChatScreen({
     <View style={styles.container}>
       <AppHeader
         onAvatarPress={onOpenProfile}
-        onSettingsPress={onOpenProfile}
         onHistoryPress={() => setHistoryOpen(true)}
         onNewChatPress={handleNewChat}
       />
