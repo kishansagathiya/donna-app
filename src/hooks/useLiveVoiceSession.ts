@@ -71,8 +71,8 @@ export function useLiveVoiceSession() {
 
   const appendTranscript = useCallback(
     (role: 'user' | 'assistant', text: string, final: boolean) => {
+      // Server sends full-turn snapshots; clients replace (never concat fragments).
       const trimmed = text.trim();
-      // Final with no text only closes the open line for this role.
       if (!trimmed && !final) return;
       setLines(prev => {
         let openIdx = -1;
@@ -87,11 +87,7 @@ export function useLiveVoiceSession() {
           const open = next[openIdx];
           next[openIdx] = {
             ...open,
-            text: trimmed
-              ? final
-                ? trimmed
-                : `${open.text}${trimmed}`.trim()
-              : open.text,
+            text: trimmed || open.text,
             final: final || open.final,
           };
           return next;
@@ -99,7 +95,6 @@ export function useLiveVoiceSession() {
         if (final && !trimmed) {
           return prev;
         }
-        // Ignore duplicate finals that replay an already-finished line.
         if (final && trimmed) {
           for (let i = prev.length - 1; i >= 0; i--) {
             if (prev[i].role === role && prev[i].final) {
@@ -142,7 +137,16 @@ export function useLiveVoiceSession() {
           });
           break;
         case 'transcript':
-          appendTranscript(message.role, message.text, Boolean(message.final));
+          appendTranscript(
+            message.role,
+            message.text ?? '',
+            Boolean(message.final),
+          );
+          if (message.final && message.role === 'assistant') {
+            const pb = playbackRef.current;
+            playbackRef.current = null;
+            void pb?.finish();
+          }
           break;
         case 'interrupted':
           clearPlayback();
