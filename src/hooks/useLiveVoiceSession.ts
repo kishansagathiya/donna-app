@@ -72,17 +72,41 @@ export function useLiveVoiceSession() {
   const appendTranscript = useCallback(
     (role: 'user' | 'assistant', text: string, final: boolean) => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      // Final with no text only closes the open line for this role.
+      if (!trimmed && !final) return;
       setLines(prev => {
-        const last = prev[prev.length - 1];
-        if (last && last.role === role && !last.final) {
+        let openIdx = -1;
+        for (let i = prev.length - 1; i >= 0; i--) {
+          if (prev[i].role === role && !prev[i].final) {
+            openIdx = i;
+            break;
+          }
+        }
+        if (openIdx >= 0) {
           const next = [...prev];
-          next[next.length - 1] = {
-            ...last,
-            text: final ? trimmed : `${last.text}${trimmed}`.trim(),
-            final,
+          const open = next[openIdx];
+          next[openIdx] = {
+            ...open,
+            text: trimmed
+              ? final
+                ? trimmed
+                : `${open.text}${trimmed}`.trim()
+              : open.text,
+            final: final || open.final,
           };
           return next;
+        }
+        if (final && !trimmed) {
+          return prev;
+        }
+        // Ignore duplicate finals that replay an already-finished line.
+        if (final && trimmed) {
+          for (let i = prev.length - 1; i >= 0; i--) {
+            if (prev[i].role === role && prev[i].final) {
+              if (prev[i].text.trim() === trimmed) return prev;
+              break;
+            }
+          }
         }
         lineIdRef.current += 1;
         return [
