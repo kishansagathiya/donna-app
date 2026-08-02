@@ -49,6 +49,7 @@ import { PrivacyScreen } from './src/screens/PrivacyScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
+import { VoiceScreen } from './src/screens/VoiceScreen';
 import { SCREENSHOT_MODE } from './src/config';
 import { useAiDataConsent } from './src/hooks/useAiDataConsent';
 import { ThemeProvider, useTheme } from './src/hooks/useTheme';
@@ -344,6 +345,8 @@ function AppContent({
             onToast={showToast}
           />
         ) : null}
+
+        {tab === 'voice' ? <VoiceScreen /> : null}
 
         <View style={{ flex: 1, display: tab === 'notes' ? 'flex' : 'none' }}>
           <NotesScreen

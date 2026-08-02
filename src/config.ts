@@ -113,6 +113,9 @@ function resolveVoiceWsUrl(): string {
 export const VOICE_SERVER_HOST = resolveVoiceHost();
 export const VOICE_WS_URL = resolveVoiceWsUrl();
 
+/** Gemini Live duplex Voice harness (separate from push-to-talk /voice). */
+export const LIVE_VOICE_WS_URL = VOICE_WS_URL.replace(/\/voice\/?$/, '/voice/live');
+
 function httpBaseFromVoiceUrl(wsUrl: string): string {
   const normalized = wsUrl.replace(/^ws/, 'http').replace(/^wss/, 'https');
   const url = new URL(normalized);

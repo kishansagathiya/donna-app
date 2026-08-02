@@ -9,11 +9,19 @@ import {
   DatabaseIcon,
   InboxIcon,
   MessageSquareIcon,
+  MicIcon,
   StickyNoteIcon,
   UserIcon,
 } from './icons';
 
-export type AppTab = 'chat' | 'notes' | 'actions' | 'today' | 'memory' | 'profile';
+export type AppTab =
+  | 'chat'
+  | 'voice'
+  | 'notes'
+  | 'actions'
+  | 'today'
+  | 'memory'
+  | 'profile';
 
 type Props = {
   active: AppTab;
@@ -26,6 +34,7 @@ const tabs: {
   Icon: typeof MessageSquareIcon;
 }[] = [
   { id: 'chat', label: 'Chat', Icon: MessageSquareIcon },
+  { id: 'voice', label: 'Voice', Icon: MicIcon },
   { id: 'notes', label: 'Notes', Icon: StickyNoteIcon },
   { id: 'actions', label: 'Actions', Icon: InboxIcon },
   { id: 'today', label: 'Today', Icon: CalendarCheckIcon },
