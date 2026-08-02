@@ -5,6 +5,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   TextInput,
   View,
@@ -14,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import {
+  createConversationShare,
   deleteConversation,
   formatConversationDate,
   getConversation,
@@ -152,6 +154,23 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
     }
   }
 
+  async function handleShare(conversation: ConversationSummary) {
+    setBusyId(conversation.id);
+    setError(null);
+    try {
+      const share = await createConversationShare(conversation.id);
+      await Share.share({
+        url: share.url,
+        message: share.url,
+        title: conversation.title,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not share chat');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function openActions(conversation: ConversationSummary) {
     const pinned = Boolean(conversation.pinned_at);
     const archived = Boolean(conversation.archived_at);
@@ -185,6 +204,10 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
           setEditMode('tags');
           setEditValue((conversation.tags ?? []).join(', '));
         },
+      },
+      {
+        text: 'Share…',
+        onPress: () => void handleShare(conversation),
       },
       {
         text: 'Delete',

@@ -145,6 +145,31 @@ export async function deleteConversation(id: string): Promise<void> {
   await parseJSON<{ ok: boolean }>(res);
 }
 
+export type ConversationShare = {
+  url: string;
+  token: string;
+  created_at: string;
+  expires_at?: string;
+};
+
+export async function createConversationShare(
+  id: string,
+): Promise<ConversationShare> {
+  const res = await authorizedFetch(
+    `/conversations/${encodeURIComponent(id)}/share`,
+    { method: 'POST' },
+  );
+  return parseJSON(res);
+}
+
+export async function revokeConversationShare(id: string): Promise<void> {
+  const res = await authorizedFetch(
+    `/conversations/${encodeURIComponent(id)}/share`,
+    { method: 'DELETE' },
+  );
+  await parseJSON<{ ok: boolean }>(res);
+}
+
 export async function truncateConversationTurns(
   clientSessionId: string,
   fromIndex: number,
