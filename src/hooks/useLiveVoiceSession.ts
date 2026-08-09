@@ -15,6 +15,7 @@ import {
 } from '../voice/playback';
 import { getAccessToken } from '../services/auth';
 import { LiveVoiceClient } from '../liveVoice/liveVoiceClient';
+import { looksLikeEcho } from '../liveVoice/echoGuard';
 import type { LiveServerMessage } from '../liveVoice/protocol';
 
 export type LiveVoiceState = 'idle' | 'connecting' | 'live' | 'error';
@@ -30,6 +31,7 @@ export function useLiveVoiceSession() {
   const [state, setState] = useState<LiveVoiceState>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lines, setLines] = useState<LiveTranscriptLine[]>([]);
+  const [assistantSpeaking, setAssistantSpeaking] = useState(false);
 
   const clientRef = useRef<LiveVoiceClient | null>(null);
   const recorderRef = useRef<AudioRecorder | null>(null);
@@ -39,6 +41,8 @@ export function useLiveVoiceSession() {
   const activeRef = useRef(false);
   const readyRef = useRef(false);
   const lineIdRef = useRef(0);
+  const playbackGenRef = useRef(0);
+  const lastAssistantTextRef = useRef('');
 
   const stopRecorder = useCallback(() => {
     activeRef.current = false;
@@ -47,9 +51,11 @@ export function useLiveVoiceSession() {
   }, []);
 
   const clearPlayback = useCallback(() => {
+    playbackGenRef.current += 1;
     playbackRef.current?.stop();
     playbackRef.current = null;
     stopActivePlayback();
+    setAssistantSpeaking(false);
   }, []);
 
   const fail = useCallback(
@@ -74,6 +80,23 @@ export function useLiveVoiceSession() {
       // Server sends full-turn snapshots; clients replace (never concat fragments).
       const trimmed = text.trim();
       if (!trimmed && !final) return;
+
+      if (role === 'assistant' && trimmed) {
+        lastAssistantTextRef.current = trimmed;
+      }
+
+      // Safety net: if platform AEC misses, drop captions that are clearly echo.
+      if (
+        role === 'user' &&
+        trimmed &&
+        looksLikeEcho(trimmed, lastAssistantTextRef.current)
+      ) {
+        setLines(prev =>
+          prev.filter(line => !(line.role === 'user' && !line.final)),
+        );
+        return;
+      }
+
       setLines(prev => {
         let openIdx = -1;
         for (let i = prev.length - 1; i >= 0; i--) {
@@ -126,6 +149,7 @@ export function useLiveVoiceSession() {
           setState('live');
           break;
         case 'audio.chunk':
+          setAssistantSpeaking(true);
           if (!playbackRef.current) {
             playbackRef.current = createStreamingPlayback();
           }
@@ -143,9 +167,17 @@ export function useLiveVoiceSession() {
             Boolean(message.final),
           );
           if (message.final && message.role === 'assistant') {
+            const gen = playbackGenRef.current;
             const pb = playbackRef.current;
             playbackRef.current = null;
-            void pb?.finish();
+            if (!pb) {
+              setAssistantSpeaking(false);
+              break;
+            }
+            void pb.finish().finally(() => {
+              if (playbackGenRef.current !== gen) return;
+              setAssistantSpeaking(false);
+            });
           }
           break;
         case 'interrupted':
@@ -236,8 +268,11 @@ export function useLiveVoiceSession() {
     if (state === 'connecting' || state === 'live') return;
     setErrorMsg(null);
     setLines([]);
+    lastAssistantTextRef.current = '';
+    setAssistantSpeaking(false);
     setState('connecting');
 
+    // voiceChat enables platform AEC while keeping full-duplex barge-in.
     AudioManager.setAudioSessionOptions({
       iosCategory: 'playAndRecord',
       iosMode: 'voiceChat',
@@ -292,6 +327,7 @@ export function useLiveVoiceSession() {
     state,
     errorMsg,
     lines,
+    assistantSpeaking,
     start,
     end,
     toggle,

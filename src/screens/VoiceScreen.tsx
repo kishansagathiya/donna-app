@@ -16,14 +16,17 @@ import { MicIcon, StopIcon } from '../components/icons';
 export function VoiceScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
-  const { state, errorMsg, lines, toggle } = useLiveVoiceSession();
+  const { state, errorMsg, lines, assistantSpeaking, toggle } =
+    useLiveVoiceSession();
 
   const live = state === 'live';
   const connecting = state === 'connecting';
   const statusLabel = connecting
     ? 'Connecting…'
     : live
-      ? 'Listening — talk naturally'
+      ? assistantSpeaking
+        ? 'Donna is speaking…'
+        : 'Listening — talk naturally'
       : 'Tap to start a realtime conversation';
 
   return (
