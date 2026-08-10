@@ -21,6 +21,7 @@ import {
 } from '../services/localDeviceCaptures';
 import type { ThemeColors } from '../theme/colors';
 import { ArrowUpIcon } from '../components/icons';
+import { MicButton } from '../components/MicButton';
 import { NoteDetailScreen } from './NoteDetailScreen';
 import { TagTaxonomyPanel } from '../components/TagTaxonomyPanel';
 import {
@@ -31,6 +32,7 @@ import {
   useRetryFailedNoteMutation,
   useUpdateNoteMutation,
 } from '../hooks/useNotes';
+import { useVoiceSession } from '../hooks/useVoiceSession';
 import {
   enrichmentLabel,
   noteTagList,
@@ -193,6 +195,36 @@ export function NotesScreen({
   const updateMutation = useUpdateNoteMutation();
   const failedMutations = useFailedNoteMutations();
   const retryFailed = useRetryFailedNoteMutation();
+
+  const {
+    state: micState,
+    toggleTalk,
+    sessionLabel,
+    errorMsg: voiceError,
+    disabled: micDisabled,
+  } = useVoiceSession({
+    mode: 'notes',
+    onNoteCreated: () => {
+      setActionError(null);
+      if (activeTag) {
+        setActiveTag(null);
+      }
+      void feedQuery.refetch();
+      void tagsQuery.refetch();
+    },
+  });
+
+  useEffect(() => {
+    if (voiceError) {
+      setActionError(voiceError);
+    }
+  }, [voiceError]);
+
+  const voiceBusy =
+    micState === 'listening' ||
+    micState === 'processing' ||
+    micState === 'requesting';
+  const showMic = draft.trim().length === 0;
 
   const serverNotes = useMemo(
     () => feedQuery.data?.pages.flatMap(page => page.items) ?? [],
@@ -358,13 +390,18 @@ export function NotesScreen({
             style={styles.composeInput}
             value={draft}
             onChangeText={setDraft}
-            placeholder="Jot down a note…"
+            placeholder={
+              voiceBusy ? 'Listening…' : 'Jot down a note… or tap the mic'
+            }
             placeholderTextColor={colors.muted}
             multiline
-            editable={!createMutation.isPending}
+            editable={!createMutation.isPending && !voiceBusy}
             returnKeyType="default"
             blurOnSubmit={false}
           />
+          {sessionLabel && micState !== 'error' ? (
+            <Text style={styles.composeSessionLabel}>{sessionLabel}</Text>
+          ) : null}
           <View style={styles.composeToolbar}>
             {onAddLink || onSaveToMemory ? (
               <View style={styles.ingestActions}>
@@ -372,9 +409,10 @@ export function NotesScreen({
                   <Pressable
                     style={({ pressed }) => [
                       styles.ingestButton,
-                      pressed && styles.ingestButtonPressed,
+                      (pressed || voiceBusy) && styles.ingestButtonPressed,
                     ]}
                     onPress={onAddLink}
+                    disabled={voiceBusy}
                     accessibilityRole="button"
                     accessibilityLabel="Add link"
                   >
@@ -385,9 +423,10 @@ export function NotesScreen({
                   <Pressable
                     style={({ pressed }) => [
                       styles.ingestButton,
-                      pressed && styles.ingestButtonPressed,
+                      (pressed || voiceBusy) && styles.ingestButtonPressed,
                     ]}
                     onPress={onSaveToMemory}
+                    disabled={voiceBusy}
                     accessibilityRole="button"
                     accessibilityLabel="Save to memory"
                   >
@@ -398,28 +437,41 @@ export function NotesScreen({
             ) : (
               <View style={styles.ingestActions} />
             )}
-            <Pressable
-              style={({ pressed }) => [
-                styles.composeSend,
-                draft.trim().length > 0 &&
-                  !createMutation.isPending &&
-                  styles.composeSendActive,
-                pressed && styles.composeSendPressed,
-              ]}
-              onPress={() => void handleCreateNote()}
-              disabled={!draft.trim() || createMutation.isPending}
-              accessibilityRole="button"
-              accessibilityLabel="Save note"
-            >
-              {createMutation.isPending ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <ArrowUpIcon
-                  size={18}
-                  color={draft.trim() ? colors.primary : colors.muted}
-                />
-              )}
-            </Pressable>
+            {showMic ? (
+              <MicButton
+                variant="inline"
+                state={micState}
+                onPress={() => {
+                  setActionError(null);
+                  void toggleTalk();
+                }}
+                disabled={micDisabled || createMutation.isPending}
+              />
+            ) : (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.composeSend,
+                  draft.trim().length > 0 &&
+                    !createMutation.isPending &&
+                    !voiceBusy &&
+                    styles.composeSendActive,
+                  pressed && styles.composeSendPressed,
+                ]}
+                onPress={() => void handleCreateNote()}
+                disabled={!draft.trim() || createMutation.isPending || voiceBusy}
+                accessibilityRole="button"
+                accessibilityLabel="Save note"
+              >
+                {createMutation.isPending ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <ArrowUpIcon
+                    size={18}
+                    color={draft.trim() ? colors.primary : colors.muted}
+                  />
+                )}
+              </Pressable>
+            )}
           </View>
         </View>
       </View>
@@ -680,6 +732,12 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 22,
       color: colors.text,
       backgroundColor: 'transparent',
+    },
+    composeSessionLabel: {
+      paddingHorizontal: 14,
+      paddingBottom: 8,
+      fontSize: 13,
+      color: colors.muted,
     },
     composeToolbar: {
       flexDirection: 'row',

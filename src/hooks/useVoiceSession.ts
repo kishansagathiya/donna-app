@@ -13,6 +13,7 @@ import type { MicState } from '../components/MicButton';
 import { computeRms, floatToPcm16, pcm16ToBase64 } from '../voice/pcm';
 import type { ServerMessage, TurnPhase } from '../voice/protocol';
 import { getAccessToken } from '../services/auth';
+import { newNoteId } from '../services/notesApi';
 import { DONNA_THINKING_PHASE } from '../lib/thinkingPhrases';
 import { voiceErrorMessage } from '../voice/voiceErrors';
 import { VoiceClient } from '../voice/voiceClient';
@@ -24,9 +25,18 @@ type VoiceStatus = {
 
 const BUSY_PHASES: TurnPhase[] = ['busy', 'transcribing'];
 
+export type VoiceSessionMode = 'talk' | 'notes';
+
 export type UseVoiceSessionOptions = {
+  /** talk = dictation into chat; notes = create a voice note. Default talk. */
+  mode?: VoiceSessionMode;
   /** Called with STT text so the shared text chat harness can send it. */
   onTranscript?: (text: string) => void;
+  /** Called after notes-mode successfully saves a dictated note. */
+  onNoteCreated?: (info: {
+    noteId: string | null;
+    transcript: string;
+  }) => void;
 };
 
 function formatStartSessionError(message: string): string {
@@ -50,8 +60,14 @@ function formatStartSessionError(message: string): string {
 }
 
 export function useVoiceSession(options: UseVoiceSessionOptions = {}) {
+  const mode = options.mode ?? 'talk';
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+
   const onTranscriptRef = useRef(options.onTranscript);
   onTranscriptRef.current = options.onTranscript;
+  const onNoteCreatedRef = useRef(options.onNoteCreated);
+  onNoteCreatedRef.current = options.onNoteCreated;
 
   const [state, setState] = useState<MicState>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -124,10 +140,18 @@ export function useVoiceSession(options: UseVoiceSessionOptions = {}) {
           break;
         case 'turn.done': {
           const transcript = transcriptRef.current?.trim() ?? '';
+          const noteId =
+            typeof message.noteId === 'string' && message.noteId.trim()
+              ? message.noteId.trim()
+              : null;
           transcriptRef.current = null;
           await stopSessionRef.current();
           if (!message.skipped && transcript) {
-            onTranscriptRef.current?.(transcript);
+            if (modeRef.current === 'notes') {
+              onNoteCreatedRef.current?.({ noteId, transcript });
+            } else {
+              onTranscriptRef.current?.(transcript);
+            }
           }
           break;
         }
@@ -314,7 +338,12 @@ export function useVoiceSession(options: UseVoiceSessionOptions = {}) {
         };
       });
 
-      client.send({ type: 'session.start', mode: 'talk' });
+      const startMode = modeRef.current;
+      client.send({
+        type: 'session.start',
+        mode: startMode,
+        ...(startMode === 'notes' ? { clientNoteId: newNoteId() } : {}),
+      });
       await readyPromise;
 
       activeRef.current = true;
@@ -365,7 +394,10 @@ export function useVoiceSession(options: UseVoiceSessionOptions = {}) {
     };
   }, [stopSession]);
 
-  const phaseLabel = state === 'processing' ? DONNA_THINKING_PHASE : null;
+  const processingLabel =
+    mode === 'notes' ? 'Saving note…' : DONNA_THINKING_PHASE;
+
+  const phaseLabel = state === 'processing' ? processingLabel : null;
 
   const sessionLabel =
     state === 'error'
@@ -375,7 +407,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions = {}) {
         : state === 'listening'
           ? 'Listening — tap when done'
           : state === 'processing'
-            ? DONNA_THINKING_PHASE
+            ? processingLabel
             : null;
 
   return {
