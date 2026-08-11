@@ -16,6 +16,7 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
 import type { DeviceSyncStatus } from '../hooks/useDeviceSync';
 import { IntegrationsSection } from '../components/IntegrationsSection';
+import { ImportChatGPTSection } from '../components/ImportChatGPTSection';
 import type { IntegrationOAuthResult } from '../hooks/useIntegrationOAuthReturn';
 import {
   deleteAccount,
@@ -53,6 +54,7 @@ type ProfileScreenProps = {
   onPairDevicePress: () => void;
   onOpenPrivacy?: () => void;
   onOpenSupport?: () => void;
+  onOpenMemory?: () => void;
   integrationsRefreshToken?: number;
   integrationOauthResult?: IntegrationOAuthResult | null;
   onIntegrationOauthResultConsumed?: () => void;
@@ -63,6 +65,7 @@ export function ProfileScreen({
   onPairDevicePress,
   onOpenPrivacy,
   onOpenSupport,
+  onOpenMemory,
   integrationsRefreshToken = 0,
   integrationOauthResult = null,
   onIntegrationOauthResultConsumed,
@@ -417,6 +420,8 @@ export function ProfileScreen({
         oauthResult={integrationOauthResult}
         onOauthResultConsumed={onIntegrationOauthResultConsumed}
       />
+
+      <ImportChatGPTSection onOpenMemory={onOpenMemory} />
 
       <Text style={styles.sectionTitle}>Help & legal</Text>
       <Pressable

@@ -380,6 +380,7 @@ function AppContent({
             onPairDevicePress={() => setPairSheetOpen(true)}
             onOpenPrivacy={() => onOpenLegal('privacy')}
             onOpenSupport={() => onOpenLegal('support')}
+            onOpenMemory={() => setTab('memory')}
             integrationsRefreshToken={integrationsRefreshToken}
             integrationOauthResult={integrationOauthResult}
             onIntegrationOauthResultConsumed={
