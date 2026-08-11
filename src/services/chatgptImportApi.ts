@@ -27,9 +27,12 @@ export type CreateChatGPTImportResult = {
   id: string;
   status: ChatGPTImportStatus;
   upload_url: string;
-  token: string;
+  upload_method?: string;
+  upload_headers?: Record<string, string>;
+  token?: string;
   path: string;
   bucket: string;
+  provider?: string;
   max_bytes: number;
   expires_in_s: number;
 };
@@ -75,17 +78,20 @@ function normalizeFilePath(uri: string): string {
 
 export async function uploadChatGPTExportZip(
   uploadUrl: string,
-  token: string,
   filePath: string,
-  onProgress?: (ratio: number) => void,
+  opts?: {
+    token?: string;
+    headers?: Record<string, string>;
+    onProgress?: (ratio: number) => void;
+  },
 ): Promise<void> {
   const path = normalizeFilePath(filePath);
   const headers: Record<string, string> = {
     'Content-Type': 'application/zip',
-    'x-upsert': 'true',
+    ...(opts?.headers ?? {}),
   };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (opts?.token) {
+    headers.Authorization = `Bearer ${opts.token}`;
   }
 
   const task = ReactNativeBlobUtil.fetch(
@@ -95,10 +101,10 @@ export async function uploadChatGPTExportZip(
     ReactNativeBlobUtil.wrap(path),
   );
 
-  if (onProgress) {
+  if (opts?.onProgress) {
     task.uploadProgress({ interval: 200 }, (written, total) => {
       if (total > 0) {
-        onProgress(written / total);
+        opts.onProgress?.(written / total);
       }
     });
   }
@@ -129,12 +135,11 @@ export async function importChatGPTExportZip(input: {
 
   const created = await createChatGPTImport();
   input.onProgress?.('uploading', 0);
-  await uploadChatGPTExportZip(
-    created.upload_url,
-    created.token,
-    input.uri,
-    ratio => input.onProgress?.('uploading', ratio),
-  );
+  await uploadChatGPTExportZip(created.upload_url, input.uri, {
+    token: created.token,
+    headers: created.upload_headers,
+    onProgress: ratio => input.onProgress?.('uploading', ratio),
+  });
   input.onProgress?.('starting');
   return startChatGPTImport(created.id, size ?? undefined);
 }
