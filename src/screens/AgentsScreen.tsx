@@ -115,6 +115,15 @@ function canReply(status: string) {
   );
 }
 
+function isFinishedStatus(status: string) {
+  return (
+    status === 'succeeded' ||
+    status === 'failed' ||
+    status === 'cancelled' ||
+    status === 'expired'
+  );
+}
+
 function isOpenStatus(status: string) {
   return (
     status === 'running' ||
@@ -426,6 +435,11 @@ function AgentDetail({
     [steps],
   );
   const latestStepSeq = stepsNewestFirst[0]?.seq;
+  const [stepsOpen, setStepsOpen] = useState(!isFinishedStatus(run.status));
+
+  useEffect(() => {
+    setStepsOpen(!isFinishedStatus(run.status));
+  }, [run.id, run.status]);
 
   return (
     <View style={styles.container}>
@@ -546,25 +560,42 @@ function AgentDetail({
         ) : null}
 
         <View style={styles.block}>
-          <Text style={styles.sectionLabel}>Steps ({steps.length})</Text>
-          <View style={styles.stepsCard}>
-            {stepsNewestFirst.length === 0 ? (
-              <Text style={styles.emptyBody}>Waiting for steps…</Text>
-            ) : (
-              stepsNewestFirst.map(step => (
-                <StepRow
-                  key={step.id}
-                  step={step}
-                  styles={styles}
-                  defaultOpen={
-                    step.kind === 'thought' ||
-                    step.kind === 'approval_request' ||
-                    (step.kind === 'tool_result' && step.seq === latestStepSeq)
-                  }
-                />
-              ))
-            )}
-          </View>
+          <Pressable
+            onPress={() => setStepsOpen(v => !v)}
+            style={({ pressed }) => [
+              styles.stepsToggle,
+              pressed && styles.buttonPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: stepsOpen }}
+          >
+            <Text style={styles.sectionLabel}>
+              {stepsOpen ? '▾' : '▸'} Steps ({steps.length})
+              {!stepsOpen && isFinishedStatus(run.status)
+                ? ' · show timeline'
+                : ''}
+            </Text>
+          </Pressable>
+          {stepsOpen ? (
+            <View style={styles.stepsCard}>
+              {stepsNewestFirst.length === 0 ? (
+                <Text style={styles.emptyBody}>Waiting for steps…</Text>
+              ) : (
+                stepsNewestFirst.map(step => (
+                  <StepRow
+                    key={step.id}
+                    step={step}
+                    styles={styles}
+                    defaultOpen={
+                      step.kind === 'thought' ||
+                      step.kind === 'approval_request' ||
+                      (step.kind === 'tool_result' && step.seq === latestStepSeq)
+                    }
+                  />
+                ))
+              )}
+            </View>
+          ) : null}
         </View>
       </ScrollView>
     </View>
@@ -1181,6 +1212,10 @@ function createStyles(colors: ThemeColors) {
     },
     block: {
       gap: 8,
+    },
+    stepsToggle: {
+      alignSelf: 'flex-start',
+      paddingVertical: 2,
     },
     outputBox: {
       borderWidth: 1,
