@@ -26,17 +26,32 @@ export type AgentStep = {
   created_at: string;
 };
 
+export type AgentAttachment = {
+  kind: 'file' | 'url';
+  filename?: string;
+  mime?: string;
+  data_base64?: string;
+  url?: string;
+};
+
 export async function listAgentRuns(status?: string): Promise<AgentRun[]> {
   const q = status ? `?status=${encodeURIComponent(status)}` : '';
   const res = await authorizedFetch(`/agent-runs${q}`);
   return parseJSON<AgentRun[]>(res);
 }
 
-export async function createAgentRun(goal: string): Promise<AgentRun> {
+export async function createAgentRun(
+  goal: string,
+  attachments?: AgentAttachment[],
+): Promise<AgentRun> {
   const res = await authorizedFetch('/agent-runs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ goal }),
+    body: JSON.stringify({
+      goal,
+      attachments:
+        attachments && attachments.length > 0 ? attachments : undefined,
+    }),
   });
   return parseJSON<AgentRun>(res);
 }
@@ -76,13 +91,18 @@ export async function finishAgentRun(id: string): Promise<AgentRun> {
 export async function redirectAgentRun(
   id: string,
   message: string,
+  attachments?: AgentAttachment[],
 ): Promise<AgentRun> {
   const res = await authorizedFetch(
     `/agent-runs/${encodeURIComponent(id)}/redirect`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({
+        message,
+        attachments:
+          attachments && attachments.length > 0 ? attachments : undefined,
+      }),
     },
   );
   return parseJSON<AgentRun>(res);
