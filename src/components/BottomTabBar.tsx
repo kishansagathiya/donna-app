@@ -5,6 +5,7 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeColors } from '../theme/colors';
 import {
+  BotIcon,
   CalendarCheckIcon,
   DatabaseIcon,
   InboxIcon,
@@ -19,6 +20,7 @@ export type AppTab =
   | 'voice'
   | 'notes'
   | 'actions'
+  | 'agents'
   | 'today'
   | 'memory'
   | 'profile';
@@ -37,6 +39,7 @@ const tabs: {
   { id: 'voice', label: 'Voice', Icon: MicIcon },
   { id: 'notes', label: 'Notes', Icon: StickyNoteIcon },
   { id: 'actions', label: 'Actions', Icon: InboxIcon },
+  { id: 'agents', label: 'Agents', Icon: BotIcon },
   { id: 'today', label: 'Today', Icon: CalendarCheckIcon },
   { id: 'memory', label: 'Memory', Icon: DatabaseIcon },
   { id: 'profile', label: 'Profile', Icon: UserIcon },

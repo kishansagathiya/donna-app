@@ -43,6 +43,7 @@ import { AIDataConsentScreen } from './src/screens/AIDataConsentScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { NotesScreen } from './src/screens/NotesScreen';
 import { ActionsScreen } from './src/screens/ActionsScreen';
+import { AgentsScreen } from './src/screens/AgentsScreen';
 import { MemoryScreen } from './src/screens/MemoryScreen';
 import { PairDeviceScreen } from './src/screens/PairDeviceScreen';
 import { PrivacyScreen } from './src/screens/PrivacyScreen';
@@ -366,6 +367,10 @@ function AppContent({
             isVisible={tab === 'actions'}
             onOpenProfile={() => setTab('profile')}
           />
+        </View>
+
+        <View style={{ flex: 1, display: tab === 'agents' ? 'flex' : 'none' }}>
+          <AgentsScreen isVisible={tab === 'agents'} />
         </View>
 
         {tab === 'today' ? (

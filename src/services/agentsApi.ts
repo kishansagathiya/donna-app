@@ -8,6 +8,7 @@ export type AgentRun = {
   status: string;
   max_steps: number;
   step_count: number;
+  redirect_pending?: string | null;
   error?: string | null;
   result?: Record<string, unknown> | null;
   created_at: string;
@@ -18,6 +19,7 @@ export type AgentRun = {
 export type AgentStep = {
   id: string;
   agent_run_id: string;
+  user_id?: string;
   seq: number;
   kind: string;
   payload: Record<string, unknown>;
@@ -39,26 +41,49 @@ export async function createAgentRun(goal: string): Promise<AgentRun> {
   return parseJSON<AgentRun>(res);
 }
 
-export async function listAgentSteps(id: string): Promise<AgentStep[]> {
-  const res = await authorizedFetch(`/agent-runs/${id}/steps`);
+export async function getAgentRun(id: string): Promise<AgentRun> {
+  const res = await authorizedFetch(`/agent-runs/${encodeURIComponent(id)}`);
+  return parseJSON<AgentRun>(res);
+}
+
+export async function listAgentSteps(
+  id: string,
+  afterSeq = 0,
+): Promise<AgentStep[]> {
+  const q = afterSeq > 0 ? `?after_seq=${afterSeq}` : '';
+  const res = await authorizedFetch(
+    `/agent-runs/${encodeURIComponent(id)}/steps${q}`,
+  );
   return parseJSON<AgentStep[]>(res);
 }
 
 export async function cancelAgentRun(id: string): Promise<AgentRun> {
-  const res = await authorizedFetch(`/agent-runs/${id}/cancel`, { method: 'POST' });
+  const res = await authorizedFetch(
+    `/agent-runs/${encodeURIComponent(id)}/cancel`,
+    { method: 'POST' },
+  );
   return parseJSON<AgentRun>(res);
 }
 
 export async function finishAgentRun(id: string): Promise<AgentRun> {
-  const res = await authorizedFetch(`/agent-runs/${id}/finish`, { method: 'POST' });
+  const res = await authorizedFetch(
+    `/agent-runs/${encodeURIComponent(id)}/finish`,
+    { method: 'POST' },
+  );
   return parseJSON<AgentRun>(res);
 }
 
-export async function redirectAgentRun(id: string, message: string): Promise<AgentRun> {
-  const res = await authorizedFetch(`/agent-runs/${id}/redirect`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
-  });
+export async function redirectAgentRun(
+  id: string,
+  message: string,
+): Promise<AgentRun> {
+  const res = await authorizedFetch(
+    `/agent-runs/${encodeURIComponent(id)}/redirect`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    },
+  );
   return parseJSON<AgentRun>(res);
 }
