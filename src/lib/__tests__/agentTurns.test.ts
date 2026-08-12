@@ -1,0 +1,181 @@
+/**
+ * @jest-environment node
+ */
+
+import {
+  buildAgentTurns,
+  canReply,
+  parseOptions,
+  pendingQuestion,
+  stepBody,
+  stepTitle,
+  type AgentRunLike,
+  type AgentStepLike,
+} from "../agentTurns";
+
+function step(
+  partial: Partial<AgentStepLike> & Pick<AgentStepLike, "id" | "seq" | "kind">,
+): AgentStepLike {
+  return {
+    payload: {},
+    ...partial,
+  };
+}
+
+const baseRun: AgentRunLike = {
+  goal: "Find the Lisbon photo",
+  status: "running",
+  result: null,
+};
+
+describe("buildAgentTurns", () => {
+  it("creates a single turn from goal with no steps", () => {
+    const turns = buildAgentTurns(baseRun, []);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].prompt).toBe("Find the Lisbon photo");
+    expect(turns[0].steps).toEqual([]);
+    expect(turns[0].isLatest).toBe(true);
+    expect(turns[0].activeStepId).toBeNull();
+    expect(turns[0].output).toEqual({ kind: "none" });
+  });
+
+  it("groups mid-run steps under the goal turn and highlights the active step", () => {
+    const steps = [
+      step({ id: "s1", seq: 1, kind: "status", payload: { text: "starting" } }),
+      step({ id: "s2", seq: 2, kind: "tool_call", payload: { name: "search" } }),
+      step({
+        id: "s3",
+        seq: 3,
+        kind: "tool_result",
+        payload: { name: "search", content: "found 2" },
+      }),
+    ];
+    const turns = buildAgentTurns({ ...baseRun, status: "running" }, steps);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].steps.map((s) => s.id)).toEqual(["s1", "s2", "s3"]);
+    expect(turns[0].activeStepId).toBe("s3");
+    expect(turns[0].output).toEqual({ kind: "summary", text: "found 2" });
+  });
+
+  it("splits on user_message redirects into multiple turns", () => {
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "thought",
+        payload: { text: "Looking…" },
+      }),
+      step({
+        id: "s2",
+        seq: 2,
+        kind: "user_message",
+        payload: { message: "Also check Dropbox" },
+      }),
+      step({
+        id: "s3",
+        seq: 3,
+        kind: "tool_call",
+        payload: { name: "search_dropbox" },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "succeeded",
+        result: { summary: "Found it in Dropbox" },
+      },
+      steps,
+    );
+    expect(turns).toHaveLength(2);
+    expect(turns[0].prompt).toBe("Find the Lisbon photo");
+    expect(turns[0].steps.map((s) => s.id)).toEqual(["s1"]);
+    expect(turns[0].output).toEqual({ kind: "summary", text: "Looking…" });
+    expect(turns[0].isLatest).toBe(false);
+    expect(turns[0].activeStepId).toBeNull();
+
+    expect(turns[1].prompt).toBe("Also check Dropbox");
+    expect(turns[1].steps.map((s) => s.id)).toEqual(["s3"]);
+    expect(turns[1].isLatest).toBe(true);
+    expect(turns[1].activeStepId).toBeNull();
+    expect(turns[1].output).toEqual({
+      kind: "summary",
+      text: "Found it in Dropbox",
+    });
+  });
+
+  it("uses waiting question on the latest turn only", () => {
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "thought",
+        payload: { text: "Need clarity" },
+      }),
+      step({
+        id: "s2",
+        seq: 2,
+        kind: "user_message",
+        payload: { message: "Use my notes" },
+      }),
+      step({
+        id: "s3",
+        seq: 3,
+        kind: "approval_request",
+        payload: { kind: "ask_user", question: "Which album?" },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "waiting_for_user",
+        result: {
+          kind: "ask_user",
+          question: "Which album should I search?",
+          options: ["Travel", "Family"],
+        },
+      },
+      steps,
+    );
+    expect(turns).toHaveLength(2);
+    expect(turns[0].output.kind).toBe("summary");
+    expect(turns[1].output).toEqual({
+      kind: "question",
+      text: "Which album should I search?",
+    });
+    expect(turns[1].activeStepId).toBeNull();
+  });
+
+  it("sorts steps by seq even if input is unsorted", () => {
+    const steps = [
+      step({ id: "s2", seq: 2, kind: "thought", payload: { text: "b" } }),
+      step({ id: "s1", seq: 1, kind: "thought", payload: { text: "a" } }),
+    ];
+    const turns = buildAgentTurns(baseRun, steps);
+    expect(turns[0].steps.map((s) => s.id)).toEqual(["s1", "s2"]);
+  });
+});
+
+describe("helpers", () => {
+  it("parses options and pending questions", () => {
+    expect(
+      parseOptions({ options: ["A", { id: "b", label: "B" }] }),
+    ).toEqual([
+      { id: "opt_1", label: "A" },
+      { id: "b", label: "B" },
+    ]);
+    expect(pendingQuestion({ question: "Pick one" })).toBe("Pick one");
+    expect(canReply("cancelled")).toBe(false);
+    expect(canReply("succeeded")).toBe(true);
+  });
+
+  it("formats step titles and bodies", () => {
+    const call = step({
+      id: "1",
+      seq: 1,
+      kind: "tool_call",
+      payload: { name: "web", args: { q: "x" } },
+    });
+    expect(stepTitle(call)).toBe("Tool → web");
+    expect(stepBody(call)).toContain('"q": "x"');
+  });
+});

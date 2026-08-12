@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -15,6 +15,17 @@ import { CheckIcon, StopIcon } from '../components/icons';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
 import {
+  buildAgentTurns,
+  canReply,
+  isActiveStatus,
+  parseOptions,
+  stepBody,
+  stepTitle,
+  type AgentStepLike,
+  type AgentTurn,
+  type AskOption,
+} from '../lib/agentTurns';
+import {
   cancelAgentRun,
   createAgentRun,
   finishAgentRun,
@@ -26,102 +37,12 @@ import {
 } from '../services/agentsApi';
 import type { ThemeColors } from '../theme/colors';
 
-type AskOption = { id: string; label: string };
-
 type Props = {
   isVisible: boolean;
 };
 
 function statusLabel(status: string) {
   return status === 'waiting_for_user' ? 'needs reply' : status;
-}
-
-function resultSummary(
-  result: Record<string, unknown> | null | undefined,
-): string {
-  if (!result) {
-    return '';
-  }
-  if (typeof result.summary === 'string' && result.summary.trim()) {
-    return result.summary;
-  }
-  if (typeof result.question === 'string' && result.question.trim()) {
-    return result.question;
-  }
-  try {
-    return JSON.stringify(result, null, 2);
-  } catch {
-    return String(result);
-  }
-}
-
-function pendingQuestion(
-  result: Record<string, unknown> | null | undefined,
-): string | null {
-  if (!result) {
-    return null;
-  }
-  if (typeof result.question === 'string' && result.question.trim()) {
-    return result.question.trim();
-  }
-  if (
-    result.kind === 'ask_user' &&
-    typeof result.summary === 'string' &&
-    result.summary.trim()
-  ) {
-    return result.summary.trim();
-  }
-  return null;
-}
-
-function parseOptions(
-  result: Record<string, unknown> | null | undefined,
-): AskOption[] {
-  if (!result) {
-    return [];
-  }
-  const raw =
-    result.options ??
-    (result.args as { options?: unknown } | undefined)?.options;
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-  const out: AskOption[] = [];
-  raw.forEach((item, i) => {
-    if (typeof item === 'string' && item.trim()) {
-      out.push({ id: `opt_${i + 1}`, label: item.trim() });
-      return;
-    }
-    if (item && typeof item === 'object') {
-      const obj = item as Record<string, unknown>;
-      const label = String(obj.label ?? obj.text ?? '').trim();
-      if (!label) {
-        return;
-      }
-      const id = String(obj.id ?? `opt_${i + 1}`).trim() || `opt_${i + 1}`;
-      out.push({ id, label });
-    }
-  });
-  return out;
-}
-
-function canReply(status: string) {
-  return (
-    status === 'waiting_for_user' ||
-    status === 'running' ||
-    status === 'queued' ||
-    status === 'succeeded' ||
-    status === 'failed'
-  );
-}
-
-function isFinishedStatus(status: string) {
-  return (
-    status === 'succeeded' ||
-    status === 'failed' ||
-    status === 'cancelled' ||
-    status === 'expired'
-  );
 }
 
 function isOpenStatus(status: string) {
@@ -132,84 +53,14 @@ function isOpenStatus(status: string) {
   );
 }
 
-function stepTitle(step: AgentStep): string {
-  const p = step.payload || {};
-  switch (step.kind) {
-    case 'status':
-      return String(p.text ?? 'status');
-    case 'thought':
-      return 'Thought';
-    case 'tool_call':
-      return `Tool → ${String(p.name ?? 'tool')}`;
-    case 'tool_result':
-      return `Result ← ${String(p.name ?? 'tool')}`;
-    case 'user_message':
-      return 'Reply';
-    case 'approval_request':
-      return p.kind === 'ask_user' || p.tool === 'ask_user'
-        ? 'Question for you'
-        : 'Approval requested';
-    case 'error':
-      return 'Error';
-    case 'compress':
-      return 'Context compressed';
-    case 'memory_retrieve':
-      return 'Memory';
-    default:
-      return step.kind;
-  }
-}
-
-function stepBody(step: AgentStep): string {
-  const p = step.payload || {};
-  switch (step.kind) {
-    case 'status':
-    case 'thought':
-      return String(p.text ?? '');
-    case 'tool_call': {
-      const args = p.args;
-      if (args == null) {
-        return '';
-      }
-      if (typeof args === 'string') {
-        return args;
-      }
-      try {
-        return JSON.stringify(args, null, 2);
-      } catch {
-        return String(args);
-      }
-    }
-    case 'tool_result':
-      return String(p.content ?? '');
-    case 'user_message':
-      return String(p.message ?? '');
-    case 'approval_request':
-      if (typeof p.question === 'string' && p.question.trim()) {
-        return p.question;
-      }
-      try {
-        return JSON.stringify(p, null, 2);
-      } catch {
-        return String(p);
-      }
-    case 'error':
-      return String(p.error ?? '');
-    default:
-      try {
-        return JSON.stringify(p, null, 2);
-      } catch {
-        return '';
-      }
-  }
-}
-
 function StepRow({
   step,
+  active,
   defaultOpen,
   styles,
 }: {
-  step: AgentStep;
+  step: AgentStepLike;
+  active?: boolean;
   defaultOpen?: boolean;
   styles: ReturnType<typeof createStyles>;
 }) {
@@ -217,7 +68,12 @@ function StepRow({
   const title = stepTitle(step);
   const hasBody = body.length > 0 && body !== title;
   const [open, setOpen] = useState(
-    Boolean(defaultOpen || step.kind === 'thought' || step.kind === 'error'),
+    Boolean(
+      defaultOpen ||
+        active ||
+        step.kind === 'thought' ||
+        step.kind === 'error',
+    ),
   );
   const useMarkdown =
     step.kind === 'thought' ||
@@ -225,7 +81,7 @@ function StepRow({
     step.kind === 'approval_request';
 
   return (
-    <View style={styles.stepRow}>
+    <View style={[styles.stepRow, active && styles.stepRowActive]}>
       <Pressable
         style={({ pressed }) => [
           styles.stepHeader,
@@ -236,7 +92,10 @@ function StepRow({
       >
         <Text style={styles.stepSeq}>#{step.seq}</Text>
         <View style={styles.stepHeaderText}>
-          <Text style={styles.stepTitle}>{title}</Text>
+          <Text style={[styles.stepTitle, active && styles.stepTitleActive]}>
+            {title}
+            {active ? ' · running' : ''}
+          </Text>
           {!open && hasBody ? (
             <Text style={styles.stepPreview} numberOfLines={1}>
               {body.replace(/\s+/g, ' ')}
@@ -256,6 +115,143 @@ function StepRow({
           )}
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function StepsGroup({
+  steps,
+  activeStepId,
+  showEmptyWaiting,
+  styles,
+}: {
+  steps: AgentStepLike[];
+  activeStepId: string | null;
+  showEmptyWaiting?: boolean;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  const [open, setOpen] = useState(true);
+
+  if (steps.length === 0) {
+    if (!showEmptyWaiting) {
+      return null;
+    }
+    return <Text style={styles.emptyBody}>Waiting for steps…</Text>;
+  }
+
+  return (
+    <View style={styles.block}>
+      <Pressable
+        onPress={() => setOpen(v => !v)}
+        style={({ pressed }) => [
+          styles.stepsToggle,
+          pressed && styles.buttonPressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+      >
+        <Text style={styles.sectionLabel}>
+          {open ? '▾' : '▸'} Steps ({steps.length})
+          {!open ? ' · show timeline' : ''}
+        </Text>
+      </Pressable>
+      {open ? (
+        <View style={styles.stepsCard}>
+          {steps.map(step => (
+            <StepRow
+              key={step.id}
+              step={step}
+              styles={styles}
+              active={activeStepId === step.id}
+              defaultOpen={
+                activeStepId === step.id ||
+                step.kind === 'thought' ||
+                step.kind === 'approval_request'
+              }
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function TurnView({
+  turn,
+  runStatus,
+  waitingExtras,
+  styles,
+  colors,
+}: {
+  turn: AgentTurn;
+  runStatus: string;
+  waitingExtras?: {
+    busy: boolean;
+    onFinish: () => void;
+  } | null;
+  styles: ReturnType<typeof createStyles>;
+  colors: ThemeColors;
+}) {
+  return (
+    <View style={styles.turn}>
+      <View style={styles.promptRow}>
+        <View style={styles.promptBubble}>
+          <Text style={styles.promptText}>{turn.prompt}</Text>
+        </View>
+      </View>
+
+      <View style={styles.turnBody}>
+        <StepsGroup
+          steps={turn.steps}
+          activeStepId={turn.activeStepId}
+          showEmptyWaiting={turn.isLatest && isActiveStatus(runStatus)}
+          styles={styles}
+        />
+
+        {turn.output.kind === 'question' ? (
+          <View style={styles.waitingCard}>
+            <Text style={styles.waitingLabel}>Donna needs your reply</Text>
+            <View style={styles.outputBox}>
+              <MessageContent
+                content={turn.output.text}
+                variant="assistant"
+              />
+            </View>
+            {waitingExtras ? (
+              <View style={styles.waitingFooter}>
+                <Text style={styles.waitingHint}>
+                  Or close this agent without answering.
+                </Text>
+                <Pressable
+                  disabled={waitingExtras.busy}
+                  onPress={waitingExtras.onFinish}
+                  style={({ pressed }) => [
+                    styles.secondaryButton,
+                    styles.actionButton,
+                    waitingExtras.busy && styles.buttonDisabled,
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <CheckIcon size={16} color={colors.text} />
+                  <Text style={styles.secondaryButtonText}>Mark finished</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        {turn.output.kind === 'summary' ? (
+          <View style={styles.block}>
+            <Text style={styles.sectionLabel}>Output</Text>
+            <View style={styles.outputBox}>
+              <MessageContent
+                content={turn.output.text}
+                variant="assistant"
+              />
+            </View>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -338,7 +334,10 @@ function ReplyComposer({
                   ]}
                 >
                   <Text
-                    style={[styles.optionChipText, on && styles.optionChipTextOn]}
+                    style={[
+                      styles.optionChipText,
+                      on && styles.optionChipTextOn,
+                    ]}
                   >
                     {opt.label}
                   </Text>
@@ -413,11 +412,7 @@ function AgentDetail({
   styles: ReturnType<typeof createStyles>;
   colors: ThemeColors;
 }) {
-  const summary = resultSummary(run.result);
-  const question =
-    run.status === 'waiting_for_user'
-      ? pendingQuestion(run.result) ?? summary
-      : null;
+  const turns = useMemo(() => buildAgentTurns(run, steps), [run, steps]);
   const options = useMemo(
     () =>
       run.status === 'waiting_for_user' ? parseOptions(run.result) : [],
@@ -430,16 +425,14 @@ function AgentDetail({
           ?.allow_multiple === true),
   );
   const showReply = canReply(run.status);
-  const stepsNewestFirst = useMemo(
-    () => [...steps].sort((a, b) => b.seq - a.seq),
-    [steps],
-  );
-  const latestStepSeq = stepsNewestFirst[0]?.seq;
-  const [stepsOpen, setStepsOpen] = useState(!isFinishedStatus(run.status));
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    setStepsOpen(!isFinishedStatus(run.status));
-  }, [run.id, run.status]);
+    const t = setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [run.id, steps.length, turns.length, run.status]);
 
   return (
     <View style={styles.container}>
@@ -454,9 +447,8 @@ function AgentDetail({
           >
             <Text style={styles.backButtonText}>← Agents</Text>
           </Pressable>
-          <Text style={styles.detailGoal}>{run.goal}</Text>
           <Text style={styles.subtitle}>
-            {run.status}
+            {statusLabel(run.status)}
             {run.error ? ` · ${run.error}` : ''}
           </Text>
         </View>
@@ -469,6 +461,7 @@ function AgentDetail({
       ) : null}
 
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.detailContent}
         keyboardShouldPersistTaps="handled"
       >
@@ -503,49 +496,24 @@ function AgentDetail({
           </View>
         ) : null}
 
-        {run.status === 'waiting_for_user' ? (
-          <View style={styles.waitingCard}>
-            <Text style={styles.waitingLabel}>Donna needs your reply</Text>
-            {question ? (
-              <View style={styles.outputBox}>
-                <MessageContent content={question} variant="assistant" />
-              </View>
-            ) : (
-              <Text style={styles.waitingHint}>
-                Answer below to continue this agent.
-              </Text>
-            )}
-            <View style={styles.waitingFooter}>
-              <Text style={styles.waitingHint}>
-                Or close this agent without answering.
-              </Text>
-              <Pressable
-                disabled={busy}
-                onPress={onFinish}
-                style={({ pressed }) => [
-                  styles.secondaryButton,
-                  styles.actionButton,
-                  busy && styles.buttonDisabled,
-                  pressed && styles.buttonPressed,
-                ]}
-              >
-                <CheckIcon size={16} color={colors.text} />
-                <Text style={styles.secondaryButtonText}>Mark finished</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : null}
+        {turns.map(turn => (
+          <TurnView
+            key={turn.id}
+            turn={turn}
+            runStatus={run.status}
+            styles={styles}
+            colors={colors}
+            waitingExtras={
+              turn.isLatest && run.status === 'waiting_for_user'
+                ? { busy, onFinish }
+                : null
+            }
+          />
+        ))}
+      </ScrollView>
 
-        {summary && run.status !== 'waiting_for_user' ? (
-          <View style={styles.block}>
-            <Text style={styles.sectionLabel}>Output</Text>
-            <View style={styles.outputBox}>
-              <MessageContent content={summary} variant="assistant" />
-            </View>
-          </View>
-        ) : null}
-
-        {showReply ? (
+      {showReply ? (
+        <View style={styles.composerDock}>
           <ReplyComposer
             waiting={run.status === 'waiting_for_user'}
             options={options}
@@ -557,47 +525,8 @@ function AgentDetail({
             styles={styles}
             colors={colors}
           />
-        ) : null}
-
-        <View style={styles.block}>
-          <Pressable
-            onPress={() => setStepsOpen(v => !v)}
-            style={({ pressed }) => [
-              styles.stepsToggle,
-              pressed && styles.buttonPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: stepsOpen }}
-          >
-            <Text style={styles.sectionLabel}>
-              {stepsOpen ? '▾' : '▸'} Steps ({steps.length})
-              {!stepsOpen && isFinishedStatus(run.status)
-                ? ' · show timeline'
-                : ''}
-            </Text>
-          </Pressable>
-          {stepsOpen ? (
-            <View style={styles.stepsCard}>
-              {stepsNewestFirst.length === 0 ? (
-                <Text style={styles.emptyBody}>Waiting for steps…</Text>
-              ) : (
-                stepsNewestFirst.map(step => (
-                  <StepRow
-                    key={step.id}
-                    step={step}
-                    styles={styles}
-                    defaultOpen={
-                      step.kind === 'thought' ||
-                      step.kind === 'approval_request' ||
-                      (step.kind === 'tool_result' && step.seq === latestStepSeq)
-                    }
-                  />
-                ))
-              )}
-            </View>
-          ) : null}
         </View>
-      </ScrollView>
+      ) : null}
     </View>
   );
 }
@@ -933,12 +862,6 @@ function createStyles(colors: ThemeColors) {
       color: colors.muted,
       fontFamily: colors.fontFamily,
     },
-    detailGoal: {
-      fontSize: 17,
-      fontWeight: '700',
-      color: colors.text,
-      fontFamily: colors.fontFamily,
-    },
     backButton: {
       alignSelf: 'flex-start',
       paddingVertical: 2,
@@ -997,6 +920,7 @@ function createStyles(colors: ThemeColors) {
       fontFamily: colors.fontFamily,
     },
     goalInput: {
+      minHeight: 44,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
@@ -1125,8 +1049,32 @@ function createStyles(colors: ThemeColors) {
     detailContent: {
       paddingHorizontal: 20,
       paddingVertical: 16,
-      gap: 16,
-      paddingBottom: 40,
+      gap: 20,
+      paddingBottom: 24,
+    },
+    turn: {
+      gap: 12,
+    },
+    promptRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+    },
+    promptBubble: {
+      maxWidth: '92%',
+      backgroundColor: colors.primary,
+      borderRadius: 18,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    promptText: {
+      color: colors.white,
+      fontSize: 15,
+      lineHeight: 22,
+      fontFamily: colors.fontFamily,
+    },
+    turnBody: {
+      gap: 12,
+      paddingLeft: 4,
     },
     actionRow: {
       flexDirection: 'row',
@@ -1223,7 +1171,14 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.surface,
       borderRadius: 12,
       padding: 12,
-      minHeight: 120,
+    },
+    composerDock: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 16,
+      backgroundColor: colors.background,
     },
     replyCard: {
       borderWidth: 1,
@@ -1268,7 +1223,7 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '600',
     },
     replyInput: {
-      minHeight: 110,
+      minHeight: 80,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.background,
@@ -1295,6 +1250,9 @@ function createStyles(colors: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
+    stepRowActive: {
+      backgroundColor: colors.primaryLight,
+    },
     stepHeader: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -1317,6 +1275,9 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '600',
       color: colors.text,
       fontFamily: colors.fontFamily,
+    },
+    stepTitleActive: {
+      color: colors.primary,
     },
     stepPreview: {
       fontSize: 12,
