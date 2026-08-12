@@ -421,6 +421,11 @@ function AgentDetail({
           ?.allow_multiple === true),
   );
   const showReply = canReply(run.status);
+  const stepsNewestFirst = useMemo(
+    () => [...steps].sort((a, b) => b.seq - a.seq),
+    [steps],
+  );
+  const latestStepSeq = stepsNewestFirst[0]?.seq;
 
   return (
     <View style={styles.container}>
@@ -543,10 +548,10 @@ function AgentDetail({
         <View style={styles.block}>
           <Text style={styles.sectionLabel}>Steps ({steps.length})</Text>
           <View style={styles.stepsCard}>
-            {steps.length === 0 ? (
+            {stepsNewestFirst.length === 0 ? (
               <Text style={styles.emptyBody}>Waiting for steps…</Text>
             ) : (
-              steps.map(step => (
+              stepsNewestFirst.map(step => (
                 <StepRow
                   key={step.id}
                   step={step}
@@ -554,8 +559,7 @@ function AgentDetail({
                   defaultOpen={
                     step.kind === 'thought' ||
                     step.kind === 'approval_request' ||
-                    (step.kind === 'tool_result' &&
-                      step.seq === steps[steps.length - 1]?.seq)
+                    (step.kind === 'tool_result' && step.seq === latestStepSeq)
                   }
                 />
               ))
