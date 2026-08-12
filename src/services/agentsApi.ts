@@ -49,6 +49,11 @@ export async function cancelAgentRun(id: string): Promise<AgentRun> {
   return parseJSON<AgentRun>(res);
 }
 
+export async function finishAgentRun(id: string): Promise<AgentRun> {
+  const res = await authorizedFetch(`/agent-runs/${id}/finish`, { method: 'POST' });
+  return parseJSON<AgentRun>(res);
+}
+
 export async function redirectAgentRun(id: string, message: string): Promise<AgentRun> {
   const res = await authorizedFetch(`/agent-runs/${id}/redirect`, {
     method: 'POST',
