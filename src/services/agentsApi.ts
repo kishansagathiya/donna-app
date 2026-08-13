@@ -107,3 +107,26 @@ export async function redirectAgentRun(
   );
   return parseJSON<AgentRun>(res);
 }
+
+export type AgentRunShare = {
+  url: string;
+  token: string;
+  created_at: string;
+  expires_at?: string;
+};
+
+export async function createAgentRunShare(id: string): Promise<AgentRunShare> {
+  const res = await authorizedFetch(
+    `/agent-runs/${encodeURIComponent(id)}/share`,
+    { method: 'POST' },
+  );
+  return parseJSON<AgentRunShare>(res);
+}
+
+export async function revokeAgentRunShare(id: string): Promise<void> {
+  const res = await authorizedFetch(
+    `/agent-runs/${encodeURIComponent(id)}/share`,
+    { method: 'DELETE' },
+  );
+  await parseJSON<{ ok: boolean }>(res);
+}

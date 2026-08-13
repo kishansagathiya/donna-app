@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   TextInput,
   View,
@@ -28,10 +30,12 @@ import {
 import {
   cancelAgentRun,
   createAgentRun,
+  createAgentRunShare,
   finishAgentRun,
   listAgentRuns,
   listAgentSteps,
   redirectAgentRun,
+  revokeAgentRunShare,
   type AgentRun,
   type AgentStep,
 } from '../services/agentsApi';
@@ -426,6 +430,7 @@ function AgentDetail({
   );
   const showReply = canReply(run.status);
   const scrollRef = useRef<ScrollView>(null);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -433,6 +438,55 @@ function AgentDetail({
     }, 50);
     return () => clearTimeout(t);
   }, [run.id, steps.length, turns.length, run.status]);
+
+  async function handleShare() {
+    setSharing(true);
+    try {
+      const share = await createAgentRunShare(run.id);
+      await Share.share({ message: share.url, url: share.url });
+    } catch (e) {
+      Alert.alert(
+        'Share failed',
+        e instanceof Error ? e.message : 'Could not create share link',
+      );
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  async function handleRevokeShare() {
+    setSharing(true);
+    try {
+      await revokeAgentRunShare(run.id);
+      Alert.alert('Sharing stopped', 'Anyone with the old link will lose access.');
+    } catch (e) {
+      Alert.alert(
+        'Could not stop sharing',
+        e instanceof Error ? e.message : 'Try again.',
+      );
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  function onSharePress() {
+    Alert.alert(
+      'Share agent',
+      'Anyone with the link can view the prompt and output. Steps and memory are not shared.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Share link',
+          onPress: () => void handleShare(),
+        },
+        {
+          text: 'Stop sharing',
+          style: 'destructive',
+          onPress: () => void handleRevokeShare(),
+        },
+      ],
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -452,6 +506,17 @@ function AgentDetail({
             {run.error ? ` · ${run.error}` : ''}
           </Text>
         </View>
+        <Pressable
+          disabled={sharing || busy}
+          onPress={onSharePress}
+          style={({ pressed }) => [
+            styles.refreshButton,
+            (sharing || busy) && styles.buttonDisabled,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          <Text style={styles.refreshButtonText}>Share</Text>
+        </Pressable>
       </View>
 
       {error ? (
