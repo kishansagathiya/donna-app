@@ -551,8 +551,8 @@ export function AgentsScreen({ isVisible }: Props) {
     try {
       const list = await listAgentRuns();
       setRuns(list);
-      if (selectedId && !list.some(r => r.id === selectedId) && list[0]) {
-        setSelectedId(list[0].id);
+      if (selectedId && !list.some(r => r.id === selectedId)) {
+        setSelectedId(null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load agents');
@@ -569,6 +569,16 @@ export function AgentsScreen({ isVisible }: Props) {
       setError(e instanceof Error ? e.message : 'Failed to load steps');
     }
   }, []);
+
+  useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
+    setSelectedId(null);
+    setSteps([]);
+    setReply('');
+    setError(null);
+  }, [isVisible]);
 
   useEffect(() => {
     if (!isVisible) {
