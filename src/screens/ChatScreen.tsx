@@ -20,6 +20,7 @@ import { useVoiceSession } from '../hooks/useVoiceSession';
 import {
   assertAttachmentBudget,
   displayUserContent,
+  MAX_CHAT_ATTACHMENTS,
   pickDocumentForChat,
   pickPhotoForChat,
   type ChatAttachmentPayload,
@@ -386,9 +387,14 @@ export function ChatScreen({
 
   async function addPending(att: PendingAttachment | null) {
     if (!att) return;
+    await addPendingMany([att]);
+  }
+
+  async function addPendingMany(atts: PendingAttachment[]) {
+    if (atts.length === 0) return;
     try {
-      assertAttachmentBudget(pendingAttachments.length, 1);
-      setPendingAttachments(prev => [...prev, att]);
+      assertAttachmentBudget(pendingAttachments.length, atts.length);
+      setPendingAttachments(prev => [...prev, ...atts]);
     } catch (err) {
       onToast?.(err instanceof Error ? err.message : 'Could not attach', true);
     }
@@ -421,8 +427,10 @@ export function ChatScreen({
                 ),
               );
           } else if (buttonIndex === 1) {
-            void pickPhotoForChat()
-              .then(addPending)
+            void pickPhotoForChat(
+              MAX_CHAT_ATTACHMENTS - pendingAttachments.length,
+            )
+              .then(addPendingMany)
               .catch(err =>
                 onToast?.(
                   err instanceof Error ? err.message : 'Could not attach photo',
@@ -455,8 +463,10 @@ export function ChatScreen({
         {
           text: 'Attach photo to message',
           onPress: () => {
-            void pickPhotoForChat()
-              .then(addPending)
+            void pickPhotoForChat(
+              MAX_CHAT_ATTACHMENTS - pendingAttachments.length,
+            )
+              .then(addPendingMany)
               .catch(err =>
                 onToast?.(
                   err instanceof Error ? err.message : 'Could not attach photo',
