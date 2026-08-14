@@ -40,16 +40,18 @@ export type ScreenshotMode = 'login' | 'voice-idle' | 'voice-listening' | null;
 export const SCREENSHOT_MODE: ScreenshotMode = null;
 
 /** Production voice WebSocket (release builds always use this). */
-const PRODUCTION_VOICE_WS_URL = 'wss://api.donnadoesit.com/voice';
+const PRODUCTION_VOICE_WS_URL =
+  'wss://donna-server-go-production.up.railway.app/voice';
 
 /** Production REST API (release builds always use this). */
-const PRODUCTION_API_BASE_URL = 'https://api.donnadoesit.com';
+const PRODUCTION_API_BASE_URL =
+  'https://donna-server-go-production.up.railway.app';
 
 /**
  * Voice backend is configured via repo-root `.env` (synced on npm start).
  *
  * DONNA_VOICE_TARGET=local       → local dev server (host auto-detected on npm start)
- * DONNA_VOICE_TARGET=production  → production API while debugging
+ * DONNA_VOICE_TARGET=production  → Railway URL while debugging
  * DONNA_VOICE_WS_URL=…           → full WebSocket URL override (escape hatch)
  */
 
