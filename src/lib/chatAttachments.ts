@@ -29,6 +29,8 @@ export type PendingAttachment = {
 
 const MAX_CHAT_ATTACHMENT_BYTES = 15 * 1024 * 1024;
 export const MAX_CHAT_ATTACHMENTS = 10;
+export const CHAT_IMAGE_MAX_EDGE = 1568;
+export const CHAT_IMAGE_QUALITY = 0.8;
 
 let attachmentSeq = 0;
 function nextId(): string {
@@ -156,17 +158,16 @@ export async function pickPhotoForChat(
     mediaType: 'photo',
     selectionLimit: limit,
     includeBase64: false,
+    maxWidth: CHAT_IMAGE_MAX_EDGE,
+    maxHeight: CHAT_IMAGE_MAX_EDGE,
+    quality: CHAT_IMAGE_QUALITY,
   });
   if (result.didCancel) return [];
   const assets = result.assets ?? [];
   if (assets.length === 0) {
     throw new Error('No photo selected');
   }
-  const out: PendingAttachment[] = [];
-  for (const asset of assets) {
-    out.push(await pendingFromImageAsset(asset));
-  }
-  return out;
+  return Promise.all(assets.map(asset => pendingFromImageAsset(asset)));
 }
 
 export function isImageMime(mime?: string): boolean {
