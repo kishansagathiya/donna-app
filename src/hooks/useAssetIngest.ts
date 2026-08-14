@@ -29,6 +29,12 @@ function pickerFileToIngest(file: DocumentPickerResponse): IngestFile {
   };
 }
 
+function firstHttpURL(text: string): string {
+  const match = text.match(/https?:\/\/[^\s<>]+/i);
+  if (!match) return '';
+  return match[0].replace(/[.,;:!?)]+$/, '');
+}
+
 function imageAssetToIngest(asset: Asset): IngestFile {
   const name = asset.fileName ?? `photo.${asset.type?.split('/')[1] ?? 'jpg'}`;
   return {
@@ -48,13 +54,13 @@ export function useAssetIngest() {
   }, []);
 
   const runIngest = useCallback(
-    async (work: () => Promise<{ asset_kind: string }>) => {
+    async (work: () => Promise<{ asset_kind: string; extractor?: string }>) => {
       if (busy) return;
       setBusy(true);
       showToast('Adding to memory…');
       try {
         const result = await work();
-        showToast(ingestMessageForKind(result.asset_kind));
+        showToast(ingestMessageForKind(result.asset_kind, result.extractor));
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Failed to add to memory';
@@ -125,9 +131,14 @@ export function useAssetIngest() {
       if (!data) return;
 
       if (mime === 'text/plain' || mime === 'text/url' || data.startsWith('http')) {
-        const url = data.startsWith('http') ? data : payload.extraData ?? data;
-        if (url.startsWith('http')) {
-          await addLink(url);
+        const url = firstHttpURL(data) || firstHttpURL(payload.extraData ?? '');
+        if (url) {
+          const rest = data.replace(url, '').trim();
+          if (!rest) {
+            await addLink(url);
+          } else {
+            await addNote(data, 'Shared note');
+          }
           return;
         }
         await addNote(data, 'Shared note');
