@@ -221,10 +221,7 @@ function outputFromSteps(steps: AgentStepLike[]): AgentTurnOutput {
   return { kind: "none" };
 }
 
-/** Result left on the run after a prior turn finished. Status-independent. */
-function leftoverResultOutput(run: AgentRunLike): AgentTurnOutput {
-  const q = pendingQuestion(run.result);
-  if (q) return { kind: "question", text: q };
+function summaryOutputFromRun(run: AgentRunLike): AgentTurnOutput {
   if (typeof run.result?.summary === "string" && run.result.summary.trim()) {
     return { kind: "summary", text: run.result.summary.trim() };
   }
@@ -232,6 +229,20 @@ function leftoverResultOutput(run: AgentRunLike): AgentTurnOutput {
     return { kind: "summary", text: run.error.trim() };
   }
   return { kind: "none" };
+}
+
+function closedByUser(result: Record<string, unknown> | null | undefined): boolean {
+  return result?.closed_by_user === true;
+}
+
+/** Result left on the run after a prior turn finished. Status-independent. */
+function leftoverResultOutput(run: AgentRunLike): AgentTurnOutput {
+  // Mark-finished keeps ask_user fields on result. That is not a live question.
+  if (!closedByUser(run.result)) {
+    const q = pendingQuestion(run.result);
+    if (q) return { kind: "question", text: q };
+  }
+  return summaryOutputFromRun(run);
 }
 
 function outputForLatestTurn(
@@ -248,9 +259,14 @@ function outputForLatestTurn(
     if (q.trim()) return { kind: "question", text: q.trim() };
     return { kind: "none" };
   }
-  const leftover = leftoverResultOutput(run);
-  if (leftover.kind !== "none") return leftover;
-  return outputFromSteps(steps);
+  // Succeeded/failed/cancelled: never keep the old "needs reply" card.
+  const summary = summaryOutputFromRun(run);
+  if (summary.kind !== "none") return summary;
+  const fromSteps = outputFromSteps(steps);
+  if (fromSteps.kind === "question") {
+    return { kind: "summary", text: fromSteps.text };
+  }
+  return fromSteps;
 }
 
 function pendingRedirectPrompt(

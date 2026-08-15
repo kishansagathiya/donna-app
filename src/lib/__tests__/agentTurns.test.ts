@@ -260,6 +260,41 @@ describe("buildAgentTurns", () => {
     expect(turns[1].activeStepId).toBeNull();
   });
 
+  it("shows a summary after the user marks a waiting run finished", () => {
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "approval_request",
+        payload: { kind: "ask_user", question: "Which album?" },
+      }),
+      step({
+        id: "s2",
+        seq: 2,
+        kind: "status",
+        payload: { text: "Marked finished by user.", kind: "user_finished" },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "succeeded",
+        result: {
+          kind: "ask_user",
+          question: "Which album should I search?",
+          summary: "Which album should I search?",
+          closed_by_user: true,
+        },
+      },
+      steps,
+    );
+    expect(turns).toHaveLength(1);
+    expect(turns[0].output).toEqual({
+      kind: "summary",
+      text: "Which album should I search?",
+    });
+  });
+
   it("sorts steps by seq even if input is unsorted", () => {
     const steps = [
       step({ id: "s2", seq: 2, kind: "thought", payload: { text: "b" } }),
