@@ -9,6 +9,7 @@ import {
   pendingQuestion,
   stepBody,
   stepTitle,
+  upsertAgentRun,
   type AgentRunLike,
   type AgentStepLike,
 } from "../agentTurns";
@@ -166,6 +167,14 @@ describe("helpers", () => {
     expect(pendingQuestion({ question: "Pick one" })).toBe("Pick one");
     expect(canReply("cancelled")).toBe(false);
     expect(canReply("succeeded")).toBe(true);
+  });
+
+  it("upserts a run to the front without duplicating", () => {
+    const a = { id: "a", goal: "one" };
+    const b = { id: "b", goal: "two" };
+    const b2 = { id: "b", goal: "two-updated" };
+    expect(upsertAgentRun([a], b)).toEqual([b, a]);
+    expect(upsertAgentRun([a, b], b2)).toEqual([b2, a]);
   });
 
   it("formats step titles and bodies", () => {

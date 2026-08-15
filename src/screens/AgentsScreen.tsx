@@ -23,6 +23,7 @@ import {
   parseOptions,
   stepBody,
   stepTitle,
+  upsertAgentRun,
   type AgentStepLike,
   type AgentTurn,
   type AskOption,
@@ -608,23 +609,30 @@ export function AgentsScreen({ isVisible }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const listFetchGen = useRef(0);
 
   const selected = runs.find(r => r.id === selectedId) ?? null;
 
   const refreshRuns = useCallback(async () => {
+    const gen = ++listFetchGen.current;
     setError(null);
     try {
       const list = await listAgentRuns();
-      setRuns(list);
-      if (selectedId && !list.some(r => r.id === selectedId)) {
-        setSelectedId(null);
+      if (gen !== listFetchGen.current) {
+        return;
       }
+      setRuns(list);
     } catch (e) {
+      if (gen !== listFetchGen.current) {
+        return;
+      }
       setError(e instanceof Error ? e.message : 'Failed to load agents');
     } finally {
-      setLoading(false);
+      if (gen === listFetchGen.current) {
+        setLoading(false);
+      }
     }
-  }, [selectedId]);
+  }, []);
 
   const refreshSteps = useCallback(async (id: string) => {
     try {
@@ -690,7 +698,9 @@ export function AgentsScreen({ isVisible }: Props) {
     setError(null);
     try {
       const run = await createAgentRun(g);
+      listFetchGen.current += 1;
       setGoal('');
+      setRuns(prev => upsertAgentRun(prev, run));
       setSelectedId(run.id);
       await refreshRuns();
     } catch (e) {
@@ -703,7 +713,9 @@ export function AgentsScreen({ isVisible }: Props) {
   async function onCancel(id: string) {
     setBusy(true);
     try {
-      await cancelAgentRun(id);
+      const updated = await cancelAgentRun(id);
+      listFetchGen.current += 1;
+      setRuns(prev => upsertAgentRun(prev, updated));
       await refreshRuns();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Cancel failed');
@@ -715,7 +727,9 @@ export function AgentsScreen({ isVisible }: Props) {
   async function onFinish(id: string) {
     setBusy(true);
     try {
-      await finishAgentRun(id);
+      const updated = await finishAgentRun(id);
+      listFetchGen.current += 1;
+      setRuns(prev => upsertAgentRun(prev, updated));
       setReply('');
       await refreshRuns();
       await refreshSteps(id);
@@ -733,7 +747,9 @@ export function AgentsScreen({ isVisible }: Props) {
     }
     setBusy(true);
     try {
-      await redirectAgentRun(id, msg);
+      const updated = await redirectAgentRun(id, msg);
+      listFetchGen.current += 1;
+      setRuns(prev => upsertAgentRun(prev, updated));
       setReply('');
       await refreshRuns();
       await refreshSteps(id);

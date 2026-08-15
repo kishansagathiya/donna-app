@@ -55,6 +55,11 @@ export function canReply(status: string): boolean {
   );
 }
 
+/** Put `run` at the front of the list, replacing any previous copy. */
+export function upsertAgentRun<T extends { id: string }>(runs: T[], run: T): T[] {
+  return [run, ...runs.filter((r) => r.id !== run.id)];
+}
+
 export function resultSummary(
   result: Record<string, unknown> | null | undefined,
 ): string {
