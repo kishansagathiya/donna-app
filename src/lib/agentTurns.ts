@@ -245,13 +245,26 @@ function leftoverResultOutput(run: AgentRunLike): AgentTurnOutput {
   return summaryOutputFromRun(run);
 }
 
+function hasApprovalRequest(steps: AgentStepLike[]): boolean {
+  return steps.some((step) => step.kind === "approval_request");
+}
+
+function asHistoricalOutput(output: AgentTurnOutput): AgentTurnOutput {
+  if (output.kind === "question") {
+    return { kind: "summary", text: output.text };
+  }
+  return output;
+}
+
 function outputForLatestTurn(
   run: AgentRunLike,
   steps: AgentStepLike[],
+  leftoverBelongsToPrevious: boolean,
 ): AgentTurnOutput {
-  // Follow-ups resume with the previous result still on the run. While this
-  // turn's steps are in flight, that leftover is not this turn's output.
-  if (isActiveStatus(run.status)) {
+  // Follow-ups resume with the previous result still on the run. That leftover
+  // is not this turn's output — including a waiting question the user already
+  // answered by sending the follow-up.
+  if (isActiveStatus(run.status) || leftoverBelongsToPrevious) {
     return { kind: "none" };
   }
   if (run.status === "waiting_for_user") {
@@ -323,19 +336,26 @@ export function buildAgentTurns(
     buckets.push({ prompt: pending, steps: [] });
   }
 
-  const latestIsActive = isActiveStatus(run.status);
+  const latestSteps = buckets[buckets.length - 1]?.steps ?? [];
+  const leftoverBelongsToPrevious =
+    buckets.length > 1 &&
+    (isActiveStatus(run.status) ||
+      (run.status === "waiting_for_user" && !hasApprovalRequest(latestSteps)));
 
   return buckets.map((bucket, index) => {
     const isLatest = index === buckets.length - 1;
     const isPrevious = index === buckets.length - 2;
     let output: AgentTurnOutput;
     if (isLatest) {
-      output = outputForLatestTurn(run, bucket.steps);
-    } else if (isPrevious && latestIsActive) {
+      output = outputForLatestTurn(run, bucket.steps, leftoverBelongsToPrevious);
+    } else if (isPrevious && leftoverBelongsToPrevious) {
       const leftover = leftoverResultOutput(run);
-      output = leftover.kind !== "none" ? leftover : outputFromSteps(bucket.steps);
+      output =
+        leftover.kind !== "none"
+          ? asHistoricalOutput(leftover)
+          : asHistoricalOutput(outputFromSteps(bucket.steps));
     } else {
-      output = outputFromSteps(bucket.steps);
+      output = asHistoricalOutput(outputFromSteps(bucket.steps));
     }
     return {
       id: `turn-${index}`,

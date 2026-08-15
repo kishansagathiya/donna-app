@@ -165,7 +165,48 @@ describe("buildAgentTurns", () => {
       steps,
     );
     expect(turns[0].output).toEqual({
-      kind: "question",
+      kind: "summary",
+      text: "Which album should I search?",
+    });
+    expect(turns[1].prompt).toBe("Travel");
+    expect(turns[1].output).toEqual({ kind: "none" });
+  });
+
+  it("does not show the previous waiting question after a follow-up prompt", () => {
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "thought",
+        payload: { text: "Found two albums." },
+      }),
+      step({
+        id: "s2",
+        seq: 2,
+        kind: "approval_request",
+        payload: { kind: "ask_user", question: "Which album?" },
+      }),
+      step({
+        id: "s3",
+        seq: 3,
+        kind: "user_message",
+        payload: { message: "Travel" },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "waiting_for_user",
+        result: {
+          kind: "ask_user",
+          question: "Which album should I search?",
+        },
+      },
+      steps,
+    );
+    expect(turns).toHaveLength(2);
+    expect(turns[0].output).toEqual({
+      kind: "summary",
       text: "Which album should I search?",
     });
     expect(turns[1].prompt).toBe("Travel");
@@ -258,6 +299,43 @@ describe("buildAgentTurns", () => {
       text: "Which album should I search?",
     });
     expect(turns[1].activeStepId).toBeNull();
+  });
+
+  it("puts the follow-up result at the end instead of the previous question", () => {
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "approval_request",
+        payload: { kind: "ask_user", question: "Which album?" },
+      }),
+      step({
+        id: "s2",
+        seq: 2,
+        kind: "user_message",
+        payload: { message: "Travel" },
+      }),
+      step({
+        id: "s3",
+        seq: 3,
+        kind: "thought",
+        payload: { text: "Here are the Travel album photos." },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "succeeded",
+        result: { summary: "Here are the Travel album photos." },
+      },
+      steps,
+    );
+    expect(turns[0].output.kind).toBe("summary");
+    expect(turns[1].isLatest).toBe(true);
+    expect(turns[1].output).toEqual({
+      kind: "summary",
+      text: "Here are the Travel album photos.",
+    });
   });
 
   it("shows a summary after the user marks a waiting run finished", () => {
