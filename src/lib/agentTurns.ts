@@ -12,6 +12,7 @@ export type AgentRunLike = {
   status: string;
   result?: Record<string, unknown> | null;
   error?: string | null;
+  redirect_pending?: string | null;
 };
 
 export type AgentTurnOutput =
@@ -220,28 +221,51 @@ function outputFromSteps(steps: AgentStepLike[]): AgentTurnOutput {
   return { kind: "none" };
 }
 
+/** Result left on the run after a prior turn finished. Status-independent. */
+function leftoverResultOutput(run: AgentRunLike): AgentTurnOutput {
+  const q = pendingQuestion(run.result);
+  if (q) return { kind: "question", text: q };
+  if (typeof run.result?.summary === "string" && run.result.summary.trim()) {
+    return { kind: "summary", text: run.result.summary.trim() };
+  }
+  if (run.error?.trim()) {
+    return { kind: "summary", text: run.error.trim() };
+  }
+  return { kind: "none" };
+}
+
 function outputForLatestTurn(
   run: AgentRunLike,
   steps: AgentStepLike[],
 ): AgentTurnOutput {
+  // Follow-ups resume with the previous result still on the run. While this
+  // turn's steps are in flight, that leftover is not this turn's output.
+  if (isActiveStatus(run.status)) {
+    return { kind: "none" };
+  }
   if (run.status === "waiting_for_user") {
     const q = pendingQuestion(run.result) ?? resultSummary(run.result);
     if (q.trim()) return { kind: "question", text: q.trim() };
     return { kind: "none" };
   }
-  if (run.result) {
-    const summary =
-      typeof run.result.summary === "string" ? run.result.summary.trim() : "";
-    if (summary) return { kind: "summary", text: summary };
-  }
-  if (run.error?.trim()) {
-    return { kind: "summary", text: run.error.trim() };
-  }
-  // While still running, surface the latest thought as provisional output.
-  if (isActiveStatus(run.status)) {
-    return outputFromSteps(steps);
-  }
+  const leftover = leftoverResultOutput(run);
+  if (leftover.kind !== "none") return leftover;
   return outputFromSteps(steps);
+}
+
+function pendingRedirectPrompt(
+  run: AgentRunLike,
+  ordered: AgentStepLike[],
+): string | null {
+  const pending =
+    typeof run.redirect_pending === "string" ? run.redirect_pending.trim() : "";
+  if (!pending) return null;
+  for (let i = ordered.length - 1; i >= 0; i--) {
+    if (ordered[i].kind !== "user_message") continue;
+    if (userMessageText(ordered[i]) === pending) return null;
+    break;
+  }
+  return pending;
 }
 
 function activeStepIdFor(
@@ -278,16 +302,31 @@ export function buildAgentTurns(
     buckets[buckets.length - 1].steps.push(step);
   }
 
+  const pending = pendingRedirectPrompt(run, ordered);
+  if (pending) {
+    buckets.push({ prompt: pending, steps: [] });
+  }
+
+  const latestIsActive = isActiveStatus(run.status);
+
   return buckets.map((bucket, index) => {
     const isLatest = index === buckets.length - 1;
+    const isPrevious = index === buckets.length - 2;
+    let output: AgentTurnOutput;
+    if (isLatest) {
+      output = outputForLatestTurn(run, bucket.steps);
+    } else if (isPrevious && latestIsActive) {
+      const leftover = leftoverResultOutput(run);
+      output = leftover.kind !== "none" ? leftover : outputFromSteps(bucket.steps);
+    } else {
+      output = outputFromSteps(bucket.steps);
+    }
     return {
       id: `turn-${index}`,
       index,
       prompt: bucket.prompt,
       steps: bucket.steps,
-      output: isLatest
-        ? outputForLatestTurn(run, bucket.steps)
-        : outputFromSteps(bucket.steps),
+      output,
       isLatest,
       activeStepId: activeStepIdFor(bucket.steps, run.status, isLatest),
     };

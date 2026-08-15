@@ -55,7 +55,121 @@ describe("buildAgentTurns", () => {
     expect(turns).toHaveLength(1);
     expect(turns[0].steps.map((s) => s.id)).toEqual(["s1", "s2", "s3"]);
     expect(turns[0].activeStepId).toBe("s3");
-    expect(turns[0].output).toEqual({ kind: "summary", text: "found 2" });
+    expect(turns[0].output).toEqual({ kind: "none" });
+  });
+
+  it("keeps previous output before a follow-up and hides output while the follow-up is running", () => {
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "thought",
+        payload: { text: "Looking in Photos…" },
+      }),
+      step({
+        id: "s2",
+        seq: 2,
+        kind: "user_message",
+        payload: { message: "Also check Dropbox" },
+      }),
+      step({
+        id: "s3",
+        seq: 3,
+        kind: "tool_call",
+        payload: { name: "search_dropbox" },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "running",
+        result: { summary: "Found it in Photos" },
+      },
+      steps,
+    );
+    expect(turns).toHaveLength(2);
+
+    expect(turns[0].prompt).toBe("Find the Lisbon photo");
+    expect(turns[0].isLatest).toBe(false);
+    expect(turns[0].output).toEqual({
+      kind: "summary",
+      text: "Found it in Photos",
+    });
+
+    expect(turns[1].prompt).toBe("Also check Dropbox");
+    expect(turns[1].isLatest).toBe(true);
+    expect(turns[1].steps.map((s) => s.id)).toEqual(["s3"]);
+    expect(turns[1].activeStepId).toBe("s3");
+    expect(turns[1].output).toEqual({ kind: "none" });
+  });
+
+  it("opens a pending follow-up turn before the user_message step is recorded", () => {
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "thought",
+        payload: { text: "Looking…" },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "queued",
+        result: { summary: "Found it in Photos" },
+        redirect_pending: "Also check Dropbox",
+      },
+      steps,
+    );
+    expect(turns).toHaveLength(2);
+    expect(turns[0].output).toEqual({
+      kind: "summary",
+      text: "Found it in Photos",
+    });
+    expect(turns[1].prompt).toBe("Also check Dropbox");
+    expect(turns[1].steps).toEqual([]);
+    expect(turns[1].output).toEqual({ kind: "none" });
+    expect(turns[1].isLatest).toBe(true);
+  });
+
+  it("keeps a leftover question on the previous turn after the user replies", () => {
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "approval_request",
+        payload: { kind: "ask_user", question: "Which album?" },
+      }),
+      step({
+        id: "s2",
+        seq: 2,
+        kind: "user_message",
+        payload: { message: "Travel" },
+      }),
+      step({
+        id: "s3",
+        seq: 3,
+        kind: "status",
+        payload: { text: "searching" },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "running",
+        result: {
+          kind: "ask_user",
+          question: "Which album should I search?",
+        },
+      },
+      steps,
+    );
+    expect(turns[0].output).toEqual({
+      kind: "question",
+      text: "Which album should I search?",
+    });
+    expect(turns[1].prompt).toBe("Travel");
+    expect(turns[1].output).toEqual({ kind: "none" });
   });
 
   it("splits on user_message redirects into multiple turns", () => {
