@@ -72,14 +72,7 @@ function StepRow({
   const body = stepBody(step).trim();
   const title = stepTitle(step);
   const hasBody = body.length > 0 && body !== title;
-  const [open, setOpen] = useState(
-    Boolean(
-      defaultOpen ||
-        active ||
-        step.kind === 'thought' ||
-        step.kind === 'error',
-    ),
-  );
+  const [open, setOpen] = useState(true);
   const useMarkdown =
     step.kind === 'thought' ||
     step.kind === 'tool_result' ||
@@ -213,16 +206,38 @@ function TurnView({
           styles={styles}
         />
 
-        {turn.output.kind === 'question' ? (
-          <View style={styles.waitingCard}>
-            <Text style={styles.waitingLabel}>Donna needs your reply</Text>
+        {turn.output.kind === 'summary' ? (
+          <View style={styles.block}>
+            <Text style={styles.sectionLabel}>Output</Text>
             <View style={styles.outputBox}>
               <MessageContent
                 content={turn.output.text}
                 variant="assistant"
               />
             </View>
-            {waitingExtras ? (
+          </View>
+        ) : null}
+
+        {turn.question ? (
+          <View
+            style={
+              turn.question.live ? styles.waitingCard : styles.block
+            }
+          >
+            <Text
+              style={
+                turn.question.live ? styles.waitingLabel : styles.sectionLabel
+              }
+            >
+              {turn.question.live ? 'Donna needs your reply' : 'Question'}
+            </Text>
+            <View style={styles.outputBox}>
+              <MessageContent
+                content={turn.question.text}
+                variant="assistant"
+              />
+            </View>
+            {turn.question.live && waitingExtras ? (
               <View style={styles.waitingFooter}>
                 <Text style={styles.waitingHint}>
                   Or close this agent without answering.
@@ -242,18 +257,6 @@ function TurnView({
                 </Pressable>
               </View>
             ) : null}
-          </View>
-        ) : null}
-
-        {turn.output.kind === 'summary' ? (
-          <View style={styles.block}>
-            <Text style={styles.sectionLabel}>Output</Text>
-            <View style={styles.outputBox}>
-              <MessageContent
-                content={turn.output.text}
-                variant="assistant"
-              />
-            </View>
           </View>
         ) : null}
       </View>
@@ -418,13 +421,16 @@ function AgentDetail({
   colors: ThemeColors;
 }) {
   const turns = useMemo(() => buildAgentTurns(run, steps), [run, steps]);
+  const needsReply = Boolean(
+    run.status === 'waiting_for_user' ||
+      turns[turns.length - 1]?.question?.live,
+  );
   const options = useMemo(
-    () =>
-      run.status === 'waiting_for_user' ? parseOptions(run.result) : [],
-    [run.status, run.result],
+    () => (needsReply ? parseOptions(run.result) : []),
+    [needsReply, run.result],
   );
   const allowMultiple = Boolean(
-    run.status === 'waiting_for_user' &&
+    needsReply &&
       (run.result?.allow_multiple === true ||
         (run.result?.args as { allow_multiple?: boolean } | undefined)
           ?.allow_multiple === true),
@@ -503,7 +509,7 @@ function AgentDetail({
             <Text style={styles.backButtonText}>← Agents</Text>
           </Pressable>
           <Text style={styles.subtitle}>
-            {statusLabel(run.status)}
+            {needsReply ? 'needs reply' : statusLabel(run.status)}
             {run.error ? ` · ${run.error}` : ''}
           </Text>
         </View>
@@ -531,7 +537,7 @@ function AgentDetail({
         contentContainerStyle={styles.detailContent}
         keyboardShouldPersistTaps="handled"
       >
-        {isOpenStatus(run.status) ? (
+        {isOpenStatus(run.status) || needsReply ? (
           <View style={styles.actionRow}>
             <Pressable
               disabled={busy}
@@ -546,19 +552,21 @@ function AgentDetail({
               <CheckIcon size={16} color={colors.text} />
               <Text style={styles.secondaryButtonText}>Mark finished</Text>
             </Pressable>
-            <Pressable
-              disabled={busy}
-              onPress={onCancel}
-              style={({ pressed }) => [
-                styles.ghostButton,
-                styles.actionButton,
-                busy && styles.buttonDisabled,
-                pressed && styles.buttonPressed,
-              ]}
-            >
-              <StopIcon size={16} color={colors.muted} />
-              <Text style={styles.ghostButtonText}>Cancel</Text>
-            </Pressable>
+            {isOpenStatus(run.status) ? (
+              <Pressable
+                disabled={busy}
+                onPress={onCancel}
+                style={({ pressed }) => [
+                  styles.ghostButton,
+                  styles.actionButton,
+                  busy && styles.buttonDisabled,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <StopIcon size={16} color={colors.muted} />
+                <Text style={styles.ghostButtonText}>Cancel</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
@@ -570,9 +578,7 @@ function AgentDetail({
             styles={styles}
             colors={colors}
             waitingExtras={
-              turn.isLatest && run.status === 'waiting_for_user'
-                ? { busy, onFinish }
-                : null
+              turn.isLatest && needsReply ? { busy, onFinish } : null
             }
           />
         ))}
@@ -581,7 +587,7 @@ function AgentDetail({
       {showReply ? (
         <View style={styles.composerDock}>
           <ReplyComposer
-            waiting={run.status === 'waiting_for_user'}
+            waiting={needsReply}
             options={options}
             allowMultiple={allowMultiple}
             busy={busy}

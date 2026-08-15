@@ -17,8 +17,13 @@ export type AgentRunLike = {
 
 export type AgentTurnOutput =
   | { kind: "summary"; text: string }
-  | { kind: "question"; text: string }
   | { kind: "none" };
+
+export type AgentTurnQuestion = {
+  text: string;
+  /** True only while this turn is waiting for a reply. */
+  live: boolean;
+};
 
 export type AgentTurn = {
   id: string;
@@ -26,6 +31,7 @@ export type AgentTurn = {
   prompt: string;
   steps: AgentStepLike[];
   output: AgentTurnOutput;
+  question: AgentTurnQuestion | null;
   isLatest: boolean;
   /** Highest-seq non-user step in the latest turn while run is active. */
   activeStepId: string | null;
@@ -199,87 +205,192 @@ function userMessageText(step: AgentStepLike): string {
   return typeof msg === "string" ? msg : String(msg ?? "");
 }
 
-function outputFromSteps(steps: AgentStepLike[]): AgentTurnOutput {
+function sameText(a: string | null | undefined, b: string | null | undefined): boolean {
+  return Boolean(a && b && a.trim() === b.trim());
+}
+
+/** Final assistant text that is really a question, not a finished answer. */
+export function looksLikeQuestion(text: string): boolean {
+  const s = text.trim();
+  if (s.length < 12) return false;
+  const lower = s.toLowerCase();
+  const cues = [
+    "could you",
+    "can you",
+    "would you",
+    "please clarify",
+    "please confirm",
+    "please provide",
+    "please tell",
+    "i need to know",
+    "i need more",
+    "which one",
+    "what date",
+    "what time",
+    "do you want",
+    "do you prefer",
+    "let me know",
+    "reply with",
+    "need your",
+    "before i continue",
+    "before i proceed",
+    "to proceed",
+    "to continue",
+  ];
+  if (cues.some((cue) => lower.includes(cue))) return true;
+  return (
+    s.endsWith("?") &&
+    /\b(you|your|which|what|when|where|why|how)\b/.test(lower)
+  );
+}
+
+export function splitTrailingQuestion(text: string): {
+  body: string | null;
+  question: string | null;
+} {
+  const s = text.trim();
+  if (!s) return { body: null, question: null };
+  const match = s.match(/([^.!?\n][^.!?\n]*\?)\s*$/);
+  if (!match) {
+    return looksLikeQuestion(s) ? { body: null, question: s } : { body: s, question: null };
+  }
+  const question = match[1].trim();
+  const body = s.slice(0, s.length - match[0].length).trim();
+  if (!looksLikeQuestion(question) && !looksLikeQuestion(s)) {
+    return { body: s, question: null };
+  }
+  return { body: body || null, question };
+}
+
+function questionFromSteps(steps: AgentStepLike[]): string | null {
   for (let i = steps.length - 1; i >= 0; i--) {
-    const step = steps[i];
-    if (step.kind === "thought") {
-      const text = String(step.payload?.text ?? "").trim();
-      if (text) return { kind: "summary", text };
-    }
-    if (step.kind === "approval_request") {
-      const text =
-        typeof step.payload?.question === "string"
-          ? step.payload.question.trim()
-          : "";
-      if (text) return { kind: "question", text };
-    }
-    if (step.kind === "tool_result") {
-      const text = String(step.payload?.content ?? "").trim();
-      if (text) return { kind: "summary", text };
+    if (steps[i].kind !== "approval_request") continue;
+    const text =
+      typeof steps[i].payload?.question === "string"
+        ? steps[i].payload.question.trim()
+        : "";
+    if (text) return text;
+  }
+  return null;
+}
+
+function thoughtAsOutput(text: string, excludeText: string | null): AgentTurnOutput | null {
+  if (!text || sameText(text, excludeText)) return null;
+  const split = splitTrailingQuestion(text);
+  if (split.body && !sameText(split.body, excludeText)) {
+    return { kind: "summary", text: split.body };
+  }
+  if (looksLikeQuestion(text) && !split.body) return null;
+  return { kind: "summary", text };
+}
+
+function workOutputFromSteps(
+  steps: AgentStepLike[],
+  excludeText: string | null,
+): AgentTurnOutput {
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (steps[i].kind !== "thought") continue;
+    const found = thoughtAsOutput(String(steps[i].payload?.text ?? "").trim(), excludeText);
+    if (found) return found;
+  }
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (steps[i].kind !== "tool_result") continue;
+    const text = String(steps[i].payload?.content ?? "").trim();
+    if (text && !sameText(text, excludeText) && !looksLikeQuestion(text)) {
+      return { kind: "summary", text };
     }
   }
   return { kind: "none" };
 }
 
-function summaryOutputFromRun(run: AgentRunLike): AgentTurnOutput {
-  if (typeof run.result?.summary === "string" && run.result.summary.trim()) {
-    return { kind: "summary", text: run.result.summary.trim() };
+function lastThoughtText(steps: AgentStepLike[]): string | null {
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (steps[i].kind !== "thought") continue;
+    const text = String(steps[i].payload?.text ?? "").trim();
+    if (text) return text;
   }
-  if (run.error?.trim()) {
-    return { kind: "summary", text: run.error.trim() };
-  }
-  return { kind: "none" };
+  return null;
+}
+
+function resultSummaryText(run: AgentRunLike): string {
+  return typeof run.result?.summary === "string" ? run.result.summary.trim() : "";
 }
 
 function closedByUser(result: Record<string, unknown> | null | undefined): boolean {
   return result?.closed_by_user === true;
 }
 
-/** Result left on the run after a prior turn finished. Status-independent. */
-function leftoverResultOutput(run: AgentRunLike): AgentTurnOutput {
-  // Mark-finished keeps ask_user fields on result. That is not a live question.
-  if (!closedByUser(run.result)) {
-    const q = pendingQuestion(run.result);
-    if (q) return { kind: "question", text: q };
-  }
-  return summaryOutputFromRun(run);
-}
-
 function hasApprovalRequest(steps: AgentStepLike[]): boolean {
   return steps.some((step) => step.kind === "approval_request");
 }
 
-function asHistoricalOutput(output: AgentTurnOutput): AgentTurnOutput {
-  if (output.kind === "question") {
-    return { kind: "summary", text: output.text };
-  }
-  return output;
-}
-
-function outputForLatestTurn(
+function artifactsForTurn(
   run: AgentRunLike,
   steps: AgentStepLike[],
+  isLatest: boolean,
   leftoverBelongsToPrevious: boolean,
-): AgentTurnOutput {
-  // Follow-ups resume with the previous result still on the run. That leftover
-  // is not this turn's output — including a waiting question the user already
-  // answered by sending the follow-up.
-  if (isActiveStatus(run.status) || leftoverBelongsToPrevious) {
-    return { kind: "none" };
+  isPrevious: boolean,
+): { output: AgentTurnOutput; question: AgentTurnQuestion | null } {
+  const stepQuestion = questionFromSteps(steps);
+  const thoughtSplit = splitTrailingQuestion(lastThoughtText(steps) ?? "");
+  const resultQuestion = pendingQuestion(run.result);
+  const resultSummary = resultSummaryText(run);
+  const resultSplit = splitTrailingQuestion(resultSummary);
+  const skipped = closedByUser(run.result);
+  if (isLatest && (isActiveStatus(run.status) || leftoverBelongsToPrevious)) {
+    return { output: { kind: "none" }, question: null };
   }
-  if (run.status === "waiting_for_user") {
-    const q = pendingQuestion(run.result) ?? resultSummary(run.result);
-    if (q.trim()) return { kind: "question", text: q.trim() };
-    return { kind: "none" };
+
+  let questionText: string | null = stepQuestion ?? thoughtSplit.question;
+  if (isLatest && !leftoverBelongsToPrevious) {
+    questionText =
+      resultQuestion ??
+      stepQuestion ??
+      thoughtSplit.question ??
+      resultSplit.question;
+  } else if (isPrevious && leftoverBelongsToPrevious) {
+    questionText = stepQuestion ?? thoughtSplit.question ?? resultQuestion;
   }
-  // Succeeded/failed/cancelled: never keep the old "needs reply" card.
-  const summary = summaryOutputFromRun(run);
-  if (summary.kind !== "none") return summary;
-  const fromSteps = outputFromSteps(steps);
-  if (fromSteps.kind === "question") {
-    return { kind: "summary", text: fromSteps.text };
+
+  const waiting =
+    run.status === "waiting_for_user" ||
+    (isLatest &&
+      Boolean(questionText) &&
+      !skipped &&
+      (run.status === "succeeded" || run.status === "failed"));
+
+  const question: AgentTurnQuestion | null = questionText
+    ? {
+        text: questionText,
+        live: Boolean(isLatest && waiting && !leftoverBelongsToPrevious && !skipped),
+      }
+    : null;
+
+  const exclude = question?.text ?? resultQuestion ?? stepQuestion;
+  let output = workOutputFromSteps(steps, exclude);
+  const fromResult = thoughtAsOutput(resultSummary, exclude);
+
+  if (isPrevious && leftoverBelongsToPrevious && fromResult) {
+    output = fromResult;
   }
-  return fromSteps;
+
+  if (
+    isLatest &&
+    !isActiveStatus(run.status) &&
+    run.status !== "waiting_for_user"
+  ) {
+    if (fromResult) {
+      output = fromResult;
+    } else if (output.kind === "none" && run.error?.trim()) {
+      output = { kind: "summary", text: run.error.trim() };
+    }
+  }
+
+  if (isLatest && run.status === "waiting_for_user" && fromResult) {
+    output = fromResult;
+  }
+
+  return { output, question };
 }
 
 function pendingRedirectPrompt(
@@ -345,24 +456,20 @@ export function buildAgentTurns(
   return buckets.map((bucket, index) => {
     const isLatest = index === buckets.length - 1;
     const isPrevious = index === buckets.length - 2;
-    let output: AgentTurnOutput;
-    if (isLatest) {
-      output = outputForLatestTurn(run, bucket.steps, leftoverBelongsToPrevious);
-    } else if (isPrevious && leftoverBelongsToPrevious) {
-      const leftover = leftoverResultOutput(run);
-      output =
-        leftover.kind !== "none"
-          ? asHistoricalOutput(leftover)
-          : asHistoricalOutput(outputFromSteps(bucket.steps));
-    } else {
-      output = asHistoricalOutput(outputFromSteps(bucket.steps));
-    }
+    const { output, question } = artifactsForTurn(
+      run,
+      bucket.steps,
+      isLatest,
+      leftoverBelongsToPrevious,
+      isPrevious,
+    );
     return {
       id: `turn-${index}`,
       index,
       prompt: bucket.prompt,
       steps: bucket.steps,
       output,
+      question,
       isLatest,
       activeStepId: activeStepIdFor(bucket.steps, run.status, isLatest),
     };

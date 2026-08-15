@@ -164,15 +164,17 @@ describe("buildAgentTurns", () => {
       },
       steps,
     );
-    expect(turns[0].output).toEqual({
-      kind: "summary",
-      text: "Which album should I search?",
+    expect(turns[0].output).toEqual({ kind: "none" });
+    expect(turns[0].question).toEqual({
+      text: "Which album?",
+      live: false,
     });
     expect(turns[1].prompt).toBe("Travel");
     expect(turns[1].output).toEqual({ kind: "none" });
+    expect(turns[1].question).toBeNull();
   });
 
-  it("does not show the previous waiting question after a follow-up prompt", () => {
+  it("keeps work output visible when a turn also asks a question", () => {
     const steps = [
       step({
         id: "s1",
@@ -207,10 +209,15 @@ describe("buildAgentTurns", () => {
     expect(turns).toHaveLength(2);
     expect(turns[0].output).toEqual({
       kind: "summary",
-      text: "Which album should I search?",
+      text: "Found two albums.",
+    });
+    expect(turns[0].question).toEqual({
+      text: "Which album?",
+      live: false,
     });
     expect(turns[1].prompt).toBe("Travel");
     expect(turns[1].output).toEqual({ kind: "none" });
+    expect(turns[1].question).toBeNull();
   });
 
   it("splits on user_message redirects into multiple turns", () => {
@@ -293,10 +300,12 @@ describe("buildAgentTurns", () => {
       steps,
     );
     expect(turns).toHaveLength(2);
-    expect(turns[0].output.kind).toBe("summary");
-    expect(turns[1].output).toEqual({
-      kind: "question",
+    expect(turns[0].output).toEqual({ kind: "summary", text: "Need clarity" });
+    expect(turns[0].question).toBeNull();
+    expect(turns[1].output).toEqual({ kind: "none" });
+    expect(turns[1].question).toEqual({
       text: "Which album should I search?",
+      live: true,
     });
     expect(turns[1].activeStepId).toBeNull();
   });
@@ -330,11 +339,54 @@ describe("buildAgentTurns", () => {
       },
       steps,
     );
-    expect(turns[0].output.kind).toBe("summary");
+    expect(turns[0].output).toEqual({ kind: "none" });
+    expect(turns[0].question).toEqual({
+      text: "Which album?",
+      live: false,
+    });
     expect(turns[1].isLatest).toBe(true);
     expect(turns[1].output).toEqual({
       kind: "summary",
       text: "Here are the Travel album photos.",
+    });
+    expect(turns[1].question).toBeNull();
+  });
+
+  it("shows work output above a live question on the same turn", () => {
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "thought",
+        payload: { text: "Found two albums." },
+      }),
+      step({
+        id: "s2",
+        seq: 2,
+        kind: "approval_request",
+        payload: { kind: "ask_user", question: "Which album?" },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "waiting_for_user",
+        result: {
+          kind: "ask_user",
+          question: "Which album should I search?",
+          summary: "Which album should I search?",
+        },
+      },
+      steps,
+    );
+    expect(turns).toHaveLength(1);
+    expect(turns[0].output).toEqual({
+      kind: "summary",
+      text: "Found two albums.",
+    });
+    expect(turns[0].question).toEqual({
+      text: "Which album should I search?",
+      live: true,
     });
   });
 
@@ -343,12 +395,18 @@ describe("buildAgentTurns", () => {
       step({
         id: "s1",
         seq: 1,
-        kind: "approval_request",
-        payload: { kind: "ask_user", question: "Which album?" },
+        kind: "thought",
+        payload: { text: "Found two albums." },
       }),
       step({
         id: "s2",
         seq: 2,
+        kind: "approval_request",
+        payload: { kind: "ask_user", question: "Which album?" },
+      }),
+      step({
+        id: "s3",
+        seq: 3,
         kind: "status",
         payload: { text: "Marked finished by user.", kind: "user_finished" },
       }),
@@ -369,8 +427,78 @@ describe("buildAgentTurns", () => {
     expect(turns).toHaveLength(1);
     expect(turns[0].output).toEqual({
       kind: "summary",
-      text: "Which album should I search?",
+      text: "Found two albums.",
     });
+    expect(turns[0].question).toEqual({
+      text: "Which album should I search?",
+      live: false,
+    });
+  });
+
+  it("uses earlier work as Output when the last thought is a question", () => {
+    const assessment =
+      "My Honest Assessment\n\nStrengths: distribution.\n\nBottom line: the wedge can work.";
+    const question = "What angle are you considering getting into this space from?";
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "thought",
+        payload: { text: assessment },
+      }),
+      step({
+        id: "s2",
+        seq: 2,
+        kind: "user_message",
+        payload: { message: "is this a good space to get into?" },
+      }),
+      step({
+        id: "s3",
+        seq: 3,
+        kind: "thought",
+        payload: { text: assessment },
+      }),
+      step({
+        id: "s4",
+        seq: 4,
+        kind: "thought",
+        payload: { text: question },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "succeeded",
+        result: { summary: question },
+      },
+      steps,
+    );
+    expect(turns).toHaveLength(2);
+    expect(turns[1].output).toEqual({ kind: "summary", text: assessment });
+    expect(turns[1].question).toEqual({ text: question, live: true });
+  });
+
+  it("splits a trailing question off a long thought", () => {
+    const body = "The space is crowded but the wedge is real.";
+    const question = "What angle are you considering getting into this space from?";
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "thought",
+        payload: { text: `${body}\n\n${question}` },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "succeeded",
+        result: { summary: `${body}\n\n${question}` },
+      },
+      steps,
+    );
+    expect(turns[0].output).toEqual({ kind: "summary", text: body });
+    expect(turns[0].question).toEqual({ text: question, live: true });
   });
 
   it("sorts steps by seq even if input is unsorted", () => {
