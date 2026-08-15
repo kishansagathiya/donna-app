@@ -16,6 +16,7 @@ import {
   SUPABASE_ANON_KEY,
   SUPABASE_URL,
 } from '../config';
+import { accessTokenNeedsRefresh } from './jwtExpiry';
 
 let googleConfigured = false;
 
@@ -62,11 +63,26 @@ export async function getSession(): Promise<Session | null> {
 }
 
 export async function getAccessToken(): Promise<string | null> {
-  if (memoryAccessToken) {
+  if (memoryAccessToken && !accessTokenNeedsRefresh(memoryAccessToken)) {
     return memoryAccessToken;
   }
+
   const session = await getSession();
-  return session?.access_token ?? null;
+  const token = session?.access_token ?? null;
+  if (!token) {
+    return null;
+  }
+  if (!accessTokenNeedsRefresh(token)) {
+    return token;
+  }
+
+  const { data } = await supabase.auth.refreshSession();
+  const refreshed = data.session?.access_token ?? null;
+  if (refreshed) {
+    memoryAccessToken = refreshed;
+    return refreshed;
+  }
+  return token;
 }
 
 export async function ensureSession(): Promise<void> {

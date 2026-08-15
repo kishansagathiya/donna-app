@@ -7,7 +7,14 @@ export function createAppQueryClient(): QueryClient {
         staleTime: 30_000,
         gcTime: 1000 * 60 * 60 * 24,
         refetchOnWindowFocus: true,
-        retry: 1,
+        retry: (failureCount, error) => {
+          if (failureCount >= 3) {
+            return false;
+          }
+          const message =
+            error instanceof Error ? error.message : String(error);
+          return /network request failed|check your connection/i.test(message);
+        },
       },
       mutations: {
         retry: 0,
