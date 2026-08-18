@@ -1,8 +1,8 @@
 declare module 'react-native-share-menu' {
   export type ShareData = {
-    mimeType: string;
-    data: string;
-    extraData?: string | null;
+    mimeType?: string;
+    data?: string | string[] | Array<{ mimeType?: string; data?: string }>;
+    extraData?: string | Record<string, unknown> | null;
   };
 
   type ShareListener = { remove: () => void };

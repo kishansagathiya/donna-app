@@ -29,7 +29,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       launchOptions: launchOptions
     )
 
+    consumePendingShareIfNeeded(application)
     return true
+  }
+
+  func applicationDidBecomeActive(_ application: UIApplication) {
+    consumePendingShareIfNeeded(application)
   }
 
   func application(
@@ -38,6 +43,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
     return DonnaHandleOpenURL(app, url, options)
+  }
+
+  /// If the share extension saved items but couldn't open the host app,
+  /// pick them up the next time Donna comes to the foreground.
+  private func consumePendingShareIfNeeded(_ application: UIApplication) {
+    guard
+      let defaults = UserDefaults(suiteName: "group.com.kishansagathiya.donna"),
+      defaults.object(forKey: "ShareMenuUserDefaults") != nil,
+      let url = URL(string: "donna://share")
+    else {
+      return
+    }
+    _ = DonnaHandleOpenURL(application, url, [:])
   }
 }
 

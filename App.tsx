@@ -286,7 +286,10 @@ function AppContent({
 
   const handleShare = useCallback(
     (payload: Parameters<typeof ingestSharedPayload>[0]) => {
-      void ingestSharedPayload(payload).then(() => bumpNotesRefresh());
+      setTab('notes');
+      void ingestSharedPayload(payload).then(didSave => {
+        if (didSave) bumpNotesRefresh();
+      });
     },
     [bumpNotesRefresh, ingestSharedPayload],
   );

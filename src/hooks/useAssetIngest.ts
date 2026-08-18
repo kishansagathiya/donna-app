@@ -14,6 +14,11 @@ import {
   ingestUrl,
   type IngestFile,
 } from '../services/knowledgeApi';
+import {
+  normalizeIncomingShares,
+  planSharedIngest,
+  type IncomingSharePayload,
+} from '../lib/incomingShare';
 
 export type IngestToast = {
   message: string;
@@ -27,12 +32,6 @@ function pickerFileToIngest(file: DocumentPickerResponse): IngestFile {
     name: file.name ?? 'document',
     type: file.type ?? 'application/octet-stream',
   };
-}
-
-function firstHttpURL(text: string): string {
-  const match = text.match(/https?:\/\/[^\s<>]+/i);
-  if (!match) return '';
-  return match[0].replace(/[.,;:!?)]+$/, '');
 }
 
 function imageAssetToIngest(asset: Asset): IngestFile {
@@ -120,46 +119,55 @@ export function useAssetIngest() {
   }, [runIngest, showToast]);
 
   const ingestSharedPayload = useCallback(
-    async (payload: {
-      mimeType?: string;
-      data?: string;
-      extraData?: string | null;
-    }) => {
-      const mime = payload.mimeType ?? '';
-      const data = payload.data ?? '';
+    async (payload: IncomingSharePayload): Promise<boolean> => {
+      const plans = planSharedIngest(normalizeIncomingShares(payload));
+      if (!plans.length) return false;
 
-      if (!data) return;
-
-      if (mime === 'text/plain' || mime === 'text/url' || data.startsWith('http')) {
-        const url = firstHttpURL(data) || firstHttpURL(payload.extraData ?? '');
-        if (url) {
-          const rest = data.replace(url, '').trim();
-          if (!rest) {
-            await addLink(url);
+      setBusy(true);
+      showToast(
+        plans.length === 1 && plans[0].kind === 'url'
+          ? 'Saving link to your notes…'
+          : 'Saving to your notes…',
+      );
+      try {
+        let lastKind = 'text';
+        let lastExtractor: string | undefined;
+        for (const plan of plans) {
+          if (plan.kind === 'url') {
+            const result = await ingestUrl(plan.url);
+            lastKind = result.asset_kind;
+            lastExtractor = result.extractor;
+          } else if (plan.kind === 'text') {
+            const result = await ingestText(plan.text, plan.title);
+            lastKind = result.asset_kind;
+            lastExtractor = result.extractor;
           } else {
-            await addNote(data, 'Shared note');
+            const result = await ingestFile({
+              uri: plan.uri,
+              name: plan.name,
+              type: plan.type,
+            });
+            lastKind = result.asset_kind;
+            lastExtractor = result.extractor;
           }
-          return;
         }
-        await addNote(data, 'Shared note');
-        return;
+        const saved =
+          ingestMessageForKind(lastKind, lastExtractor).replace(
+            / to memory$/,
+            ' to your notes',
+          );
+        showToast(saved);
+        return true;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Could not save shared item';
+        showToast(message, true);
+        return false;
+      } finally {
+        setBusy(false);
       }
-
-      if (mime.startsWith('image/') || data.startsWith('file://')) {
-        const name = data.split('/').pop() ?? 'shared-file';
-        await runIngest(() =>
-          ingestFile({
-            uri: data,
-            name,
-            type: mime || 'application/octet-stream',
-          }),
-        );
-        return;
-      }
-
-      await addNote(data, 'Shared content');
     },
-    [addLink, addNote, runIngest],
+    [showToast],
   );
 
   return {

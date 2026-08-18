@@ -78,8 +78,6 @@ target 'Donna' do
   end
 end
 
-# Uncomment after adding the DonnaShare extension target in Xcode (see SHARE_EXTENSION_SETUP.md):
-# target 'DonnaShare' do
-#   use_react_native!
-#   pod 'RNShareMenu', :path => '../node_modules/react-native-share-menu'
-# end
+# DonnaShare is a native-only Share Extension (no React Native runtime).
+# It writes into App Group `group.com.kishansagathiya.donna`; the host app
+# reads that payload via RNShareMenu.

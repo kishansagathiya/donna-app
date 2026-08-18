@@ -15,7 +15,33 @@
 		A4B4C234E77F41B08704B3E2 /* Literata-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 758B0BA8706B4EA5A988DB6B /* Literata-Regular.ttf */; };
 		CA1535EE40BB2FD9D456E98D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		D0NN4SH01HANDLER01 /* ShareURLHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = D0NN4SH01HANDLER02 /* ShareURLHandler.m */; };
+		D0A5E0010000000000000002 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A5E0010000000000000001 /* ShareViewController.swift */; };
+		D0A5E001000000000000000F /* DonnaShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D0A5E0010000000000000006 /* DonnaShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D0A5E0010000000000000010 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D0A5E001000000000000000A;
+			remoteInfo = DonnaShare;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		D0A5E001000000000000000E /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D0A5E001000000000000000F /* DonnaShare.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		13135D7EB9CA410C92C63177 /* Literata-SemiBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Literata-SemiBold.ttf"; path = "../assets/fonts/Literata-SemiBold.ttf"; sourceTree = "<group>"; };
@@ -32,6 +58,10 @@
 		A1B2C3D41E680F5B00A75B9A /* Donna.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = Donna.entitlements; path = Donna/Donna.entitlements; sourceTree = "<group>"; };
 		D0NN4SH01HANDLER02 /* ShareURLHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = ShareURLHandler.m; path = Donna/ShareURLHandler.m; sourceTree = "<group>"; };
 		D0NN4SH01HANDLER03 /* ShareURLHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ShareURLHandler.h; path = Donna/ShareURLHandler.h; sourceTree = "<group>"; };
+		D0A5E0010000000000000001 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		D0A5E0010000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D0A5E0010000000000000004 /* DonnaShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DonnaShare.entitlements; sourceTree = "<group>"; };
+		D0A5E0010000000000000006 /* DonnaShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DonnaShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -41,6 +71,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				0C80B921A6F3F58F76C31292 /* libPods-Donna.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D0A5E0010000000000000007 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -82,6 +119,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07FAE1A68108700A75B9A /* Donna */,
+				D0A5E0010000000000000005 /* DonnaShare */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
@@ -97,8 +135,19 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* Donna.app */,
+				D0A5E0010000000000000006 /* DonnaShare.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D0A5E0010000000000000005 /* DonnaShare */ = {
+			isa = PBXGroup;
+			children = (
+				D0A5E0010000000000000001 /* ShareViewController.swift */,
+				D0A5E0010000000000000003 /* Info.plist */,
+				D0A5E0010000000000000004 /* DonnaShare.entitlements */,
+			);
+			path = DonnaShare;
 			sourceTree = "<group>";
 		};
 		AF06C9320B1746E8A0ADD152 /* Resources */ = {
@@ -135,15 +184,34 @@
 				00EEFC60759A1932668264C0 /* [CP] Embed Pods Frameworks */,
 				A1B2C3D4E5F6012345678AB /* Patch Hermes MinimumOSVersion */,
 				E235C05ADACE081382539298 /* [CP] Copy Pods Resources */,
+				D0A5E001000000000000000E /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D0A5E0010000000000000011 /* PBXTargetDependency */,
 			);
 			name = Donna;
 			productName = Donna;
 			productReference = 13B07F961A680F5B00A75B9A /* Donna.app */;
 			productType = "com.apple.product-type.application";
+		};
+		D0A5E001000000000000000A /* DonnaShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D0A5E001000000000000000D /* Build configuration list for PBXNativeTarget "DonnaShare" */;
+			buildPhases = (
+				D0A5E0010000000000000008 /* Sources */,
+				D0A5E0010000000000000007 /* Frameworks */,
+				D0A5E0010000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DonnaShare;
+			productName = DonnaShare;
+			productReference = D0A5E0010000000000000006 /* DonnaShare.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -156,6 +224,10 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1120;
+					};
+					D0A5E001000000000000000A = {
+						CreatedOnToolsVersion = 16.0;
+						LastSwiftMigration = 1600;
 					};
 				};
 			};
@@ -173,6 +245,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* Donna */,
+				D0A5E001000000000000000A /* DonnaShare */,
 			);
 		};
 /* End PBXProject section */
@@ -187,6 +260,13 @@
 				CA1535EE40BB2FD9D456E98D /* PrivacyInfo.xcprivacy in Resources */,
 				A4B4C234E77F41B08704B3E2 /* Literata-Regular.ttf in Resources */,
 				44D2D411198F429D9CAA5062 /* Literata-SemiBold.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D0A5E0010000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -292,7 +372,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D0A5E0010000000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D0A5E0010000000000000002 /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D0A5E0010000000000000011 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D0A5E001000000000000000A /* DonnaShare */;
+			targetProxy = D0A5E0010000000000000010 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
@@ -526,6 +622,57 @@
 			};
 			name = Release;
 		};
+		D0A5E001000000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = DonnaShare/DonnaShare.entitlements;
+				CURRENT_PROJECT_VERSION = 43;
+				DEVELOPMENT_TEAM = 4NGJJ36R7V;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DonnaShare/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.7;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kishansagathiya.donna.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D0A5E001000000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = DonnaShare/DonnaShare.entitlements;
+				CURRENT_PROJECT_VERSION = 43;
+				DEVELOPMENT_TEAM = 4NGJJ36R7V;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DonnaShare/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.7;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kishansagathiya.donna.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -543,6 +690,15 @@
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,
 				83CBBA211A601CBA00E9B192 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D0A5E001000000000000000D /* Build configuration list for PBXNativeTarget "DonnaShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D0A5E001000000000000000B /* Debug */,
+				D0A5E001000000000000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

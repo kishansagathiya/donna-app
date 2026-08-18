@@ -1,16 +1,24 @@
-# iOS Share Extension setup
+# iOS Share Extension
 
-The Donna app includes share-handling code (`react-native-share-menu`) and extension plist files under `ios/DonnaShare/`.
+Donna appears in the system share sheet via the `DonnaShare` app extension
+(`ios/DonnaShare`). Shared text, URLs, images, and files are copied into the
+App Group and opened in the host app, which creates a note.
 
-To appear in the system share sheet (Safari → Share → Donna), add the Share Extension target once in Xcode:
+## What is already in the project
 
-1. Open `ios/Donna.xcworkspace`
-2. File → New → Target → **Share Extension** → name it `DonnaShare`
-3. Delete the generated `ShareViewController.swift` in the extension folder
-4. Add `node_modules/react-native-share-menu/ios/ShareViewController.swift` to the DonnaShare target (do not copy)
-5. Replace the extension `Info.plist` with `ios/DonnaShare/Info.plist`
-6. Set extension entitlements to `ios/DonnaShare/DonnaShare.entitlements`
-7. Enable App Group `group.com.kishansagathiya.donna` on both Donna and DonnaShare targets
-8. Run `pod install` (Podfile already includes the `DonnaShare` target)
+- Share Extension target `DonnaShare` in `Donna.xcodeproj`
+- App Group `group.com.kishansagathiya.donna` on both Donna and DonnaShare
+- Host URL scheme `donna://share`
 
-In-app **+ Add to memory** works without the extension (link paste, file picker, photo picker).
+## First install / signing
+
+The extension bundle ID is `com.kishansagathiya.donna.share`. Both App IDs
+need the App Group capability:
+
+1. Apple Developer → Identifiers → App Groups → `group.com.kishansagathiya.donna`
+2. Enable that group on `com.kishansagathiya.donna` and `com.kishansagathiya.donna.share`
+3. Rebuild (EAS will try to provision this automatically)
+
+After installing a new build, open Safari (or Photos) → Share → look for
+**Donna**. New destinations sometimes sit under the share sheet's **More** /
+edit list until used once.
