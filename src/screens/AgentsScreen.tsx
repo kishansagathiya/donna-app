@@ -20,7 +20,6 @@ import {
   buildAgentTurns,
   canReply,
   isActiveStatus,
-  isFinishedStatus,
   parseOptions,
   stepBody,
   stepTitle,
@@ -193,11 +192,12 @@ function TurnView({
   styles: ReturnType<typeof createStyles>;
   colors: ThemeColors;
 }) {
-  // Finished turn with a visible result: collapse the steps timeline so the
-  // Output sits right under the prompt. `key` forces a remount on the
-  // live → finished transition so the collapsed default takes effect.
+  // Run is no longer live (finished or waiting for a reply) and the Output
+  // block is visible: collapse the steps timeline so the Output sits right
+  // under the prompt. `key` forces a remount on the live → settled transition
+  // so the collapsed default takes effect.
   const collapseSteps =
-    isFinishedStatus(runStatus) && turn.output.kind === 'summary';
+    !isActiveStatus(runStatus) && turn.output.kind === 'summary';
 
   return (
     <View style={styles.turn}>
