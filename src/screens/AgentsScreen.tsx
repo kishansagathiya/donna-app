@@ -20,6 +20,7 @@ import {
   buildAgentTurns,
   canReply,
   isActiveStatus,
+  isFinishedStatus,
   parseOptions,
   stepBody,
   stepTitle,
@@ -121,14 +122,16 @@ function StepsGroup({
   steps,
   activeStepId,
   showEmptyWaiting,
+  defaultOpen = true,
   styles,
 }: {
   steps: AgentStepLike[];
   activeStepId: string | null;
   showEmptyWaiting?: boolean;
+  defaultOpen?: boolean;
   styles: ReturnType<typeof createStyles>;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(defaultOpen);
 
   if (steps.length === 0) {
     if (!showEmptyWaiting) {
@@ -190,6 +193,12 @@ function TurnView({
   styles: ReturnType<typeof createStyles>;
   colors: ThemeColors;
 }) {
+  // Finished turn with a visible result: collapse the steps timeline so the
+  // Output sits right under the prompt. `key` forces a remount on the
+  // live → finished transition so the collapsed default takes effect.
+  const collapseSteps =
+    isFinishedStatus(runStatus) && turn.output.kind === 'summary';
+
   return (
     <View style={styles.turn}>
       <View style={styles.promptRow}>
@@ -200,9 +209,11 @@ function TurnView({
 
       <View style={styles.turnBody}>
         <StepsGroup
+          key={collapseSteps ? 'collapsed' : 'open'}
           steps={turn.steps}
           activeStepId={turn.activeStepId}
           showEmptyWaiting={turn.isLatest && isActiveStatus(runStatus)}
+          defaultOpen={!collapseSteps}
           styles={styles}
         />
 
