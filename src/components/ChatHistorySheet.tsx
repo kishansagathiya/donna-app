@@ -388,7 +388,7 @@ export function ChatHistorySheet({
                   Archived
                 </Text>
               </Pressable>
-              {availableTags.slice(0, 6).map(tag => (
+              {availableTags.slice(0, 8).map(tag => (
                 <Pressable
                   key={tag}
                   onPress={() =>
@@ -469,7 +469,12 @@ export function ChatHistorySheet({
                           accessibilityLabel={`Agent: ${run.goal}`}
                         >
                           <View style={[styles.itemIcon, styles.itemIconAgent]}>
-                            <BotIcon size={16} color={colors.primary} />
+                            <BotIcon
+                              size={16}
+                              color={
+                                colors.shadowEnabled ? '#0369A1' : colors.primary
+                              }
+                            />
                           </View>
                           <View style={styles.itemBody}>
                             <View style={styles.itemTitleRow}>
@@ -477,10 +482,31 @@ export function ChatHistorySheet({
                                 {run.goal}
                               </Text>
                             </View>
-                            <Text style={styles.itemMeta}>
-                              {formatConversationDate(run.updated_at)}
-                              {` · ${historyKindLabel(item)} · ${agentStatusLabel(run.status)}`}
-                            </Text>
+                            <View style={styles.itemMetaRow}>
+                              <Text style={styles.itemMeta}>
+                                {formatConversationDate(run.updated_at)}
+                                {` · ${historyKindLabel(item)}`}
+                              </Text>
+                              <View
+                                style={[
+                                  styles.statusBadge,
+                                  run.status === 'succeeded' &&
+                                    styles.statusBadgeOk,
+                                  (run.status === 'failed' ||
+                                    run.status === 'cancelled') &&
+                                    styles.statusBadgeBad,
+                                  run.status === 'waiting_for_user' &&
+                                    styles.statusBadgeWait,
+                                  (run.status === 'running' ||
+                                    run.status === 'queued') &&
+                                    styles.statusBadgeActive,
+                                ]}
+                              >
+                                <Text style={styles.statusBadgeText}>
+                                  {agentStatusLabel(run.status)}
+                                </Text>
+                              </View>
+                            </View>
                           </View>
                         </Pressable>
                       </View>
@@ -526,7 +552,12 @@ export function ChatHistorySheet({
                           ]}
                         >
                           {isVoice ? (
-                            <MicIcon size={16} color={colors.primary} />
+                            <MicIcon
+                              size={16}
+                              color={
+                                colors.shadowEnabled ? '#9333EA' : colors.primary
+                              }
+                            />
                           ) : (
                             <MessageSquareIcon
                               size={16}
@@ -867,10 +898,10 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primaryLight,
     },
     itemIconVoice: {
-      backgroundColor: colors.primaryLight,
+      backgroundColor: colors.shadowEnabled ? '#FAF5FF' : colors.primaryLight,
     },
     itemIconAgent: {
-      backgroundColor: colors.primaryLight,
+      backgroundColor: colors.shadowEnabled ? '#F0F9FF' : colors.primaryLight,
     },
     itemBody: {
       flex: 1,
@@ -892,10 +923,47 @@ function createStyles(colors: ThemeColors) {
       color: colors.muted,
       marginTop: 2,
     },
+    itemMetaRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 2,
+    },
     itemMeta: {
       fontSize: 12,
       color: colors.muted,
       marginTop: 2,
+    },
+    statusBadge: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      borderRadius: 999,
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+    },
+    statusBadgeOk: {
+      borderColor: '#A7F3D0',
+      backgroundColor: '#ECFDF5',
+    },
+    statusBadgeBad: {
+      borderColor: '#FECDD3',
+      backgroundColor: '#FFF1F2',
+    },
+    statusBadgeWait: {
+      borderColor: '#FDE68A',
+      backgroundColor: '#FFFBEB',
+    },
+    statusBadgeActive: {
+      borderColor: '#BAE6FD',
+      backgroundColor: '#F0F9FF',
+    },
+    statusBadgeText: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: colors.text,
+      textTransform: 'uppercase',
     },
     itemSpinner: {
       marginTop: 8,
