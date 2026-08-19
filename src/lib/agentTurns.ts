@@ -62,9 +62,49 @@ export function canReply(status: string): boolean {
   );
 }
 
+/** Local placeholder until POST /agent-runs returns a real id. */
+export const PENDING_AGENT_RUN_ID = "__pending__";
+
+export function isPendingAgentRunId(id: string | null | undefined): boolean {
+  return id === PENDING_AGENT_RUN_ID;
+}
+
 /** Put `run` at the front of the list, replacing any previous copy. */
 export function upsertAgentRun<T extends { id: string }>(runs: T[], run: T): T[] {
   return [run, ...runs.filter((r) => r.id !== run.id)];
+}
+
+/**
+ * Prefer the server list, but keep a locally pinned run (just-created or
+ * still-pending) if a fetch has not caught up yet.
+ */
+export function mergeAgentRuns<T extends { id: string; updated_at?: string }>(
+  remote: T[],
+  local: T[],
+  pinId?: string | null,
+): T[] {
+  const localById = new Map(local.map((r) => [r.id, r]));
+  const merged = remote.map((r) => {
+    const prev = localById.get(r.id);
+    if (prev && isNewerRun(prev, r)) return prev;
+    return r;
+  });
+  if (!pinId) return merged;
+  if (merged.some((r) => r.id === pinId)) return merged;
+  const pinned = localById.get(pinId);
+  if (!pinned) return merged;
+  return upsertAgentRun(merged, pinned);
+}
+
+function isNewerRun(
+  candidate: { updated_at?: string },
+  current: { updated_at?: string },
+): boolean {
+  const next = candidate.updated_at ?? "";
+  const prev = current.updated_at ?? "";
+  if (!next) return false;
+  if (!prev) return true;
+  return next > prev;
 }
 
 export function resultSummary(

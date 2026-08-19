@@ -23,8 +23,10 @@ import {
   PaperclipIcon,
   StopIcon,
 } from './icons';
+import { ComposerModeToggle } from './ComposerModeToggle';
 import { MicButton, type MicState } from './MicButton';
 import { ThinkingIndicator } from './ThinkingIndicator';
+import type { ComposerMode } from '../lib/composerMode';
 
 const INPUT_ACCESSORY_ID = 'chat-input-accessory';
 
@@ -52,6 +54,10 @@ type Props = {
   onMicPress?: () => void;
   micDisabled?: boolean;
   sessionLabel?: string | null;
+  showWebSearch?: boolean;
+  allowEmptySend?: boolean;
+  mode?: ComposerMode;
+  onModeChange?: (mode: ComposerMode) => void;
 };
 
 const quickActionIcons: Record<
@@ -78,6 +84,10 @@ export function ChatInput({
   onMicPress,
   micDisabled,
   sessionLabel,
+  showWebSearch = true,
+  allowEmptySend = false,
+  mode,
+  onModeChange,
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -85,13 +95,13 @@ export function ChatInput({
   const [webSearch, setWebSearch] = useState(false);
   const hasText = text.trim().length > 0;
   const hasAttachments = attachments.length > 0;
-  const canSend = hasText || hasAttachments;
+  const canSend = hasText || hasAttachments || allowEmptySend;
   const showStop = busy && Boolean(onStop);
   const showInlineMic =
     showMic && !hasText && !hasAttachments && onMicPress && !showStop;
 
   function submit() {
-    if ((!hasText && !hasAttachments) || disabled) {
+    if ((!hasText && !hasAttachments && !allowEmptySend) || disabled) {
       return;
     }
     const trimmed = text.trim();
@@ -167,25 +177,31 @@ export function ChatInput({
         </View>
 
         <View style={styles.toolbar}>
-          <Pressable
-            style={[
-              styles.toolButton,
-              webSearch && styles.toolButtonActive,
-              disabled && styles.toolButtonDisabled,
-            ]}
-            onPress={() => setWebSearch(v => !v)}
-            disabled={disabled}
-            accessibilityRole="button"
-            accessibilityState={{ selected: webSearch }}
-            accessibilityLabel={
-              webSearch ? 'Web search on' : 'Web search off'
-            }
-          >
-            <GlobeIcon
-              size={20}
-              color={webSearch ? colors.primary : colors.muted}
-            />
-          </Pressable>
+          {mode && onModeChange ? (
+            <ComposerModeToggle mode={mode} onChange={onModeChange} />
+          ) : null}
+
+          {showWebSearch ? (
+            <Pressable
+              style={[
+                styles.toolButton,
+                webSearch && styles.toolButtonActive,
+                disabled && styles.toolButtonDisabled,
+              ]}
+              onPress={() => setWebSearch(v => !v)}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityState={{ selected: webSearch }}
+              accessibilityLabel={
+                webSearch ? 'Web search on' : 'Web search off'
+              }
+            >
+              <GlobeIcon
+                size={20}
+                color={webSearch ? colors.primary : colors.muted}
+              />
+            </Pressable>
+          ) : null}
 
           {onAttachPress ? (
             <Pressable

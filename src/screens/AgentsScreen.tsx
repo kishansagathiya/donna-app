@@ -67,7 +67,7 @@ function StepRow({
   step: AgentStepLike;
   active?: boolean;
   defaultOpen?: boolean;
-  styles: ReturnType<typeof createStyles>;
+  styles: ReturnType<typeof createAgentStyles>;
 }) {
   const body = stepBody(step).trim();
   const title = stepTitle(step);
@@ -128,7 +128,7 @@ function StepsGroup({
   activeStepId: string | null;
   showEmptyWaiting?: boolean;
   defaultOpen?: boolean;
-  styles: ReturnType<typeof createStyles>;
+  styles: ReturnType<typeof createAgentStyles>;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -189,7 +189,7 @@ function TurnView({
     busy: boolean;
     onFinish: () => void;
   } | null;
-  styles: ReturnType<typeof createStyles>;
+  styles: ReturnType<typeof createAgentStyles>;
   colors: ThemeColors;
 }) {
   // Run is no longer live (finished or waiting for a reply) and the Output
@@ -293,7 +293,7 @@ function ReplyComposer({
   value: string;
   onChange: (v: string) => void;
   onSend: (message: string) => void;
-  styles: ReturnType<typeof createStyles>;
+  styles: ReturnType<typeof createAgentStyles>;
   colors: ThemeColors;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
@@ -404,7 +404,7 @@ function ReplyComposer({
   );
 }
 
-function AgentDetail({
+export function AgentDetail({
   run,
   steps,
   busy,
@@ -415,6 +415,7 @@ function AgentDetail({
   onCancel,
   onFinish,
   onReply,
+  embedded = false,
   styles,
   colors,
 }: {
@@ -424,11 +425,12 @@ function AgentDetail({
   error: string | null;
   reply: string;
   onChangeReply: (v: string) => void;
-  onBack: () => void;
+  onBack?: () => void;
   onCancel: () => void;
   onFinish: () => void;
   onReply: (message: string) => void;
-  styles: ReturnType<typeof createStyles>;
+  embedded?: boolean;
+  styles: ReturnType<typeof createAgentStyles>;
   colors: ThemeColors;
 }) {
   const turns = useMemo(() => buildAgentTurns(run, steps), [run, steps]);
@@ -510,15 +512,17 @@ function AgentDetail({
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <Pressable
-            onPress={onBack}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.backButtonText}>← Agents</Text>
-          </Pressable>
+          {onBack && !embedded ? (
+            <Pressable
+              onPress={onBack}
+              style={({ pressed }) => [
+                styles.backButton,
+                pressed && styles.buttonPressed,
+              ]}
+            >
+              <Text style={styles.backButtonText}>← Agents</Text>
+            </Pressable>
+          ) : null}
           <Text style={styles.subtitle}>
             {needsReply ? 'needs reply' : statusLabel(run.status)}
             {run.error ? ` · ${run.error}` : ''}
@@ -595,7 +599,7 @@ function AgentDetail({
         ))}
       </ScrollView>
 
-      {showReply ? (
+      {showReply && !embedded ? (
         <View style={styles.composerDock}>
           <ReplyComposer
             waiting={needsReply}
@@ -616,7 +620,7 @@ function AgentDetail({
 
 export function AgentsScreen({ isVisible }: Props) {
   const { colors } = useTheme();
-  const styles = useThemedStyles(createStyles);
+  const styles = useThemedStyles(createAgentStyles);
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [steps, setSteps] = useState<AgentStep[]>([]);
@@ -939,7 +943,7 @@ export function AgentsScreen({ isVisible }: Props) {
   );
 }
 
-function createStyles(colors: ThemeColors) {
+export function createAgentStyles(colors: ThemeColors) {
   return StyleSheet.create({
     container: {
       flex: 1,

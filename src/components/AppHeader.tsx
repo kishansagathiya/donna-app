@@ -8,6 +8,7 @@ import type { ThemeColors } from '../theme/colors';
 import { HistoryIcon, PlusIcon } from './icons';
 
 type Props = {
+  title?: string;
   onAvatarPress?: () => void;
   onHistoryPress?: () => void;
   onNewChatPress?: () => void;
@@ -57,6 +58,7 @@ export function UserAvatar({
 }
 
 export function AppHeader({
+  title = 'Chat',
   onAvatarPress,
   onHistoryPress,
   onNewChatPress,
@@ -66,7 +68,7 @@ export function AppHeader({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Chat</Text>
+      <Text style={styles.title}>{title}</Text>
 
       <View style={styles.actions}>
         {onNewChatPress ? (

@@ -14,6 +14,8 @@ type Props = {
   compact?: boolean;
   showMic?: boolean;
   sessionLabel?: string | null;
+  title?: string;
+  description?: string;
 };
 
 export function ChatHero({
@@ -23,6 +25,8 @@ export function ChatHero({
   compact = false,
   showMic = true,
   sessionLabel,
+  title = 'Ask Donna anything',
+  description = 'Your Personal Assistant — she remembers notes, past chats, and what you said out loud.',
 }: Props) {
   const styles = useThemedStyles(createStyles);
 
@@ -44,11 +48,8 @@ export function ChatHero({
       ) : null}
       {compact || sessionLabel || !showMic ? null : (
         <>
-          <Text style={styles.title}>Ask Donna anything</Text>
-          <Text style={styles.subtitle}>
-            Your Personal Assistant — she remembers notes, past chats, and what you
-            said out loud.
-          </Text>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>{description}</Text>
         </>
       )}
     </View>

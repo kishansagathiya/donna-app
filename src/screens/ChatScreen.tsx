@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionSheetIOS,
   Alert,
@@ -9,12 +9,15 @@ import {
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { Text } from '../components/ThemedText';
+import { AgentHistorySheet } from '../components/AgentHistorySheet';
 import { AppHeader } from '../components/AppHeader';
 import { ChatHero } from '../components/ChatHero';
 import { ChatHistorySheet } from '../components/ChatHistorySheet';
 import { ChatInput } from '../components/ChatInput';
 import { ChatMessages, type ChatTurn } from '../components/ChatMessages';
+import { useAgentSession } from '../hooks/useAgentSession';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../hooks/useTheme';
 import { useCreateNoteMutation } from '../hooks/useNotes';
 import { useVoiceSession } from '../hooks/useVoiceSession';
 import {
@@ -27,6 +30,11 @@ import {
   type PendingAttachment,
 } from '../lib/chatAttachments';
 import {
+  getStoredComposerMode,
+  storeComposerMode,
+  type ComposerMode,
+} from '../lib/composerMode';
+import {
   chatPhaseLabel,
   coerceChatPhase,
   isGeneratingPhase,
@@ -35,6 +43,7 @@ import {
   DONNA_THINKING_PHASE,
   isDonnaThinkingPhase,
 } from '../lib/thinkingPhrases';
+import { AgentDetail, createAgentStyles } from './AgentsScreen';
 import type { ThemeColors } from '../theme/colors';
 import {
   streamChatMessage,
@@ -89,7 +98,9 @@ export function ChatScreen({
   onOpenNote,
   onToast,
 }: Props) {
+  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const agentStyles = useThemedStyles(createAgentStyles);
   const createNoteMutation = useCreateNoteMutation();
   const [textMessages, setTextMessages] = useState<ChatTurn[]>([]);
   const [textSessionId, setTextSessionId] = useState<string | null>(null);
@@ -98,6 +109,14 @@ export function ChatScreen({
   const [streamHasText, setStreamHasText] = useState(false);
   const [textPhase, setTextPhase] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [composerMode, setComposerMode] = useState<ComposerMode>('chat');
+  const [agentHistoryRefreshing, setAgentHistoryRefreshing] = useState(false);
+  const isAgent = composerMode === 'agent';
+  const agent = useAgentSession(isAgent);
+  const composerModeRef = useRef(composerMode);
+  composerModeRef.current = composerMode;
+  const agentSendRef = useRef(agent.handleSend);
+  agentSendRef.current = agent.handleSend;
   const [pendingAttachments, setPendingAttachments] = useState<
     PendingAttachment[]
   >([]);
@@ -131,8 +150,12 @@ export function ChatScreen({
   });
 
   const messages = textMessages;
-  const hasThread = messages.length > 0;
+  const hasChatThread = messages.length > 0;
+  const hasAgentThread = Boolean(agent.active);
+  const hasThread = isAgent ? hasAgentThread : hasChatThread;
   const sessionActive = voiceSessionActive || micState === 'requesting';
+  const composerBusy = isAgent ? agent.busy : isSending;
+  const composerError = isAgent ? agent.error : textError;
 
   const actionableTurnIds = useMemo(
     () => new Set(textMessages.map(t => t.id)),
@@ -377,8 +400,21 @@ export function ChatScreen({
   }
 
   sendFromVoiceRef.current = (text: string) => {
+    if (composerModeRef.current === 'agent') {
+      void agentSendRef.current(text);
+      return;
+    }
     void handleSend(text);
   };
+
+  useEffect(() => {
+    void getStoredComposerMode().then(setComposerMode);
+  }, []);
+
+  function handleModeChange(next: ComposerMode) {
+    setComposerMode(next);
+    void storeComposerMode(next);
+  }
 
   function handleStop() {
     flushPendingChunk();
@@ -647,6 +683,10 @@ export function ChatScreen({
   }
 
   function handleNewChat() {
+    if (composerModeRef.current === 'agent') {
+      agent.handleNewRun();
+      return;
+    }
     streamAbortRef.current?.();
     cancelChunkRaf();
     pendingChunkRef.current = null;
@@ -658,60 +698,104 @@ export function ChatScreen({
     setStreamHasText(false);
   }
 
+  const agentPlaceholder = !agent.active
+    ? 'Describe a cloud agent goal…'
+    : agent.waitingWithOptions
+      ? agent.allowMultiple
+        ? 'Optional note to add with your selection…'
+        : 'Or type a different answer…'
+      : agent.needsReply
+        ? 'Write your answer…'
+        : 'Add a follow-up or correction…';
+
   return (
     <View style={styles.container}>
       <AppHeader
+        title={isAgent ? 'Agent' : 'Chat'}
         onAvatarPress={onOpenProfile}
         onHistoryPress={() => setHistoryOpen(true)}
         onNewChatPress={handleNewChat}
       />
 
       <View style={styles.main}>
-        {hasThread ? (
-          <ChatMessages
-            turns={messages}
-            phaseLabel={displayPhase}
-            busy={isSending}
-            actionableTurnIds={actionableTurnIds}
-            onCopyMessage={handleCopy}
-            onRegenerate={() => void handleRegenerate()}
-            onEditMessage={(id, text) => void handleEditAndResend(id, text)}
-            onFeedback={(id, rating) => void handleFeedback(id, rating)}
-            onSaveAsNote={async content => {
-              try {
-                await createNoteMutation.mutateAsync({
-                  content,
-                  id: newNoteId(),
-                });
-                onToast?.('Saved to Notes', false);
-              } catch (err: unknown) {
-                onToast?.(
-                  err instanceof Error ? err.message : 'Could not save note',
-                  true,
-                );
-                throw err;
+        {isAgent ? (
+          agent.active ? (
+            <AgentDetail
+              run={agent.active}
+              steps={agent.steps}
+              busy={agent.busy}
+              error={null}
+              reply=""
+              onChangeReply={() => {}}
+              onCancel={() => void agent.onCancel(agent.active!.id)}
+              onFinish={() => void agent.onFinish(agent.active!.id)}
+              onReply={() => {}}
+              embedded
+              styles={agentStyles}
+              colors={colors}
+            />
+          ) : (
+            <ChatHero
+              micState={micState}
+              onMicPress={() => void toggleTalk()}
+              micDisabled={micDisabled}
+              showMic
+              sessionLabel={
+                agent.busy ? DONNA_THINKING_PHASE : sessionLabel
               }
-            }}
-            onRetry={() => void handleRetry()}
-            onOpenNote={onOpenNote}
-          />
-        ) : null}
+              title="Start a cloud agent goal…"
+              description="Background goals on Donna cloud — your phone can lock while it works."
+            />
+          )
+        ) : (
+          <>
+            {hasChatThread ? (
+              <ChatMessages
+                turns={messages}
+                phaseLabel={displayPhase}
+                busy={isSending}
+                actionableTurnIds={actionableTurnIds}
+                onCopyMessage={handleCopy}
+                onRegenerate={() => void handleRegenerate()}
+                onEditMessage={(id, text) => void handleEditAndResend(id, text)}
+                onFeedback={(id, rating) => void handleFeedback(id, rating)}
+                onSaveAsNote={async content => {
+                  try {
+                    await createNoteMutation.mutateAsync({
+                      content,
+                      id: newNoteId(),
+                    });
+                    onToast?.('Saved to Notes', false);
+                  } catch (err: unknown) {
+                    onToast?.(
+                      err instanceof Error ? err.message : 'Could not save note',
+                      true,
+                    );
+                    throw err;
+                  }
+                }}
+                onRetry={() => void handleRetry()}
+                onOpenNote={onOpenNote}
+              />
+            ) : null}
 
-        <ChatHero
-          micState={micState}
-          onMicPress={() => void toggleTalk()}
-          micDisabled={micDisabled}
-          compact={hasThread}
-          showMic={!hasThread}
-          sessionLabel={hasThread ? null : sessionLabel}
-        />
+            <ChatHero
+              micState={micState}
+              onMicPress={() => void toggleTalk()}
+              micDisabled={micDisabled}
+              compact={hasChatThread}
+              showMic={!hasChatThread}
+              sessionLabel={hasChatThread ? null : sessionLabel}
+            />
+          </>
+        )}
 
-        {textError || voiceError ? (
+        {composerError || voiceError ? (
           <View style={styles.errorRow}>
             <Text style={styles.error} accessibilityRole="alert">
-              {textError ?? voiceError}
+              {composerError ?? voiceError}
             </Text>
-            {textError ? (
+            {!isAgent && textError ? (
               <Pressable
                 onPress={() => void handleRetry()}
                 accessibilityRole="button"
@@ -724,30 +808,75 @@ export function ChatScreen({
         ) : null}
       </View>
 
+      {isAgent && agent.waitingWithOptions ? (
+        <View style={styles.optionsBlock}>
+          <Text style={styles.optionsHint}>
+            {agent.allowMultiple
+              ? 'Select one or more options'
+              : 'Select an option'}
+          </Text>
+          <View style={styles.optionRow}>
+            {agent.options.map(opt => {
+              const on = agent.selectedOptions.includes(opt.id);
+              return (
+                <Pressable
+                  key={opt.id}
+                  disabled={agent.busy}
+                  onPress={() => agent.toggleOption(opt.id)}
+                  style={[
+                    styles.optionChip,
+                    on && styles.optionChipOn,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.optionChipText,
+                      on && styles.optionChipTextOn,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+
       <ChatInput
-        onSend={(text, attachments, options) =>
-          void handleSend(text, attachments, options)
-        }
-        onStop={handleStop}
+        onSend={(text, attachments, options) => {
+          if (composerModeRef.current === 'agent') {
+            void agent.handleSend(text, attachments);
+            return;
+          }
+          void handleSend(text, attachments, options);
+        }}
+        onStop={isAgent ? undefined : handleStop}
         onAttachPress={handleAttachPress}
         attachments={pendingAttachments}
         onRemoveAttachment={id =>
           setPendingAttachments(prev => prev.filter(a => a.id !== id))
         }
-        disabled={micDisabled || isSending || sessionActive}
-        busy={isSending}
-        placeholder="Message Donna…"
+        disabled={micDisabled || composerBusy || sessionActive}
+        busy={composerBusy}
+        placeholder={isAgent ? agentPlaceholder : 'Message Donna…'}
         showMic={hasThread}
         micState={micState}
         onMicPress={() => void toggleTalk()}
-        micDisabled={micDisabled}
+        micDisabled={micDisabled || (isAgent && agent.busy)}
         sessionLabel={
           hasThread && sessionLabel && !isDonnaThinkingPhase(sessionLabel)
             ? sessionLabel
-            : null
+            : isAgent && agent.busy
+              ? DONNA_THINKING_PHASE
+              : null
         }
+        showWebSearch={!isAgent}
+        allowEmptySend={isAgent && agent.allowEmptySend}
+        mode={composerMode}
+        onModeChange={handleModeChange}
         quickActions={
-          !hasThread && !isSending && !sessionActive
+          !isAgent && !hasChatThread && !isSending && !sessionActive
             ? QUICK_ACTIONS.map(action => ({
                 label: action.label,
                 onPress: () => void handleSend(action.prompt),
@@ -756,11 +885,30 @@ export function ChatScreen({
         }
       />
 
-      <ChatHistorySheet
-        visible={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        onResume={handleResumeConversation}
-      />
+      {isAgent ? (
+        <AgentHistorySheet
+          visible={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          runs={agent.runs}
+          selectedId={agent.selectedId}
+          onSelect={run => agent.setSelectedId(run.id)}
+          refreshing={agentHistoryRefreshing}
+          onRefresh={async () => {
+            setAgentHistoryRefreshing(true);
+            try {
+              await agent.refreshRuns();
+            } finally {
+              setAgentHistoryRefreshing(false);
+            }
+          }}
+        />
+      ) : (
+        <ChatHistorySheet
+          visible={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          onResume={handleResumeConversation}
+        />
+      )}
     </View>
   );
 }
@@ -793,6 +941,41 @@ function createStyles(colors: ThemeColors) {
       fontSize: 14,
       fontWeight: '600',
       fontFamily: colors.fontFamily,
+    },
+    optionsBlock: {
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      gap: 8,
+    },
+    optionsHint: {
+      fontSize: 12,
+      color: colors.muted,
+      fontFamily: colors.fontFamily,
+    },
+    optionRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    optionChip: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: colors.background,
+    },
+    optionChipOn: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primary,
+    },
+    optionChipText: {
+      fontSize: 14,
+      color: colors.text,
+      fontFamily: colors.fontFamily,
+    },
+    optionChipTextOn: {
+      color: colors.white,
     },
   });
 }
