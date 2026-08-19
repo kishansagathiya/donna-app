@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { Text } from '../components/ThemedText';
-import { AgentHistorySheet } from '../components/AgentHistorySheet';
 import { AppHeader } from '../components/AppHeader';
 import { ChatHero } from '../components/ChatHero';
 import { ChatHistorySheet } from '../components/ChatHistorySheet';
@@ -110,7 +109,6 @@ export function ChatScreen({
   const [textPhase, setTextPhase] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [composerMode, setComposerMode] = useState<ComposerMode>('chat');
-  const [agentHistoryRefreshing, setAgentHistoryRefreshing] = useState(false);
   const isAgent = composerMode === 'agent';
   const agent = useAgentSession(isAgent);
   const composerModeRef = useRef(composerMode);
@@ -671,6 +669,7 @@ export function ChatScreen({
     sessionId: string | undefined,
     resumedMessages: ChatTurn[],
   ) {
+    handleModeChange('chat');
     streamAbortRef.current?.();
     cancelChunkRaf();
     pendingChunkRef.current = null;
@@ -885,30 +884,16 @@ export function ChatScreen({
         }
       />
 
-      {isAgent ? (
-        <AgentHistorySheet
-          visible={historyOpen}
-          onClose={() => setHistoryOpen(false)}
-          runs={agent.runs}
-          selectedId={agent.selectedId}
-          onSelect={run => agent.setSelectedId(run.id)}
-          refreshing={agentHistoryRefreshing}
-          onRefresh={async () => {
-            setAgentHistoryRefreshing(true);
-            try {
-              await agent.refreshRuns();
-            } finally {
-              setAgentHistoryRefreshing(false);
-            }
-          }}
-        />
-      ) : (
-        <ChatHistorySheet
-          visible={historyOpen}
-          onClose={() => setHistoryOpen(false)}
-          onResume={handleResumeConversation}
-        />
-      )}
+      <ChatHistorySheet
+        visible={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        selectedAgentId={isAgent ? agent.selectedId : null}
+        onResume={handleResumeConversation}
+        onSelectAgent={run => {
+          handleModeChange('agent');
+          agent.setSelectedId(run.id);
+        }}
+      />
     </View>
   );
 }

@@ -34,7 +34,7 @@ export function ComposerModeToggle({ mode, onChange, disabled }: Props) {
     >
       {OPTIONS.map(option => {
         const selected = mode === option.id;
-        const iconColor = selected ? colors.text : colors.muted;
+        const iconColor = selected ? colors.white : colors.muted;
         return (
           <Pressable
             key={option.id}
@@ -80,7 +80,7 @@ function createStyles(colors: ThemeColors) {
       paddingVertical: 6,
     },
     optionSelected: {
-      backgroundColor: colors.background,
+      backgroundColor: colors.primary,
     },
     label: {
       fontSize: 11,
@@ -89,7 +89,7 @@ function createStyles(colors: ThemeColors) {
       fontFamily: colors.fontFamily,
     },
     labelSelected: {
-      color: colors.text,
+      color: colors.white,
     },
   });
 }

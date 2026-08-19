@@ -25,9 +25,17 @@ import {
   turnsToChatTurns,
   type ConversationSummary,
 } from '../services/conversationsApi';
+import { listAgentRuns, type AgentRun } from '../services/agentsApi';
+import {
+  agentStatusLabel,
+  historyKindLabel,
+  matchesHistoryQuery,
+  mergeHistoryItems,
+} from '../lib/unifiedHistory';
 import type { ThemeColors } from '../theme/colors';
 import type { ChatTurn } from './ChatMessages';
 import {
+  BotIcon,
   HistoryIcon,
   MessageSquareIcon,
   MicIcon,
@@ -41,13 +49,23 @@ import {
 type Props = {
   visible: boolean;
   onClose: () => void;
+  selectedChatId?: string | null;
+  selectedAgentId?: string | null;
   onResume: (sessionId: string | undefined, messages: ChatTurn[]) => void;
+  onSelectAgent: (run: AgentRun) => void;
 };
 
 type FilterMode = 'active' | 'archived';
 type EditMode = 'rename' | 'tags' | null;
 
-export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
+export function ChatHistorySheet({
+  visible,
+  onClose,
+  selectedChatId = null,
+  selectedAgentId = null,
+  onResume,
+  onSelectAgent,
+}: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -57,6 +75,7 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
   const [conversations, setConversations] = useState<ConversationSummary[]>(
     [],
   );
+  const [runs, setRuns] = useState<AgentRun[]>([]);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -74,11 +93,13 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
     return () => clearTimeout(timer);
   }, [query]);
 
+  const includeAgents = filterMode === 'active' && !tagFilter;
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [items, tags] = await Promise.all([
+      const [items, tags, agentRuns] = await Promise.all([
         listConversations({
           q: debouncedQuery || undefined,
           tag: tagFilter || undefined,
@@ -87,16 +108,39 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
           limit: 50,
         }),
         listConversationTags().catch(() => [] as string[]),
+        includeAgents
+          ? listAgentRuns().catch(() => [] as AgentRun[])
+          : Promise.resolve([] as AgentRun[]),
       ]);
       setConversations(items);
       setAvailableTags(tags);
+      setRuns(agentRuns);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load history');
       setConversations([]);
+      setRuns([]);
     } finally {
       setLoading(false);
     }
-  }, [debouncedQuery, filterMode, tagFilter]);
+  }, [debouncedQuery, filterMode, includeAgents, tagFilter]);
+
+  const items = useMemo(() => {
+    const agentRuns = includeAgents
+      ? runs.filter(run =>
+          matchesHistoryQuery(
+            {
+              kind: 'agent',
+              id: run.id,
+              updatedAt: run.updated_at,
+              pinned: false,
+              run,
+            },
+            debouncedQuery,
+          ),
+        )
+      : [];
+    return mergeHistoryItems(conversations, agentRuns);
+  }, [conversations, debouncedQuery, includeAgents, runs]);
 
   useEffect(() => {
     if (visible) {
@@ -105,11 +149,16 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
   }, [visible, load]);
 
   const emptyTitle = useMemo(() => {
-    if (debouncedQuery) return 'No matching chats';
+    if (debouncedQuery) return 'No matching history';
     if (filterMode === 'archived') return 'No archived chats';
     if (tagFilter) return 'No chats with this tag';
-    return 'No conversations yet';
+    return 'No history yet';
   }, [debouncedQuery, filterMode, tagFilter]);
+
+  async function handleSelectAgent(run: AgentRun) {
+    onSelectAgent(run);
+    onClose();
+  }
 
   async function handleSelect(conversation: ConversationSummary) {
     setResumingId(conversation.id);
@@ -275,7 +324,7 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
           onPress={e => e.stopPropagation()}
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Chat history</Text>
+            <Text style={styles.title}>History</Text>
             <Pressable
               onPress={onClose}
               hitSlop={8}
@@ -293,7 +342,7 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
               <TextInput
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Search chats…"
+                placeholder="Search history…"
                 placeholderTextColor={colors.muted}
                 style={styles.searchInput}
                 autoCapitalize="none"
@@ -376,7 +425,7 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
               <View style={styles.centered}>
                 <ActivityIndicator size="large" color={colors.primary} />
               </View>
-            ) : conversations.length === 0 ? (
+            ) : items.length === 0 ? (
               <View style={styles.empty}>
                 <View style={styles.emptyIconWrap}>
                   <HistoryIcon size={24} color={colors.primary} />
@@ -385,7 +434,7 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
                 <Text style={styles.emptyDescription}>
                   {debouncedQuery
                     ? 'Try a different keyword or clear filters.'
-                    : 'Your past chats will appear here once you start talking with Donna.'}
+                    : 'Your past chats and agent runs will appear here.'}
                 </Text>
               </View>
             ) : (
@@ -395,18 +444,64 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
-                {conversations.map(conversation => {
+                {items.map(item => {
+                  if (item.kind === 'agent') {
+                    const run = runs.find(r => r.id === item.run.id);
+                    if (!run) return null;
+                    const busy = busyId === run.id;
+                    const selected = selectedAgentId === run.id;
+                    return (
+                      <View key={`agent:${run.id}`} style={styles.itemRow}>
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.item,
+                            selected && styles.itemSelected,
+                            pressed && styles.itemPressed,
+                            busy && styles.itemDisabled,
+                          ]}
+                          disabled={busy || resumingId !== null || busyId !== null}
+                          onPress={() => handleSelectAgent(run)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Agent: ${run.goal}`}
+                        >
+                          <View style={[styles.itemIcon, styles.itemIconAgent]}>
+                            <BotIcon size={16} color={colors.primary} />
+                          </View>
+                          <View style={styles.itemBody}>
+                            <View style={styles.itemTitleRow}>
+                              <Text style={styles.itemTitle} numberOfLines={2}>
+                                {run.goal}
+                              </Text>
+                            </View>
+                            <Text style={styles.itemMeta}>
+                              {formatConversationDate(run.updated_at)}
+                              {` · ${historyKindLabel(item)} · ${agentStatusLabel(run.status)}`}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      </View>
+                    );
+                  }
+
+                  const conversation = conversations.find(
+                    c => c.id === item.conversation.id,
+                  );
+                  if (!conversation) return null;
                   const isVoice = conversation.channel === 'voice';
                   const busy =
                     resumingId === conversation.id ||
                     busyId === conversation.id;
                   const pinned = Boolean(conversation.pinned_at);
+                  const selected =
+                    selectedChatId === conversation.id ||
+                    resumingId === conversation.id;
 
                   return (
-                    <View key={conversation.id} style={styles.itemRow}>
+                    <View key={`chat:${conversation.id}`} style={styles.itemRow}>
                       <Pressable
                         style={({ pressed }) => [
                           styles.item,
+                          selected && styles.itemSelected,
                           pressed && styles.itemPressed,
                           (busy ||
                             resumingId !== null ||
@@ -451,6 +546,7 @@ export function ChatHistorySheet({ visible, onClose, onResume }: Props) {
                           ) : null}
                           <Text style={styles.itemMeta}>
                             {formatConversationDate(conversation.updated_at)}
+                            {` · ${historyKindLabel(item)}`}
                             {conversation.tags && conversation.tags.length > 0
                               ? ` · ${conversation.tags
                                   .map(t => `#${t}`)
@@ -748,6 +844,10 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.surface,
       borderColor: `${colors.primary}4D`,
     },
+    itemSelected: {
+      borderColor: `${colors.primary}66`,
+      backgroundColor: colors.primaryLight,
+    },
     itemDisabled: {
       opacity: 0.6,
     },
@@ -763,6 +863,9 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primaryLight,
     },
     itemIconVoice: {
+      backgroundColor: colors.primaryLight,
+    },
+    itemIconAgent: {
       backgroundColor: colors.primaryLight,
     },
     itemBody: {
