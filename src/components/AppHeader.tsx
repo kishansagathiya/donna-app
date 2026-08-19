@@ -92,7 +92,7 @@ export function AppHeader({
             ]}
             onPress={onHistoryPress}
             accessibilityRole="button"
-            accessibilityLabel="Chat history"
+            accessibilityLabel="History"
           >
             <HistoryIcon size={20} color={colors.muted} />
           </Pressable>

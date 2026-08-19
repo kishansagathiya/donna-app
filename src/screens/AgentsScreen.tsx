@@ -20,6 +20,7 @@ import {
   buildAgentTurns,
   canReply,
   isActiveStatus,
+  isPendingAgentRunId,
   parseOptions,
   stepBody,
   stepTitle,
@@ -449,6 +450,7 @@ export function AgentDetail({
           ?.allow_multiple === true),
   );
   const showReply = canReply(run.status);
+  const pending = isPendingAgentRunId(run.id);
   const scrollRef = useRef<ScrollView>(null);
   const [sharing, setSharing] = useState(false);
 
@@ -528,17 +530,19 @@ export function AgentDetail({
             {run.error ? ` · ${run.error}` : ''}
           </Text>
         </View>
-        <Pressable
-          disabled={sharing || busy}
-          onPress={onSharePress}
-          style={({ pressed }) => [
-            styles.refreshButton,
-            (sharing || busy) && styles.buttonDisabled,
-            pressed && styles.buttonPressed,
-          ]}
-        >
-          <Text style={styles.refreshButtonText}>Share</Text>
-        </Pressable>
+        {!pending ? (
+          <Pressable
+            disabled={sharing || busy}
+            onPress={onSharePress}
+            style={({ pressed }) => [
+              styles.refreshButton,
+              (sharing || busy) && styles.buttonDisabled,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.refreshButtonText}>Share</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {error ? (
@@ -552,7 +556,7 @@ export function AgentDetail({
         contentContainerStyle={styles.detailContent}
         keyboardShouldPersistTaps="handled"
       >
-        {isOpenStatus(run.status) || needsReply ? (
+        {!pending && (isOpenStatus(run.status) || needsReply) ? (
           <View style={styles.actionRow}>
             <Pressable
               disabled={busy}

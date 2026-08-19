@@ -107,6 +107,7 @@ export function ChatInput({
     const trimmed = text.trim();
     onSend?.(trimmed, attachments, { webSearch });
     setText('');
+    setWebSearch(false);
   }
 
   return (

@@ -109,6 +109,9 @@ export function ChatScreen({
   const [textPhase, setTextPhase] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [composerMode, setComposerMode] = useState<ComposerMode>('chat');
+  const [activeConversationId, setActiveConversationId] = useState<
+    string | null
+  >(null);
   const isAgent = composerMode === 'agent';
   const agent = useAgentSession(isAgent);
   const composerModeRef = useRef(composerMode);
@@ -666,6 +669,7 @@ export function ChatScreen({
   }
 
   function handleResumeConversation(
+    conversationId: string,
     sessionId: string | undefined,
     resumedMessages: ChatTurn[],
   ) {
@@ -673,6 +677,7 @@ export function ChatScreen({
     streamAbortRef.current?.();
     cancelChunkRaf();
     pendingChunkRef.current = null;
+    setActiveConversationId(conversationId);
     setTextMessages(resumedMessages);
     setTextSessionId(sessionId ?? null);
     setTextError(null);
@@ -691,6 +696,7 @@ export function ChatScreen({
     pendingChunkRef.current = null;
     setTextMessages([]);
     setTextSessionId(null);
+    setActiveConversationId(null);
     setTextError(null);
     setTextPhase(null);
     setIsSending(false);
@@ -887,6 +893,7 @@ export function ChatScreen({
       <ChatHistorySheet
         visible={historyOpen}
         onClose={() => setHistoryOpen(false)}
+        selectedChatId={isAgent ? null : activeConversationId}
         selectedAgentId={isAgent ? agent.selectedId : null}
         onResume={handleResumeConversation}
         onSelectAgent={run => {

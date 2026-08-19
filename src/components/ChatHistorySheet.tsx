@@ -51,7 +51,11 @@ type Props = {
   onClose: () => void;
   selectedChatId?: string | null;
   selectedAgentId?: string | null;
-  onResume: (sessionId: string | undefined, messages: ChatTurn[]) => void;
+  onResume: (
+    conversationId: string,
+    sessionId: string | undefined,
+    messages: ChatTurn[],
+  ) => void;
   onSelectAgent: (run: AgentRun) => void;
 };
 
@@ -176,7 +180,7 @@ export function ChatHistorySheet({
       );
       const sessionId =
         detail.channel === 'text' ? detail.client_session_id : undefined;
-      onResume(sessionId, turns);
+      onResume(conversation.id, sessionId, turns);
       onClose();
     } catch (err) {
       setError(
