@@ -735,6 +735,8 @@ export function ChatScreen({
               onCancel={() => void agent.onCancel(agent.active!.id)}
               onFinish={() => void agent.onFinish(agent.active!.id)}
               onReply={() => {}}
+              selectedOptions={agent.selectedOptions}
+              onToggleOption={agent.toggleOption}
               embedded
               styles={agentStyles}
               colors={colors}
@@ -812,41 +814,6 @@ export function ChatScreen({
           </View>
         ) : null}
       </View>
-
-      {isAgent && agent.waitingWithOptions ? (
-        <View style={styles.optionsBlock}>
-          <Text style={styles.optionsHint}>
-            {agent.allowMultiple
-              ? 'Select one or more options'
-              : 'Select an option'}
-          </Text>
-          <View style={styles.optionRow}>
-            {agent.options.map(opt => {
-              const on = agent.selectedOptions.includes(opt.id);
-              return (
-                <Pressable
-                  key={opt.id}
-                  disabled={agent.busy}
-                  onPress={() => agent.toggleOption(opt.id)}
-                  style={[
-                    styles.optionChip,
-                    on && styles.optionChipOn,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.optionChipText,
-                      on && styles.optionChipTextOn,
-                    ]}
-                  >
-                    {opt.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      ) : null}
 
       <ChatInput
         onSend={(text, attachments, options) => {
@@ -933,41 +900,6 @@ function createStyles(colors: ThemeColors) {
       fontSize: 14,
       fontWeight: '600',
       fontFamily: colors.fontFamily,
-    },
-    optionsBlock: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      gap: 8,
-    },
-    optionsHint: {
-      fontSize: 12,
-      color: colors.muted,
-      fontFamily: colors.fontFamily,
-    },
-    optionRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    optionChip: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      backgroundColor: colors.background,
-    },
-    optionChipOn: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primary,
-    },
-    optionChipText: {
-      fontSize: 14,
-      color: colors.text,
-      fontFamily: colors.fontFamily,
-    },
-    optionChipTextOn: {
-      color: colors.white,
     },
   });
 }

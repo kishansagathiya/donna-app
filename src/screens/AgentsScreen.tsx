@@ -21,6 +21,7 @@ import {
   canReply,
   isActiveStatus,
   isPendingAgentRunId,
+  parseAllowMultiple,
   parseOptions,
   stepBody,
   stepTitle,
@@ -177,10 +178,75 @@ function StepsGroup({
   );
 }
 
+type AskChoiceProps = {
+  options: AskOption[];
+  allowMultiple: boolean;
+  selected: string[];
+  busy: boolean;
+  onToggle: (id: string) => void;
+};
+
+function AskOptions({
+  options,
+  allowMultiple,
+  selected,
+  busy,
+  onToggle,
+  styles,
+}: AskChoiceProps & {
+  styles: ReturnType<typeof createAgentStyles>;
+}) {
+  if (options.length === 0) {
+    return null;
+  }
+  const rows: AskOption[][] = [];
+  for (let i = 0; i < options.length; i += 2) {
+    rows.push(options.slice(i, i + 2));
+  }
+  return (
+    <View style={styles.optionsBlock}>
+      <Text style={styles.optionsHint}>
+        {allowMultiple ? 'Select one or more' : 'Select one'}
+      </Text>
+      {rows.map((row, rowIdx) => (
+        <View key={rowIdx} style={styles.optionRow}>
+          {row.map(opt => {
+            const on = selected.includes(opt.id);
+            return (
+              <Pressable
+                key={opt.id}
+                disabled={busy}
+                onPress={() => onToggle(opt.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on, disabled: busy }}
+                style={({ pressed }) => [
+                  styles.optionChip,
+                  on && styles.optionChipOn,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.optionChipText,
+                    on && styles.optionChipTextOn,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function TurnView({
   turn,
   runStatus,
   waitingExtras,
+  ask,
   styles,
   colors,
 }: {
@@ -190,6 +256,7 @@ function TurnView({
     busy: boolean;
     onFinish: () => void;
   } | null;
+  ask?: AskChoiceProps | null;
   styles: ReturnType<typeof createAgentStyles>;
   colors: ThemeColors;
 }) {
@@ -249,6 +316,9 @@ function TurnView({
                 variant="assistant"
               />
             </View>
+            {turn.question.live && ask ? (
+              <AskOptions {...ask} styles={styles} />
+            ) : null}
             {turn.question.live && waitingExtras ? (
               <View style={styles.waitingFooter}>
                 <Text style={styles.waitingHint}>
@@ -270,6 +340,8 @@ function TurnView({
               </View>
             ) : null}
           </View>
+        ) : ask && turn.isLatest ? (
+          <AskOptions {...ask} styles={styles} />
         ) : null}
       </View>
     </View>
@@ -280,6 +352,7 @@ function ReplyComposer({
   waiting,
   options,
   allowMultiple,
+  selected,
   busy,
   value,
   onChange,
@@ -290,6 +363,7 @@ function ReplyComposer({
   waiting: boolean;
   options: AskOption[];
   allowMultiple: boolean;
+  selected: string[];
   busy: boolean;
   value: string;
   onChange: (v: string) => void;
@@ -297,22 +371,6 @@ function ReplyComposer({
   styles: ReturnType<typeof createAgentStyles>;
   colors: ThemeColors;
 }) {
-  const [selected, setSelected] = useState<string[]>([]);
-  const optionKey = options.map(o => o.id).join('|');
-
-  useEffect(() => {
-    setSelected([]);
-  }, [optionKey]);
-
-  function toggle(id: string) {
-    setSelected(prev => {
-      if (allowMultiple) {
-        return prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
-      }
-      return prev[0] === id ? [] : [id];
-    });
-  }
-
   function composeFromSelection(): string {
     const labels = options
       .filter(o => selected.includes(o.id))
@@ -332,41 +390,6 @@ function ReplyComposer({
       <Text style={styles.sectionLabel}>
         {waiting ? 'Your reply' : 'Continue / reply'}
       </Text>
-      {options.length > 0 ? (
-        <View style={styles.optionsBlock}>
-          <Text style={styles.optionsHint}>
-            {allowMultiple
-              ? 'Select one or more options'
-              : 'Select an option'}
-          </Text>
-          <View style={styles.optionRow}>
-            {options.map(opt => {
-              const on = selected.includes(opt.id);
-              return (
-                <Pressable
-                  key={opt.id}
-                  disabled={busy}
-                  onPress={() => toggle(opt.id)}
-                  style={({ pressed }) => [
-                    styles.optionChip,
-                    on && styles.optionChipOn,
-                    pressed && styles.buttonPressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.optionChipText,
-                      on && styles.optionChipTextOn,
-                    ]}
-                  >
-                    {opt.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      ) : null}
       <TextInput
         style={styles.replyInput}
         multiline
@@ -417,6 +440,8 @@ export function AgentDetail({
   onFinish,
   onReply,
   embedded = false,
+  selectedOptions,
+  onToggleOption,
   styles,
   colors,
 }: {
@@ -431,6 +456,8 @@ export function AgentDetail({
   onFinish: () => void;
   onReply: (message: string) => void;
   embedded?: boolean;
+  selectedOptions?: string[];
+  onToggleOption?: (id: string) => void;
   styles: ReturnType<typeof createAgentStyles>;
   colors: ThemeColors;
 }) {
@@ -444,11 +471,36 @@ export function AgentDetail({
     [needsReply, run.result],
   );
   const allowMultiple = Boolean(
-    needsReply &&
-      (run.result?.allow_multiple === true ||
-        (run.result?.args as { allow_multiple?: boolean } | undefined)
-          ?.allow_multiple === true),
+    needsReply && parseAllowMultiple(run.result),
   );
+  const [localSelected, setLocalSelected] = useState<string[]>([]);
+  const optionKey = options.map(o => o.id).join('|');
+  useEffect(() => {
+    setLocalSelected([]);
+  }, [optionKey, run.id]);
+  const selected = selectedOptions ?? localSelected;
+  function toggleOption(id: string) {
+    if (onToggleOption) {
+      onToggleOption(id);
+      return;
+    }
+    setLocalSelected(prev => {
+      if (allowMultiple) {
+        return prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      }
+      return prev[0] === id ? [] : [id];
+    });
+  }
+  const ask: AskChoiceProps | null =
+    needsReply && options.length > 0
+      ? {
+          options,
+          allowMultiple,
+          selected,
+          busy,
+          onToggle: toggleOption,
+        }
+      : null;
   const showReply = canReply(run.status);
   const pending = isPendingAgentRunId(run.id);
   const scrollRef = useRef<ScrollView>(null);
@@ -596,6 +648,7 @@ export function AgentDetail({
             runStatus={run.status}
             styles={styles}
             colors={colors}
+            ask={turn.isLatest ? ask : null}
             waitingExtras={
               turn.isLatest && needsReply ? { busy, onFinish } : null
             }
@@ -609,6 +662,7 @@ export function AgentDetail({
             waiting={needsReply}
             options={options}
             allowMultiple={allowMultiple}
+            selected={selected}
             busy={busy}
             value={reply}
             onChange={onChangeReply}
@@ -1305,7 +1359,7 @@ export function createAgentStyles(colors: ThemeColors) {
       backgroundColor: colors.surface,
     },
     optionsBlock: {
-      gap: 8,
+      gap: 6,
     },
     optionsHint: {
       fontSize: 12,
@@ -1314,23 +1368,25 @@ export function createAgentStyles(colors: ThemeColors) {
     },
     optionRow: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
       gap: 8,
     },
     optionChip: {
+      flex: 1,
+      minWidth: 0,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.background,
       borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
     },
     optionChipOn: {
       borderColor: colors.primary,
       backgroundColor: colors.primary,
     },
     optionChipText: {
-      fontSize: 14,
+      fontSize: 13,
+      lineHeight: 18,
       color: colors.text,
       fontFamily: colors.fontFamily,
     },

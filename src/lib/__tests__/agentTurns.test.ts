@@ -5,6 +5,7 @@
 import {
   buildAgentTurns,
   canReply,
+  parseAllowMultiple,
   parseOptions,
   pendingQuestion,
   stepBody,
@@ -519,6 +520,14 @@ describe("helpers", () => {
       { id: "opt_1", label: "A" },
       { id: "b", label: "B" },
     ]);
+    expect(
+      parseOptions({
+        options: ["A", "B", "C", "D", "E"],
+      }).map((o) => o.label),
+    ).toEqual(["A", "B", "C", "D"]);
+    expect(parseAllowMultiple({ allow_multiple: true })).toBe(true);
+    expect(parseAllowMultiple({ args: { allow_multiple: true } })).toBe(true);
+    expect(parseAllowMultiple({ options: ["A", "B"] })).toBe(false);
     expect(pendingQuestion({ question: "Pick one" })).toBe("Pick one");
     expect(canReply("cancelled")).toBe(false);
     expect(canReply("succeeded")).toBe(true);

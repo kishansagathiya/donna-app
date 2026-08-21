@@ -5,6 +5,7 @@ import {
   canReply,
   isPendingAgentRunId,
   mergeAgentRuns,
+  parseAllowMultiple,
   parseOptions,
   PENDING_AGENT_RUN_ID,
   upsertAgentRun,
@@ -131,10 +132,7 @@ export function useAgentSession(enabled = true) {
     [needsReply, active?.result],
   );
   const allowMultiple = Boolean(
-    needsReply &&
-      (active?.result?.allow_multiple === true ||
-        (active?.result?.args as { allow_multiple?: boolean } | undefined)
-          ?.allow_multiple === true),
+    needsReply && parseAllowMultiple(active?.result),
   );
   const waitingWithOptions = Boolean(needsReply && options.length > 0);
   const showInput =
