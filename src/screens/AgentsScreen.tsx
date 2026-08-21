@@ -16,6 +16,7 @@ import { Text } from '../components/ThemedText';
 import { CheckIcon, StopIcon } from '../components/icons';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
+import { parseInlineMarkdown } from '../lib/chatMarkdown';
 import {
   buildAgentTurns,
   canReply,
@@ -186,6 +187,12 @@ type AskChoiceProps = {
   onToggle: (id: string) => void;
 };
 
+function optionPlainText(label: string): string {
+  return parseInlineMarkdown(label)
+    .map(node => node.text)
+    .join('');
+}
+
 function AskOptions({
   options,
   allowMultiple,
@@ -212,12 +219,14 @@ function AskOptions({
         <View key={rowIdx} style={styles.optionRow}>
           {row.map(opt => {
             const on = selected.includes(opt.id);
+            const nodes = parseInlineMarkdown(opt.label);
             return (
               <Pressable
                 key={opt.id}
                 disabled={busy}
                 onPress={() => onToggle(opt.id)}
                 accessibilityRole="button"
+                accessibilityLabel={optionPlainText(opt.label)}
                 accessibilityState={{ selected: on, disabled: busy }}
                 style={({ pressed }) => [
                   styles.optionChip,
@@ -231,7 +240,19 @@ function AskOptions({
                     on && styles.optionChipTextOn,
                   ]}
                 >
-                  {opt.label}
+                  {nodes.map((node, index) => (
+                    <Text
+                      key={`${opt.id}-${index}`}
+                      style={[
+                        styles.optionChipText,
+                        on && styles.optionChipTextOn,
+                        node.marks.bold && styles.optionChipTextBold,
+                        node.marks.italic && styles.optionChipTextItalic,
+                      ]}
+                    >
+                      {node.text}
+                    </Text>
+                  ))}
                 </Text>
               </Pressable>
             );
@@ -1381,6 +1402,12 @@ export function createAgentStyles(colors: ThemeColors) {
     optionChipTextOn: {
       color: colors.white,
       fontWeight: '600',
+    },
+    optionChipTextBold: {
+      fontWeight: '700',
+    },
+    optionChipTextItalic: {
+      fontStyle: 'italic',
     },
     replyInput: {
       minHeight: 80,
