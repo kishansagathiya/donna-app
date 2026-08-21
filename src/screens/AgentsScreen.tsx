@@ -298,11 +298,7 @@ function TurnView({
         ) : null}
 
         {turn.question ? (
-          <View
-            style={
-              turn.question.live ? styles.waitingCard : styles.block
-            }
-          >
+          <View style={styles.block}>
             <Text
               style={
                 turn.question.live ? styles.waitingLabel : styles.sectionLabel
@@ -1301,14 +1297,6 @@ export function createAgentStyles(colors: ThemeColors) {
     buttonDisabled: {
       opacity: 0.5,
     },
-    waitingCard: {
-      borderWidth: 1,
-      borderColor: '#FCD34D',
-      backgroundColor: '#FFFBEB',
-      borderRadius: 14,
-      padding: 14,
-      gap: 12,
-    },
     waitingLabel: {
       fontSize: 12,
       fontWeight: '700',
@@ -1319,12 +1307,12 @@ export function createAgentStyles(colors: ThemeColors) {
     },
     waitingHint: {
       fontSize: 13,
-      color: '#78350F',
+      color: colors.muted,
       fontFamily: colors.fontFamily,
     },
     waitingFooter: {
       borderTopWidth: 1,
-      borderTopColor: '#FDE68A',
+      borderTopColor: colors.border,
       paddingTop: 12,
       gap: 10,
     },
@@ -1363,7 +1351,7 @@ export function createAgentStyles(colors: ThemeColors) {
     },
     optionsHint: {
       fontSize: 12,
-      color: colors.muted,
+      color: '#92400E',
       fontFamily: colors.fontFamily,
     },
     optionRow: {
@@ -1374,8 +1362,8 @@ export function createAgentStyles(colors: ThemeColors) {
       flex: 1,
       minWidth: 0,
       borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
+      borderColor: '#FCD34D',
+      backgroundColor: '#FFFBEB',
       borderRadius: 12,
       paddingHorizontal: 10,
       paddingVertical: 8,
@@ -1387,7 +1375,7 @@ export function createAgentStyles(colors: ThemeColors) {
     optionChipText: {
       fontSize: 13,
       lineHeight: 18,
-      color: colors.text,
+      color: '#78350F',
       fontFamily: colors.fontFamily,
     },
     optionChipTextOn: {
