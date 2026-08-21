@@ -135,6 +135,80 @@ describe("buildAgentTurns", () => {
     expect(turns[1].isLatest).toBe(true);
   });
 
+  it("keeps a follow-up's result on that follow-up prompt, not an earlier one", () => {
+    const first = "Found it in Photos.";
+    const second = "Also found a copy in Dropbox.";
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "thought",
+        payload: { text: first },
+      }),
+      step({
+        id: "s2",
+        seq: 2,
+        kind: "user_message",
+        payload: { message: "Check Dropbox too" },
+      }),
+      step({
+        id: "s3",
+        seq: 3,
+        kind: "thought",
+        payload: { text: second },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "waiting_for_user",
+        result: { summary: second },
+      },
+      steps,
+    );
+    expect(turns).toHaveLength(2);
+    expect(turns[0].prompt).toBe("Find the Lisbon photo");
+    expect(turns[0].output).toEqual({ kind: "summary", text: first });
+    expect(turns[1].prompt).toBe("Check Dropbox too");
+    expect(turns[1].output).toEqual({ kind: "summary", text: second });
+  });
+
+  it("does not pin a finished follow-up answer on the previous prompt while status is still running", () => {
+    const first = "Found it in Photos.";
+    const second = "Also found a copy in Dropbox.";
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "thought",
+        payload: { text: first },
+      }),
+      step({
+        id: "s2",
+        seq: 2,
+        kind: "user_message",
+        payload: { message: "Check Dropbox too" },
+      }),
+      step({
+        id: "s3",
+        seq: 3,
+        kind: "thought",
+        payload: { text: second },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "running",
+        result: { summary: second },
+      },
+      steps,
+    );
+    expect(turns[0].output).toEqual({ kind: "summary", text: first });
+    expect(turns[1].prompt).toBe("Check Dropbox too");
+    expect(turns[1].output).toEqual({ kind: "none" });
+  });
+
   it("keeps a leftover question on the previous turn after the user replies", () => {
     const steps = [
       step({

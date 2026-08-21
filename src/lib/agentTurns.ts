@@ -375,8 +375,13 @@ function closedByUser(result: Record<string, unknown> | null | undefined): boole
   return result?.closed_by_user === true;
 }
 
-function hasApprovalRequest(steps: AgentStepLike[]): boolean {
-  return steps.some((step) => step.kind === "approval_request");
+function turnHasAssistantWork(steps: AgentStepLike[]): boolean {
+  return steps.some(
+    (step) =>
+      step.kind === "thought" ||
+      step.kind === "approval_request" ||
+      step.kind === "tool_result",
+  );
 }
 
 function artifactsForTurn(
@@ -503,10 +508,14 @@ export function buildAgentTurns(
   }
 
   const latestSteps = buckets[buckets.length - 1]?.steps ?? [];
+  // `run.result` is a single field for the whole run. It still belongs to the
+  // previous prompt only while this follow-up has not produced an answer yet.
+  // Once the new turn has thoughts/results — or the run has finished — keep
+  // that output on *this* prompt instead of pinning it on an earlier one.
   const leftoverBelongsToPrevious =
     buckets.length > 1 &&
-    (isActiveStatus(run.status) ||
-      (run.status === "waiting_for_user" && !hasApprovalRequest(latestSteps)));
+    !turnHasAssistantWork(latestSteps) &&
+    (!isFinishedStatus(run.status) || latestSteps.length === 0);
 
   return buckets.map((bucket, index) => {
     const isLatest = index === buckets.length - 1;
