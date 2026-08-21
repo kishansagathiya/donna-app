@@ -10,6 +10,8 @@ import {
   pendingQuestion,
   stepBody,
   stepTitle,
+  timelineSteps,
+  shouldCollapseTurnSteps,
   upsertAgentRun,
   type AgentRunLike,
   type AgentStepLike,
@@ -509,6 +511,76 @@ describe("buildAgentTurns", () => {
     ];
     const turns = buildAgentTurns(baseRun, steps);
     expect(turns[0].steps.map((s) => s.id)).toEqual(["s1", "s2"]);
+  });
+
+  it("keeps result and follow-up question out of the step timeline", () => {
+    const assessment = "Found two albums in Photos.";
+    const question = "Which album should I search?";
+    const steps = [
+      step({
+        id: "s1",
+        seq: 1,
+        kind: "tool_call",
+        payload: { name: "search" },
+      }),
+      step({
+        id: "s2",
+        seq: 2,
+        kind: "thought",
+        payload: { text: assessment },
+      }),
+      step({
+        id: "s3",
+        seq: 3,
+        kind: "approval_request",
+        payload: { kind: "ask_user", question },
+      }),
+    ];
+    const turns = buildAgentTurns(
+      {
+        ...baseRun,
+        status: "waiting_for_user",
+        result: { kind: "ask_user", question, summary: question },
+      },
+      steps,
+    );
+    expect(turns[0].output).toEqual({ kind: "summary", text: assessment });
+    expect(turns[0].question?.text).toBe(question);
+    expect(timelineSteps(turns[0]).map((s) => s.id)).toEqual(["s1"]);
+  });
+});
+
+describe("shouldCollapseTurnSteps", () => {
+  const settled = {
+    isLatest: false,
+    output: { kind: "summary" as const, text: "done" },
+    question: null,
+  };
+
+  it("collapses a previous turn that already has output while a follow-up runs", () => {
+    expect(shouldCollapseTurnSteps(settled, "running")).toBe(true);
+  });
+
+  it("keeps the live turn expanded while the run is active", () => {
+    expect(
+      shouldCollapseTurnSteps({ ...settled, isLatest: true }, "running"),
+    ).toBe(false);
+  });
+
+  it("collapses the latest turn once it has output and is no longer running", () => {
+    expect(
+      shouldCollapseTurnSteps({ ...settled, isLatest: true }, "succeeded"),
+    ).toBe(true);
+    expect(
+      shouldCollapseTurnSteps(
+        {
+          isLatest: true,
+          output: { kind: "none" },
+          question: { text: "Which one?", live: true },
+        },
+        "waiting_for_user",
+      ),
+    ).toBe(true);
   });
 });
 

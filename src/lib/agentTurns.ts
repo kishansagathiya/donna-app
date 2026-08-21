@@ -530,3 +530,40 @@ export function buildAgentTurns(
     };
   });
 }
+
+function thoughtCovers(thought: string, excerpt: string): boolean {
+  if (!excerpt) return false;
+  if (sameText(thought, excerpt)) return true;
+  const split = splitTrailingQuestion(thought);
+  if (split.body && sameText(split.body, excerpt)) return true;
+  if (split.question && sameText(split.question, excerpt)) return true;
+  return false;
+}
+
+/**
+ * Steps shown in the timeline. Final answer and follow-up ask live in their
+ * own blocks, so matching thoughts / approval rows are omitted here.
+ */
+export function timelineSteps(turn: AgentTurn): AgentStepLike[] {
+  const outputText =
+    turn.output.kind === "summary" ? turn.output.text.trim() : "";
+  const questionText = turn.question?.text.trim() ?? "";
+  return turn.steps.filter((step) => {
+    if (step.kind === "approval_request") return false;
+    if (step.kind !== "thought") return true;
+    const text = String(step.payload?.text ?? "").trim();
+    if (!text) return true;
+    if (outputText && thoughtCovers(text, outputText)) return false;
+    if (questionText && thoughtCovers(text, questionText)) return false;
+    return true;
+  });
+}
+
+/** Collapse the timeline once this turn has a result, except while it is still working. */
+export function shouldCollapseTurnSteps(
+  turn: Pick<AgentTurn, "isLatest" | "output" | "question">,
+  runStatus: string,
+): boolean {
+  if (turn.isLatest && isActiveStatus(runStatus)) return false;
+  return turn.output.kind === "summary" || Boolean(turn.question);
+}

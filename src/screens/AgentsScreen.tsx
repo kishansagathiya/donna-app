@@ -24,8 +24,10 @@ import {
   isPendingAgentRunId,
   parseAllowMultiple,
   parseOptions,
+  shouldCollapseTurnSteps,
   stepBody,
   stepTitle,
+  timelineSteps,
   upsertAgentRun,
   type AgentStepLike,
   type AgentTurn,
@@ -75,7 +77,7 @@ function StepRow({
   const body = stepBody(step).trim();
   const title = stepTitle(step);
   const hasBody = body.length > 0 && body !== title;
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(Boolean(defaultOpen));
   const useMarkdown =
     step.kind === 'thought' ||
     step.kind === 'tool_result' ||
@@ -166,11 +168,7 @@ function StepsGroup({
               step={step}
               styles={styles}
               active={activeStepId === step.id}
-              defaultOpen={
-                activeStepId === step.id ||
-                step.kind === 'thought' ||
-                step.kind === 'approval_request'
-              }
+              defaultOpen={activeStepId === step.id}
             />
           ))}
         </View>
@@ -281,12 +279,10 @@ function TurnView({
   styles: ReturnType<typeof createAgentStyles>;
   colors: ThemeColors;
 }) {
-  // Run is no longer live (finished or waiting for a reply) and the Output
-  // block is visible: collapse the steps timeline so the Output sits right
-  // under the prompt. `key` forces a remount on the live → settled transition
-  // so the collapsed default takes effect.
-  const collapseSteps =
-    !isActiveStatus(runStatus) && turn.output.kind === 'summary';
+  // Prompt → steps → result → follow-up. Collapse this turn's timeline once
+  // it has a result, even if a later follow-up is still running.
+  const collapseSteps = shouldCollapseTurnSteps(turn, runStatus);
+  const steps = timelineSteps(turn);
 
   return (
     <View style={styles.turn}>
@@ -299,7 +295,7 @@ function TurnView({
       <View style={styles.turnBody}>
         <StepsGroup
           key={collapseSteps ? 'collapsed' : 'open'}
-          steps={turn.steps}
+          steps={steps}
           activeStepId={turn.activeStepId}
           showEmptyWaiting={turn.isLatest && isActiveStatus(runStatus)}
           defaultOpen={!collapseSteps}
