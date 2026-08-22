@@ -76,6 +76,8 @@ export type DailyTask = {
   note_id: string;
   title: string;
   preview: string;
+  /** Full note body when the daily-check API includes it. */
+  content?: string;
   /** Eisenhower priority: do_first | schedule | delegate | later */
   priority: string;
   reason: string;
