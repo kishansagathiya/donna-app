@@ -1,19 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
   View,
 } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { Text } from '../components/ThemedText';
 import { EnableBriefingAlertsButton } from '../components/DailyBriefingAlertsToggle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
+import { useAuth } from '../hooks/useAuth';
 import {
   checkDailyNotes,
+  deleteNote,
   type DailyBriefing,
   type DailyTask,
 } from '../services/notesApi';
@@ -21,6 +25,14 @@ import {
   getDailyBriefingNotificationsEnabled,
   showDailyBriefingNotification,
 } from '../services/dailyBriefingNotifications';
+import {
+  briefingWithoutNotes,
+  collapseDailyNoteText,
+  dailyTaskText,
+  shouldCollapseDailyNote,
+} from '../lib/dailyTasks';
+import { removeNoteFromFeeds } from '../lib/notesCache';
+import { notesQueryKeys } from '../lib/notesQueryKeys';
 import type { ThemeColors } from '../theme/colors';
 
 const PRIORITY_SECTIONS: Array<{
@@ -52,35 +64,68 @@ type Props = {
 
 function TaskRow({
   task,
+  selected,
+  onToggle,
   onPress,
   styles,
   colors,
 }: {
   task: DailyTask;
+  selected: boolean;
+  onToggle: () => void;
   onPress: () => void;
   styles: ReturnType<typeof createStyles>;
   colors: ThemeColors;
 }) {
+  const text = dailyTaskText(task);
+  const long = shouldCollapseDailyNote(text);
+  const [expanded, setExpanded] = useState(false);
+  const shown = long && !expanded ? collapseDailyNoteText(text) : text;
+
   return (
-    <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-      onPress={onPress}
-    >
-      <Text style={styles.cardTitle}>{task.title}</Text>
-      {task.preview ? (
-        <Text style={styles.cardPreview} numberOfLines={2}>
-          {task.preview}
-        </Text>
-      ) : null}
-      <View style={styles.flagRow}>
-        {task.is_urgent ? (
-          <Text style={[styles.flag, { color: colors.destructive }]}>Urgent</Text>
+    <View style={[styles.card, selected && styles.cardSelected]}>
+      <Pressable
+        onPress={onToggle}
+        hitSlop={8}
+        style={styles.checkboxHit}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: selected }}
+        accessibilityLabel={`Select note: ${task.title || 'untitled'}`}
+      >
+        <View
+          style={[
+            styles.checkbox,
+            selected && { backgroundColor: colors.primary, borderColor: colors.primary },
+          ]}
+        >
+          {selected ? <Text style={styles.checkboxMark}>✓</Text> : null}
+        </View>
+      </Pressable>
+      <Pressable
+        style={({ pressed }) => [styles.cardBody, pressed && styles.cardPressed]}
+        onPress={onPress}
+      >
+        <Text style={styles.cardText}>{shown}</Text>
+        {long ? (
+          <Pressable
+            onPress={() => setExpanded(value => !value)}
+            hitSlop={6}
+          >
+            <Text style={[styles.showMore, { color: colors.primary }]}>
+              {expanded ? 'Show less' : 'Show more'}
+            </Text>
+          </Pressable>
         ) : null}
-        {task.is_important ? (
-          <Text style={[styles.flag, { color: colors.primary }]}>Important</Text>
-        ) : null}
-      </View>
-    </Pressable>
+        <View style={styles.flagRow}>
+          {task.is_urgent ? (
+            <Text style={[styles.flag, { color: colors.destructive }]}>Urgent</Text>
+          ) : null}
+          {task.is_important ? (
+            <Text style={[styles.flag, { color: colors.primary }]}>Important</Text>
+          ) : null}
+        </View>
+      </Pressable>
+    </View>
   );
 }
 
@@ -88,11 +133,15 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const queryClient = useQueryClient();
+  const { userId } = useAuth();
   const [briefing, setBriefing] = useState<DailyBriefing | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     void getDailyBriefingNotificationsEnabled().then(setAlertsEnabled);
@@ -112,6 +161,7 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
     try {
       const result = await checkDailyNotes();
       setBriefing(result);
+      setSelected(new Set());
       if (withNotification) {
         await showDailyBriefingNotification(result);
       }
@@ -147,6 +197,93 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
     }
     return grouped;
   }, [briefing]);
+
+  const allNoteIds = useMemo(
+    () => (briefing?.tasks ?? []).map(task => task.note_id),
+    [briefing],
+  );
+  const selectedCount = selected.size;
+  const allSelected = allNoteIds.length > 0 && selectedCount === allNoteIds.length;
+
+  const toggleSelected = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelected(allSelected ? new Set() : new Set(allNoteIds));
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedCount === 0 || !briefing) {
+      return;
+    }
+    const ids = [...selected];
+    const label = ids.length === 1 ? 'this note' : `${ids.length} notes`;
+    Alert.alert(`Delete ${label}?`, 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setDeleting(true);
+            setError(null);
+            try {
+              const results = await Promise.allSettled(ids.map(id => deleteNote(id)));
+              const deleted: string[] = [];
+              const failed: string[] = [];
+              results.forEach((result, index) => {
+                if (result.status === 'fulfilled') {
+                  deleted.push(ids[index]);
+                } else {
+                  failed.push(ids[index]);
+                }
+              });
+
+              if (deleted.length > 0) {
+                setBriefing(prev =>
+                  prev ? briefingWithoutNotes(prev, deleted) : prev,
+                );
+                if (userId) {
+                  for (const id of deleted) {
+                    removeNoteFromFeeds(queryClient, userId, id);
+                    queryClient.removeQueries({
+                      queryKey: notesQueryKeys.detail(userId, id),
+                    });
+                  }
+                  void queryClient.invalidateQueries({
+                    queryKey: notesQueryKeys.feeds(userId),
+                  });
+                  void queryClient.invalidateQueries({
+                    queryKey: notesQueryKeys.tags(userId),
+                  });
+                }
+              }
+
+              setSelected(new Set(failed));
+              if (failed.length > 0) {
+                setError(
+                  `Deleted ${deleted.length} ${deleted.length === 1 ? 'note' : 'notes'}, but ${failed.length} failed.`,
+                );
+              }
+            } catch (err: unknown) {
+              setError(err instanceof Error ? err.message : 'Failed to delete notes');
+            } finally {
+              setDeleting(false);
+            }
+          })();
+        },
+      },
+    ]);
+  };
 
   const listData: Array<
     | { type: 'summary'; id: string; text: string }
@@ -218,6 +355,44 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
         </View>
       ) : null}
 
+      {allNoteIds.length > 0 ? (
+        <View style={styles.bulkBar}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.bulkSecondary,
+              pressed && styles.checkButtonPressed,
+            ]}
+            onPress={toggleSelectAll}
+          >
+            <Text style={styles.bulkSecondaryText}>
+              {allSelected ? 'Clear selection' : 'Select all'}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.bulkDelete,
+              (selectedCount === 0 || deleting) && styles.bulkDeleteDisabled,
+              pressed && selectedCount > 0 && !deleting && styles.checkButtonPressed,
+            ]}
+            onPress={handleBulkDelete}
+            disabled={selectedCount === 0 || deleting}
+          >
+            {deleting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.bulkDeleteText}>
+                {selectedCount > 0 ? `Delete ${selectedCount}` : 'Delete'}
+              </Text>
+            )}
+          </Pressable>
+          <Text style={styles.bulkHint}>
+            {selectedCount > 0
+              ? `${selectedCount} selected`
+              : 'Select notes to delete'}
+          </Text>
+        </View>
+      ) : null}
+
       {loading && !briefing ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -227,6 +402,7 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
           data={listData}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
+          extraData={selected}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -264,6 +440,8 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
             return (
               <TaskRow
                 task={item.task}
+                selected={selected.has(item.task.note_id)}
+                onToggle={() => toggleSelected(item.task.note_id)}
                 onPress={() => openTask(item.task)}
                 styles={styles}
                 colors={colors}
@@ -329,6 +507,49 @@ function createStyles(colors: ThemeColors) {
       fontSize: 14,
       fontWeight: '600',
     },
+    bulkBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    bulkSecondary: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    bulkSecondaryText: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    bulkDelete: {
+      backgroundColor: colors.destructive,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      minWidth: 88,
+      alignItems: 'center',
+    },
+    bulkDeleteDisabled: {
+      opacity: 0.45,
+    },
+    bulkDeleteText: {
+      color: '#fff',
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    bulkHint: {
+      fontSize: 13,
+      color: colors.muted,
+    },
     errorBanner: {
       marginHorizontal: 16,
       marginTop: 12,
@@ -380,25 +601,54 @@ function createStyles(colors: ThemeColors) {
       color: colors.muted,
     },
     card: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
       backgroundColor: colors.background,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 14,
       padding: 14,
+      gap: 10,
+    },
+    cardSelected: {
+      borderColor: colors.primary,
+    },
+    cardBody: {
+      flex: 1,
+      minWidth: 0,
     },
     cardPressed: {
-      backgroundColor: colors.surface,
+      opacity: 0.85,
     },
-    cardTitle: {
-      fontSize: 16,
-      fontWeight: '600',
+    checkboxHit: {
+      paddingTop: 2,
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 6,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+    },
+    checkboxMark: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '700',
+      lineHeight: 16,
+    },
+    cardText: {
+      fontSize: 15,
+      fontWeight: '400',
+      lineHeight: 22,
       color: colors.text,
     },
-    cardPreview: {
+    showMore: {
       marginTop: 6,
-      fontSize: 14,
-      lineHeight: 20,
-      color: colors.muted,
+      fontSize: 13,
+      fontWeight: '600',
     },
     flagRow: {
       flexDirection: 'row',
