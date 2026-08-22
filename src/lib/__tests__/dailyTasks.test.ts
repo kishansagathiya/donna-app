@@ -3,6 +3,8 @@ import {
   collapseDailyNoteText,
   dailyTaskText,
   shouldCollapseDailyNote,
+  TODAY_CLEAR_FLAGS,
+  todayActionError,
 } from '../dailyTasks';
 import type { DailyBriefing, DailyTask } from '../../services/notesApi';
 
@@ -60,6 +62,24 @@ describe('collapseDailyNoteText', () => {
     const collapsed = collapseDailyNoteText(text, 40);
     expect(collapsed.endsWith('…')).toBe(true);
     expect(collapsed.length).toBeLessThan(text.length);
+  });
+});
+
+describe('today dismiss helpers', () => {
+  it('clears urgent and important so the note leaves Today', () => {
+    expect(TODAY_CLEAR_FLAGS).toEqual({
+      is_urgent: false,
+      is_important: false,
+    });
+  });
+
+  it('reports a partial bulk failure', () => {
+    expect(todayActionError('done', 2, 1)).toBe(
+      'Marked 2 notes, but 1 failed.',
+    );
+    expect(todayActionError('remove', 1, 1)).toBe(
+      'Removed 1 note, but 1 failed.',
+    );
   });
 });
 

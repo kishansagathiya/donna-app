@@ -18,6 +18,7 @@ import { useAuth } from '../hooks/useAuth';
 import {
   checkDailyNotes,
   deleteNote,
+  updateNote,
   type DailyBriefing,
   type DailyTask,
 } from '../services/notesApi';
@@ -30,8 +31,10 @@ import {
   collapseDailyNoteText,
   dailyTaskText,
   shouldCollapseDailyNote,
+  TODAY_CLEAR_FLAGS,
+  todayActionError,
 } from '../lib/dailyTasks';
-import { removeNoteFromFeeds } from '../lib/notesCache';
+import { patchNoteInFeeds, removeNoteFromFeeds } from '../lib/notesCache';
 import { notesQueryKeys } from '../lib/notesQueryKeys';
 import type { ThemeColors } from '../theme/colors';
 
@@ -65,15 +68,21 @@ type Props = {
 function TaskRow({
   task,
   selected,
+  busy,
   onToggle,
   onPress,
+  onDone,
+  onRemove,
   styles,
   colors,
 }: {
   task: DailyTask;
   selected: boolean;
+  busy: boolean;
   onToggle: () => void;
   onPress: () => void;
+  onDone: () => void;
+  onRemove: () => void;
   styles: ReturnType<typeof createStyles>;
   colors: ThemeColors;
 }) {
@@ -101,30 +110,49 @@ function TaskRow({
           {selected ? <Text style={styles.checkboxMark}>✓</Text> : null}
         </View>
       </Pressable>
-      <Pressable
-        style={({ pressed }) => [styles.cardBody, pressed && styles.cardPressed]}
-        onPress={onPress}
-      >
-        <Text style={styles.cardText}>{shown}</Text>
-        {long ? (
+      <View style={styles.cardBody}>
+        <Pressable
+          style={({ pressed }) => [pressed && styles.cardPressed]}
+          onPress={onPress}
+        >
+          <Text style={styles.cardText}>{shown}</Text>
+          {long ? (
+            <Pressable
+              onPress={() => setExpanded(value => !value)}
+              hitSlop={6}
+            >
+              <Text style={[styles.showMore, { color: colors.primary }]}>
+                {expanded ? 'Show less' : 'Show more'}
+              </Text>
+            </Pressable>
+          ) : null}
+          <View style={styles.flagRow}>
+            {task.is_urgent ? (
+              <Text style={[styles.flag, { color: colors.destructive }]}>Urgent</Text>
+            ) : null}
+            {task.is_important ? (
+              <Text style={[styles.flag, { color: colors.primary }]}>Important</Text>
+            ) : null}
+          </View>
+        </Pressable>
+        <View style={styles.cardActions}>
           <Pressable
-            onPress={() => setExpanded(value => !value)}
-            hitSlop={6}
+            style={({ pressed }) => [
+              styles.doneButton,
+              (busy || pressed) && styles.checkButtonPressed,
+            ]}
+            onPress={onDone}
+            disabled={busy}
           >
-            <Text style={[styles.showMore, { color: colors.primary }]}>
-              {expanded ? 'Show less' : 'Show more'}
+            <Text style={styles.doneButtonText}>Done</Text>
+          </Pressable>
+          <Pressable onPress={onRemove} disabled={busy} hitSlop={6}>
+            <Text style={[styles.removeButtonText, busy && { opacity: 0.45 }]}>
+              Remove from Today
             </Text>
           </Pressable>
-        ) : null}
-        <View style={styles.flagRow}>
-          {task.is_urgent ? (
-            <Text style={[styles.flag, { color: colors.destructive }]}>Urgent</Text>
-          ) : null}
-          {task.is_important ? (
-            <Text style={[styles.flag, { color: colors.primary }]}>Important</Text>
-          ) : null}
         </View>
-      </Pressable>
+      </View>
     </View>
   );
 }
@@ -138,7 +166,7 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
   const [briefing, setBriefing] = useState<DailyBriefing | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [acting, setActing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -221,6 +249,68 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
     setSelected(allSelected ? new Set() : new Set(allNoteIds));
   };
 
+  const finishIds = (ids: string[], failed: string[]) => {
+    if (ids.length > 0) {
+      setBriefing(prev => (prev ? briefingWithoutNotes(prev, ids) : prev));
+    }
+    setSelected(prev => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        next.delete(id);
+      }
+      return failed.length > 0 ? new Set(failed) : next;
+    });
+  };
+
+  const dismissFromToday = async (
+    ids: string[],
+    action: 'done' | 'remove',
+  ) => {
+    if (ids.length === 0 || !briefing) {
+      return;
+    }
+    setActing(true);
+    setError(null);
+    try {
+      const results = await Promise.allSettled(
+        ids.map(id => updateNote(id, TODAY_CLEAR_FLAGS)),
+      );
+      const ok: string[] = [];
+      const failed: string[] = [];
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          ok.push(ids[index]);
+        } else {
+          failed.push(ids[index]);
+        }
+      });
+
+      if (ok.length > 0 && userId) {
+        for (const id of ok) {
+          patchNoteInFeeds(queryClient, userId, id, { ...TODAY_CLEAR_FLAGS });
+        }
+        void queryClient.invalidateQueries({
+          queryKey: notesQueryKeys.feeds(userId),
+        });
+      }
+
+      finishIds(ok, failed);
+      if (failed.length > 0) {
+        setError(todayActionError(action, ok.length, failed.length));
+      }
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : action === 'done'
+            ? 'Failed to mark notes done'
+            : 'Failed to remove notes from Today',
+      );
+    } finally {
+      setActing(false);
+    }
+  };
+
   const handleBulkDelete = () => {
     if (selectedCount === 0 || !briefing) {
       return;
@@ -234,7 +324,7 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
         style: 'destructive',
         onPress: () => {
           void (async () => {
-            setDeleting(true);
+            setActing(true);
             setError(null);
             try {
               const results = await Promise.allSettled(ids.map(id => deleteNote(id)));
@@ -248,36 +338,29 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
                 }
               });
 
-              if (deleted.length > 0) {
-                setBriefing(prev =>
-                  prev ? briefingWithoutNotes(prev, deleted) : prev,
-                );
-                if (userId) {
-                  for (const id of deleted) {
-                    removeNoteFromFeeds(queryClient, userId, id);
-                    queryClient.removeQueries({
-                      queryKey: notesQueryKeys.detail(userId, id),
-                    });
-                  }
-                  void queryClient.invalidateQueries({
-                    queryKey: notesQueryKeys.feeds(userId),
-                  });
-                  void queryClient.invalidateQueries({
-                    queryKey: notesQueryKeys.tags(userId),
+              if (deleted.length > 0 && userId) {
+                for (const id of deleted) {
+                  removeNoteFromFeeds(queryClient, userId, id);
+                  queryClient.removeQueries({
+                    queryKey: notesQueryKeys.detail(userId, id),
                   });
                 }
+                void queryClient.invalidateQueries({
+                  queryKey: notesQueryKeys.feeds(userId),
+                });
+                void queryClient.invalidateQueries({
+                  queryKey: notesQueryKeys.tags(userId),
+                });
               }
 
-              setSelected(new Set(failed));
+              finishIds(deleted, failed);
               if (failed.length > 0) {
-                setError(
-                  `Deleted ${deleted.length} ${deleted.length === 1 ? 'note' : 'notes'}, but ${failed.length} failed.`,
-                );
+                setError(todayActionError('delete', deleted.length, failed.length));
               }
             } catch (err: unknown) {
               setError(err instanceof Error ? err.message : 'Failed to delete notes');
             } finally {
-              setDeleting(false);
+              setActing(false);
             }
           })();
         },
@@ -370,14 +453,42 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
           </Pressable>
           <Pressable
             style={({ pressed }) => [
+              styles.bulkSecondary,
+              (selectedCount === 0 || acting) && styles.bulkDeleteDisabled,
+              pressed && selectedCount > 0 && !acting && styles.checkButtonPressed,
+            ]}
+            onPress={() => void dismissFromToday([...selected], 'done')}
+            disabled={selectedCount === 0 || acting}
+          >
+            <Text style={styles.bulkSecondaryText}>
+              {selectedCount > 0 ? `Mark done (${selectedCount})` : 'Mark done'}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.bulkSecondary,
+              (selectedCount === 0 || acting) && styles.bulkDeleteDisabled,
+              pressed && selectedCount > 0 && !acting && styles.checkButtonPressed,
+            ]}
+            onPress={() => void dismissFromToday([...selected], 'remove')}
+            disabled={selectedCount === 0 || acting}
+          >
+            <Text style={styles.bulkSecondaryText}>
+              {selectedCount > 0
+                ? `Remove from Today (${selectedCount})`
+                : 'Remove from Today'}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
               styles.bulkDelete,
-              (selectedCount === 0 || deleting) && styles.bulkDeleteDisabled,
-              pressed && selectedCount > 0 && !deleting && styles.checkButtonPressed,
+              (selectedCount === 0 || acting) && styles.bulkDeleteDisabled,
+              pressed && selectedCount > 0 && !acting && styles.checkButtonPressed,
             ]}
             onPress={handleBulkDelete}
-            disabled={selectedCount === 0 || deleting}
+            disabled={selectedCount === 0 || acting}
           >
-            {deleting ? (
+            {acting ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <Text style={styles.bulkDeleteText}>
@@ -388,7 +499,7 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
           <Text style={styles.bulkHint}>
             {selectedCount > 0
               ? `${selectedCount} selected`
-              : 'Select notes to delete'}
+              : 'Mark done or remove from Today — notes stay in Notes'}
           </Text>
         </View>
       ) : null}
@@ -402,7 +513,7 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
           data={listData}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
-          extraData={selected}
+          extraData={{ selected, acting }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -441,8 +552,13 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
               <TaskRow
                 task={item.task}
                 selected={selected.has(item.task.note_id)}
+                busy={acting}
                 onToggle={() => toggleSelected(item.task.note_id)}
                 onPress={() => openTask(item.task)}
+                onDone={() => void dismissFromToday([item.task.note_id], 'done')}
+                onRemove={() =>
+                  void dismissFromToday([item.task.note_id], 'remove')
+                }
                 styles={styles}
                 colors={colors}
               />
@@ -657,6 +773,30 @@ function createStyles(colors: ThemeColors) {
     },
     flag: {
       fontSize: 12,
+      fontWeight: '600',
+    },
+    cardActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginTop: 10,
+    },
+    doneButton: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    doneButtonText: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    removeButtonText: {
+      color: colors.muted,
+      fontSize: 13,
       fontWeight: '600',
     },
     empty: {

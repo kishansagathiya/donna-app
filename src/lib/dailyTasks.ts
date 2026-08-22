@@ -41,6 +41,23 @@ export function collapseDailyNoteText(
   return `${text.slice(0, cut).trimEnd()}…`;
 }
 
+/** Clearing both flags takes a note off Today without deleting it. */
+export const TODAY_CLEAR_FLAGS = {
+  is_urgent: false,
+  is_important: false,
+} as const;
+
+export function todayActionError(
+  action: 'done' | 'remove' | 'delete',
+  succeeded: number,
+  failed: number,
+): string {
+  const unit = succeeded === 1 ? 'note' : 'notes';
+  const verb =
+    action === 'done' ? 'Marked' : action === 'remove' ? 'Removed' : 'Deleted';
+  return `${verb} ${succeeded} ${unit}, but ${failed} failed.`;
+}
+
 export function briefingWithoutNotes(
   briefing: DailyBriefing,
   ids: Iterable<string>,
