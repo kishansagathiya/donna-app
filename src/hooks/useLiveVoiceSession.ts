@@ -8,7 +8,7 @@ import {
   AUDIO_SAMPLE_RATE,
   LIVE_VOICE_WS_URL,
 } from '../config';
-import { floatToPcm16, pcm16ToBase64 } from '../voice/pcm';
+import { computeRms, floatToPcm16, pcm16ToBase64 } from '../voice/pcm';
 import {
   createStreamingPlayback,
   stopActivePlayback,
@@ -17,6 +17,9 @@ import { getAccessToken } from '../services/auth';
 import { LiveVoiceClient } from '../liveVoice/liveVoiceClient';
 import { looksLikeEcho } from '../liveVoice/echoGuard';
 import type { LiveServerMessage } from '../liveVoice/protocol';
+
+/** While Donna speaks, only forward mic if energy looks like barge-in (not speaker echo). */
+const LIVE_BARGE_IN_RMS = 0.045;
 
 export type LiveVoiceState = 'idle' | 'connecting' | 'live' | 'error';
 
@@ -43,6 +46,7 @@ export function useLiveVoiceSession() {
   const lineIdRef = useRef(0);
   const playbackGenRef = useRef(0);
   const lastAssistantTextRef = useRef('');
+  const assistantSpeakingRef = useRef(false);
 
   const stopRecorder = useCallback(() => {
     activeRef.current = false;
@@ -50,13 +54,18 @@ export function useLiveVoiceSession() {
     recorderRef.current?.stop();
   }, []);
 
+  const setSpeaking = useCallback((speaking: boolean) => {
+    assistantSpeakingRef.current = speaking;
+    setAssistantSpeaking(speaking);
+  }, []);
+
   const clearPlayback = useCallback(() => {
     playbackGenRef.current += 1;
     playbackRef.current?.stop();
     playbackRef.current = null;
     stopActivePlayback();
-    setAssistantSpeaking(false);
-  }, []);
+    setSpeaking(false);
+  }, [setSpeaking]);
 
   const fail = useCallback(
     (message: string) => {
@@ -149,7 +158,7 @@ export function useLiveVoiceSession() {
           setState('live');
           break;
         case 'audio.chunk':
-          setAssistantSpeaking(true);
+          setSpeaking(true);
           if (!playbackRef.current) {
             playbackRef.current = createStreamingPlayback();
           }
@@ -171,12 +180,12 @@ export function useLiveVoiceSession() {
             const pb = playbackRef.current;
             playbackRef.current = null;
             if (!pb) {
-              setAssistantSpeaking(false);
+              setSpeaking(false);
               break;
             }
             void pb.finish().finally(() => {
               if (playbackGenRef.current !== gen) return;
-              setAssistantSpeaking(false);
+              setSpeaking(false);
             });
           }
           break;
@@ -202,7 +211,7 @@ export function useLiveVoiceSession() {
           break;
       }
     },
-    [appendTranscript, clearPlayback, fail, stopRecorder],
+    [appendTranscript, clearPlayback, fail, setSpeaking, stopRecorder],
   );
 
   const ensureClient = useCallback(() => {
@@ -235,6 +244,13 @@ export function useLiveVoiceSession() {
           if (!activeRef.current || !readyRef.current) return;
           if (!clientRef.current?.isConnected) return;
           const channel = buffer.getChannelData(0);
+          // Soft-gate speaker echo while Donna talks; loud barge-in still passes.
+          if (
+            assistantSpeakingRef.current &&
+            computeRms(channel) < LIVE_BARGE_IN_RMS
+          ) {
+            return;
+          }
           const pcm = floatToPcm16(channel);
           clientRef.current.send({
             type: 'audio.chunk',
@@ -269,13 +285,14 @@ export function useLiveVoiceSession() {
     setErrorMsg(null);
     setLines([]);
     lastAssistantTextRef.current = '';
-    setAssistantSpeaking(false);
+    setSpeaking(false);
     setState('connecting');
 
-    // voiceChat enables platform AEC while keeping full-duplex barge-in.
+    // videoChat keeps platform AEC for barge-in without voiceChat's
+    // telephony band-limit that makes Donna sound muffled on speaker.
     AudioManager.setAudioSessionOptions({
       iosCategory: 'playAndRecord',
-      iosMode: 'voiceChat',
+      iosMode: 'videoChat',
       iosOptions: ['defaultToSpeaker'],
     });
 
@@ -306,7 +323,7 @@ export function useLiveVoiceSession() {
           : 'Could not start Voice conversation',
       );
     }
-  }, [ensureClient, ensureRecorder, fail, state]);
+  }, [ensureClient, ensureRecorder, fail, setSpeaking, state]);
 
   const toggle = useCallback(async () => {
     if (state === 'live' || state === 'connecting') {
