@@ -1,6 +1,7 @@
 import {
   firstHttpURL,
   normalizeIncomingShares,
+  payloadFromShareURL,
   planSharedIngest,
 } from '../src/lib/incomingShare';
 
@@ -115,5 +116,24 @@ describe('firstHttpURL', () => {
     expect(firstHttpURL('see https://example.com/a.')).toBe(
       'https://example.com/a',
     );
+  });
+});
+
+describe('payloadFromShareURL', () => {
+  it('parses text items from donna://share', () => {
+    const payload = JSON.stringify([
+      { mimeType: 'text/plain', data: 'https://example.com/a' },
+    ]);
+    expect(
+      payloadFromShareURL(`donna://share?payload=${encodeURIComponent(payload)}`),
+    ).toEqual({
+      data: [{ mimeType: 'text/plain', data: 'https://example.com/a' }],
+    });
+  });
+
+  it('ignores unrelated donna URLs', () => {
+    expect(
+      payloadFromShareURL('donna://integrations/google?ok=1'),
+    ).toBeNull();
   });
 });

@@ -1,12 +1,22 @@
 import { useEffect, useRef } from 'react';
-import { AppState, NativeModules } from 'react-native';
+import { AppState, Linking, NativeModules } from 'react-native';
 import ShareMenu from 'react-native-share-menu';
 import {
   normalizeIncomingShares,
+  payloadFromShareURL,
   type IncomingSharePayload,
 } from '../lib/incomingShare';
 
 type ShareHandler = (payload: IncomingSharePayload) => void | Promise<void>;
+
+type ShareInboxModule = {
+  takePending: () => Promise<Array<{ data?: string; mimeType?: string }>>;
+};
+
+function shareInbox(): ShareInboxModule | null {
+  const module = NativeModules.DonnaShareInbox as ShareInboxModule | undefined;
+  return typeof module?.takePending === 'function' ? module : null;
+}
 
 function isShareMenuAvailable(): boolean {
   const module = NativeModules.ShareMenu as
@@ -21,29 +31,57 @@ export function useIncomingShare(onShare: ShareHandler): void {
   const lastKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isShareMenuAvailable()) {
-      return;
-    }
-
     const handle = (share?: IncomingSharePayload | null) => {
       const items = normalizeIncomingShares(share);
       if (!items.length) return;
       const key = items.map(item => `${item.mimeType}:${item.data}`).join('|');
       if (lastKeyRef.current === key) return;
       lastKeyRef.current = key;
-      void onShareRef.current(share ?? {});
+      void onShareRef.current(share ?? { data: items });
     };
 
-    ShareMenu.getInitialShare(handle);
+    const takeNativeInbox = () => {
+      const inbox = shareInbox();
+      if (!inbox) return;
+      void inbox.takePending().then(items => {
+        if (Array.isArray(items) && items.length) {
+          handle({ data: items });
+        }
+      });
+    };
 
-    const listener = ShareMenu.addNewShareListener(handle);
+    const handleUrl = (url: string | null) => {
+      if (!url) return;
+      handle(payloadFromShareURL(url));
+    };
+
+    takeNativeInbox();
+    void Linking.getInitialURL().then(handleUrl);
+
+    if (isShareMenuAvailable()) {
+      ShareMenu.getInitialShare(handle);
+    }
+
+    const linking = Linking.addEventListener('url', event => {
+      handleUrl(event.url);
+      takeNativeInbox();
+    });
+
+    const listener = isShareMenuAvailable()
+      ? ShareMenu.addNewShareListener(handle)
+      : null;
+
     const appState = AppState.addEventListener('change', state => {
       if (state === 'active') {
-        ShareMenu.getInitialShare(handle);
+        takeNativeInbox();
+        if (isShareMenuAvailable()) {
+          ShareMenu.getInitialShare(handle);
+        }
       }
     });
 
     return () => {
+      linking.remove();
       if (typeof listener?.remove === 'function') {
         listener.remove();
       }

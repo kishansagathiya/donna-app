@@ -14,6 +14,7 @@ import {
   ingestUrl,
   type IngestFile,
 } from '../services/knowledgeApi';
+import { createNote, newNoteId } from '../services/notesApi';
 import {
   normalizeIncomingShares,
   planSharedIngest,
@@ -134,21 +135,24 @@ export function useAssetIngest() {
         let lastExtractor: string | undefined;
         for (const plan of plans) {
           if (plan.kind === 'url') {
-            const result = await ingestUrl(plan.url);
-            lastKind = result.asset_kind;
-            lastExtractor = result.extractor;
+            await createNote(plan.url, { id: newNoteId() });
+            lastKind = 'link';
           } else if (plan.kind === 'text') {
-            const result = await ingestText(plan.text, plan.title);
-            lastKind = result.asset_kind;
-            lastExtractor = result.extractor;
+            await createNote(plan.text, { id: newNoteId() });
+            lastKind = 'text';
           } else {
-            const result = await ingestFile({
-              uri: plan.uri,
-              name: plan.name,
-              type: plan.type,
-            });
-            lastKind = result.asset_kind;
-            lastExtractor = result.extractor;
+            try {
+              const result = await ingestFile({
+                uri: plan.uri,
+                name: plan.name,
+                type: plan.type,
+              });
+              lastKind = result.asset_kind;
+              lastExtractor = result.extractor;
+            } catch {
+              await createNote(`Shared file: ${plan.name}`, { id: newNoteId() });
+              lastKind = 'text';
+            }
           }
         }
         const saved =

@@ -49,7 +49,7 @@ final class ShareViewController: UIViewController {
 
       await MainActor.run {
         self.statusLabel.text = shared.isEmpty ? "Nothing to save" : "Opening Donna…"
-        self.openHostApp()
+        self.openHostApp(with: shared)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
           self.complete()
         }
@@ -66,6 +66,15 @@ final class ShareViewController: UIViewController {
     }
     defaults.removeObject(forKey: extraDataKey)
     defaults.synchronize()
+
+    if let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) {
+      let inbox = container.appendingPathComponent("donna-share-inbox.json")
+      if items.isEmpty {
+        try? FileManager.default.removeItem(at: inbox)
+      } else if let data = try? JSONSerialization.data(withJSONObject: ["items": items]) {
+        try? data.write(to: inbox, options: .atomic)
+      }
+    }
   }
 
   private func loadItem(from provider: NSItemProvider) async -> [String: String]? {
@@ -240,19 +249,33 @@ final class ShareViewController: UIViewController {
     }
   }
 
-  private func openHostApp() {
+  private func openHostApp(with items: [[String: String]]) {
+    let url = shareURL(with: items)
     var responder: UIResponder? = self
     let openSelector = sel_registerName("openURL:")
     while let current = responder {
       if let application = current as? UIApplication {
-        application.open(hostURL, options: [:], completionHandler: nil)
+        application.open(url, options: [:], completionHandler: nil)
         return
       }
       if current.responds(to: openSelector) {
-        _ = current.perform(openSelector, with: hostURL)
+        _ = current.perform(openSelector, with: url)
       }
       responder = current.next
     }
+  }
+
+  private func shareURL(with items: [[String: String]]) -> URL {
+    var components = URLComponents()
+    components.scheme = "donna"
+    components.host = "share"
+    if !items.isEmpty,
+       let json = try? JSONSerialization.data(withJSONObject: items),
+       json.count <= 4000,
+       let payload = String(data: json, encoding: .utf8) {
+      components.queryItems = [URLQueryItem(name: "payload", value: payload)]
+    }
+    return components.url ?? hostURL
   }
 
   private func complete() {

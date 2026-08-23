@@ -23,6 +23,38 @@ export function firstHttpURL(text: string): string {
   return match[0].replace(/[.,;:!?)]+$/, '');
 }
 
+export function payloadFromShareURL(url: string): IncomingSharePayload | null {
+  const trimmed = url.trim();
+  if (!trimmed.startsWith('donna://share') && !trimmed.startsWith('donna:share')) {
+    return null;
+  }
+
+  let payload: string | null = null;
+  try {
+    const parsed = new URL(trimmed);
+    payload = parsed.searchParams.get('payload');
+  } catch {
+    const queryIndex = trimmed.indexOf('?');
+    if (queryIndex >= 0) {
+      payload = new URLSearchParams(trimmed.slice(queryIndex + 1)).get('payload');
+    }
+  }
+  if (!payload) return null;
+
+  try {
+    const parsed = JSON.parse(payload) as unknown;
+    if (Array.isArray(parsed)) {
+      return { data: parsed };
+    }
+    if (parsed && typeof parsed === 'object' && Array.isArray((parsed as { items?: unknown }).items)) {
+      return { data: (parsed as { items: unknown[] }).items };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function extraToString(extra: unknown): string | null {
   if (extra == null) return null;
   if (typeof extra === 'string') {

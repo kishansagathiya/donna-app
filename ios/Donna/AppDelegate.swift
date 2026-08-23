@@ -29,6 +29,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       launchOptions: launchOptions
     )
 
+    if let url = launchOptions?[.url] as? URL {
+      DonnaShareStore.ingest(url: url)
+    }
     consumePendingShareIfNeeded(application)
     return true
   }
@@ -42,11 +45,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
+    DonnaShareStore.ingest(url: url)
     return DonnaHandleOpenURL(app, url, options)
   }
 
-  /// If the share extension saved items but couldn't open the host app,
-  /// pick them up the next time Donna comes to the foreground.
+  /// Pick up App Group inbox items if the share extension couldn't open a payload URL.
   private func consumePendingShareIfNeeded(_ application: UIApplication) {
     guard
       let defaults = UserDefaults(suiteName: "group.com.kishansagathiya.donna"),

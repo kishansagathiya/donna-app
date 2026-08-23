@@ -15,6 +15,9 @@
 		A4B4C234E77F41B08704B3E2 /* Literata-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 758B0BA8706B4EA5A988DB6B /* Literata-Regular.ttf */; };
 		CA1535EE40BB2FD9D456E98D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		D0NN4SH01HANDLER01 /* ShareURLHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = D0NN4SH01HANDLER02 /* ShareURLHandler.m */; };
+		D0A5E0010000000000000021 /* DonnaShareStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A5E0010000000000000020 /* DonnaShareStore.swift */; };
+		D0A5E0010000000000000023 /* DonnaShareInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A5E0010000000000000022 /* DonnaShareInbox.swift */; };
+		D0A5E0010000000000000025 /* DonnaShareInbox.m in Sources */ = {isa = PBXBuildFile; fileRef = D0A5E0010000000000000024 /* DonnaShareInbox.m */; };
 		D0A5E0010000000000000002 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A5E0010000000000000001 /* ShareViewController.swift */; };
 		D0A5E001000000000000000F /* DonnaShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D0A5E0010000000000000006 /* DonnaShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -58,6 +61,9 @@
 		A1B2C3D41E680F5B00A75B9A /* Donna.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = Donna.entitlements; path = Donna/Donna.entitlements; sourceTree = "<group>"; };
 		D0NN4SH01HANDLER02 /* ShareURLHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = ShareURLHandler.m; path = Donna/ShareURLHandler.m; sourceTree = "<group>"; };
 		D0NN4SH01HANDLER03 /* ShareURLHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ShareURLHandler.h; path = Donna/ShareURLHandler.h; sourceTree = "<group>"; };
+		D0A5E0010000000000000020 /* DonnaShareStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DonnaShareStore.swift; path = Donna/DonnaShareStore.swift; sourceTree = "<group>"; };
+		D0A5E0010000000000000022 /* DonnaShareInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DonnaShareInbox.swift; path = Donna/DonnaShareInbox.swift; sourceTree = "<group>"; };
+		D0A5E0010000000000000024 /* DonnaShareInbox.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = DonnaShareInbox.m; path = Donna/DonnaShareInbox.m; sourceTree = "<group>"; };
 		D0A5E0010000000000000001 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		D0A5E0010000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D0A5E0010000000000000004 /* DonnaShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DonnaShare.entitlements; sourceTree = "<group>"; };
@@ -89,6 +95,9 @@
 			children = (
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
+				D0A5E0010000000000000020 /* DonnaShareStore.swift */,
+				D0A5E0010000000000000022 /* DonnaShareInbox.swift */,
+				D0A5E0010000000000000024 /* DonnaShareInbox.m */,
 				D0NN4SH01HANDLER03 /* ShareURLHandler.h */,
 				D0NN4SH01HANDLER02 /* ShareURLHandler.m */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
@@ -368,6 +377,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				D0A5E0010000000000000021 /* DonnaShareStore.swift in Sources */,
+				D0A5E0010000000000000023 /* DonnaShareInbox.swift in Sources */,
+				D0A5E0010000000000000025 /* DonnaShareInbox.m in Sources */,
 				D0NN4SH01HANDLER01 /* ShareURLHandler.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
