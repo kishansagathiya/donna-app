@@ -46,6 +46,7 @@ import { ActionsScreen } from './src/screens/ActionsScreen';
 import { MemoryScreen } from './src/screens/MemoryScreen';
 import { PairDeviceScreen } from './src/screens/PairDeviceScreen';
 import { PrivacyScreen } from './src/screens/PrivacyScreen';
+import { EmployeesScreen } from './src/screens/EmployeesScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
@@ -194,6 +195,7 @@ function AppContent({
     useState<IntegrationOAuthResult | null>(null);
   const deviceSync = useDeviceSync();
   const [pairSheetOpen, setPairSheetOpen] = useState(false);
+  const [employeesOpen, setEmployeesOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [ingestRefreshToken, setIngestRefreshToken] = useState(0);
   const {
@@ -384,6 +386,7 @@ function AppContent({
             onOpenPrivacy={() => onOpenLegal('privacy')}
             onOpenSupport={() => onOpenLegal('support')}
             onOpenMemory={() => setTab('memory')}
+            onOpenEmployees={() => setEmployeesOpen(true)}
             integrationsRefreshToken={integrationsRefreshToken}
             integrationOauthResult={integrationOauthResult}
             onIntegrationOauthResultConsumed={
@@ -404,6 +407,17 @@ function AppContent({
           onAfterBleProvision={deviceSync.reconnectDevice}
         />
       ) : null}
+
+      <EmployeesScreen
+        visible={employeesOpen}
+        onClose={() => setEmployeesOpen(false)}
+        onOpenShift={runId => {
+          setEmployeesOpen(false);
+          setTab('chat');
+          // Agent mode lives inside Chat; user can open history for the run.
+          void runId;
+        }}
+      />
 
       <AddMemorySheet
         visible={sheetOpen}
