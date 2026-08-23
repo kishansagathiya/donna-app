@@ -55,6 +55,7 @@ type ProfileScreenProps = {
   onOpenPrivacy?: () => void;
   onOpenSupport?: () => void;
   onOpenMemory?: () => void;
+  onOpenEmployees?: () => void;
   integrationsRefreshToken?: number;
   integrationOauthResult?: IntegrationOAuthResult | null;
   onIntegrationOauthResultConsumed?: () => void;
@@ -66,6 +67,7 @@ export function ProfileScreen({
   onOpenPrivacy,
   onOpenSupport,
   onOpenMemory,
+  onOpenEmployees,
   integrationsRefreshToken = 0,
   integrationOauthResult = null,
   onIntegrationOauthResultConsumed,
@@ -420,6 +422,23 @@ export function ProfileScreen({
         oauthResult={integrationOauthResult}
         onOauthResultConsumed={onIntegrationOauthResultConsumed}
       />
+
+      {onOpenEmployees ? (
+        <>
+          <Text style={styles.sectionTitle}>AI employees</Text>
+          <Text style={styles.sectionDescription}>
+            Hire goal-driven workers that keep working in the background until
+            the job is done.
+          </Text>
+          <Pressable
+            style={[styles.button, styles.secondaryButton]}
+            onPress={onOpenEmployees}
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryButtonText}>Manage employees</Text>
+          </Pressable>
+        </>
+      ) : null}
 
       <ImportChatGPTSection onOpenMemory={onOpenMemory} />
 
