@@ -43,6 +43,7 @@ export async function listAgentRuns(status?: string): Promise<AgentRun[]> {
 export async function createAgentRun(
   goal: string,
   attachments?: AgentAttachment[],
+  skills?: string[],
 ): Promise<AgentRun> {
   const res = await authorizedFetch('/agent-runs', {
     method: 'POST',
@@ -51,6 +52,7 @@ export async function createAgentRun(
       goal,
       attachments:
         attachments && attachments.length > 0 ? attachments : undefined,
+      skills: skills && skills.length > 0 ? skills : undefined,
     }),
   });
   return parseJSON<AgentRun>(res);

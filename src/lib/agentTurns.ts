@@ -186,6 +186,85 @@ export function parseOptions(
   return out;
 }
 
+export function pauseKind(
+  result: Record<string, unknown> | null | undefined,
+): "ask_user" | "request_approval" | null {
+  if (!result) return null;
+  const kind = String(result.kind ?? result.tool ?? "");
+  if (kind === "request_approval") return "request_approval";
+  if (kind === "ask_user") return "ask_user";
+  return null;
+}
+
+export function isApprovalPause(
+  result: Record<string, unknown> | null | undefined,
+): boolean {
+  return pauseKind(result) === "request_approval";
+}
+
+export function approvalKindLabel(
+  result: Record<string, unknown> | null | undefined,
+): string {
+  const args = result?.args;
+  if (args && typeof args === "object") {
+    const kind = (args as { kind?: unknown }).kind;
+    if (typeof kind === "string" && kind.trim()) {
+      return kind.trim().replace(/_/g, " ");
+    }
+  }
+  return "irreversible action";
+}
+
+export function toolDisplayName(name: string): string {
+  const labels: Record<string, string> = {
+    browse_page: "Browse page",
+    fetch_url: "Fetch page",
+    load_skill: "Load skill",
+    save_skill: "Save skill",
+    list_skills: "List skills",
+    memory_search: "Search memory",
+    search_notes: "Search notes",
+    session_search: "Search this run",
+    todo: "Update plan",
+    ask_user: "Ask user",
+    request_approval: "Request approval",
+    web_search: "Search web",
+  };
+  return labels[name] ?? name.replace(/_/g, " ");
+}
+
+export function toolCallUrl(args: unknown): string | null {
+  if (!args || typeof args !== "object") return null;
+  const url = (args as { url?: unknown }).url;
+  return typeof url === "string" && url.trim() ? url.trim() : null;
+}
+
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
+
+function urlFromResultContent(content: string): string | null {
+  const match = content.match(/^URL:\s*(\S+)/m);
+  return match ? match[1] : null;
+}
+
+function toolStepTitle(prefix: string, payload: Record<string, unknown>): string {
+  const name = String(payload.name ?? "tool");
+  const fromArgs = toolCallUrl(payload.args);
+  const fromContent =
+    typeof payload.content === "string"
+      ? urlFromResultContent(payload.content)
+      : null;
+  const host = hostOf(fromArgs ?? fromContent ?? "");
+  const label = toolDisplayName(name);
+  if (host) return `${label} · ${host}`;
+  return `${prefix} ${label}`;
+}
+
 export function stepTitle(step: AgentStepLike): string {
   const p = step.payload || {};
   switch (step.kind) {
@@ -194,9 +273,9 @@ export function stepTitle(step: AgentStepLike): string {
     case "thought":
       return "Thought";
     case "tool_call":
-      return `Tool → ${String(p.name ?? "tool")}`;
+      return toolStepTitle("Tool →", p);
     case "tool_result":
-      return `Result ← ${String(p.name ?? "tool")}`;
+      return toolStepTitle("Result ←", p);
     case "user_message":
       return "Reply";
     case "approval_request":
@@ -320,10 +399,8 @@ export function splitTrailingQuestion(text: string): {
 function questionFromSteps(steps: AgentStepLike[]): string | null {
   for (let i = steps.length - 1; i >= 0; i--) {
     if (steps[i].kind !== "approval_request") continue;
-    const text =
-      typeof steps[i].payload?.question === "string"
-        ? steps[i].payload.question.trim()
-        : "";
+    const raw = steps[i].payload?.question;
+    const text = typeof raw === "string" ? raw.trim() : "";
     if (text) return text;
   }
   return null;

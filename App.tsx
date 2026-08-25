@@ -47,6 +47,7 @@ import { MemoryScreen } from './src/screens/MemoryScreen';
 import { PairDeviceScreen } from './src/screens/PairDeviceScreen';
 import { PrivacyScreen } from './src/screens/PrivacyScreen';
 import { EmployeesScreen } from './src/screens/EmployeesScreen';
+import { SkillsScreen } from './src/screens/SkillsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
@@ -196,6 +197,13 @@ function AppContent({
   const deviceSync = useDeviceSync();
   const [pairSheetOpen, setPairSheetOpen] = useState(false);
   const [employeesOpen, setEmployeesOpen] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
+  const [pendingAgentRunId, setPendingAgentRunId] = useState<string | null>(
+    null,
+  );
+  const [pendingAgentSkill, setPendingAgentSkill] = useState<string | null>(
+    null,
+  );
   const [sheetOpen, setSheetOpen] = useState(false);
   const [ingestRefreshToken, setIngestRefreshToken] = useState(0);
   const {
@@ -348,6 +356,12 @@ function AppContent({
             onOpenProfile={() => setTab('profile')}
             onOpenNote={openNote}
             onToast={showToast}
+            pendingAgentRunId={pendingAgentRunId}
+            pendingAgentSkill={pendingAgentSkill}
+            onPendingAgentConsumed={() => {
+              setPendingAgentRunId(null);
+              setPendingAgentSkill(null);
+            }}
           />
         ) : null}
 
@@ -370,6 +384,10 @@ function AppContent({
           <ActionsScreen
             isVisible={tab === 'actions'}
             onOpenProfile={() => setTab('profile')}
+            onOpenAgent={runId => {
+              setPendingAgentRunId(runId);
+              setTab('chat');
+            }}
           />
         </View>
 
@@ -387,6 +405,7 @@ function AppContent({
             onOpenSupport={() => onOpenLegal('support')}
             onOpenMemory={() => setTab('memory')}
             onOpenEmployees={() => setEmployeesOpen(true)}
+            onOpenSkills={() => setSkillsOpen(true)}
             integrationsRefreshToken={integrationsRefreshToken}
             integrationOauthResult={integrationOauthResult}
             onIntegrationOauthResultConsumed={
@@ -413,9 +432,20 @@ function AppContent({
         onClose={() => setEmployeesOpen(false)}
         onOpenShift={runId => {
           setEmployeesOpen(false);
+          if (runId) {
+            setPendingAgentRunId(runId);
+          }
           setTab('chat');
-          // Agent mode lives inside Chat; user can open history for the run.
-          void runId;
+        }}
+      />
+
+      <SkillsScreen
+        visible={skillsOpen}
+        onClose={() => setSkillsOpen(false)}
+        onUseInAgent={name => {
+          setSkillsOpen(false);
+          setPendingAgentSkill(name);
+          setTab('chat');
         }}
       />
 

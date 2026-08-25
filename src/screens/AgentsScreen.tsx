@@ -20,7 +20,9 @@ import { parseInlineMarkdown } from '../lib/chatMarkdown';
 import {
   buildAgentTurns,
   canReply,
+  approvalKindLabel,
   isActiveStatus,
+  isApprovalPause,
   isPendingAgentRunId,
   parseAllowMultiple,
   parseOptions,
@@ -185,6 +187,13 @@ type AskChoiceProps = {
   onToggle: (id: string) => void;
 };
 
+type ApprovalChoiceProps = {
+  kindLabel: string;
+  busy: boolean;
+  onApprove: () => void;
+  onDeny: () => void;
+};
+
 function optionPlainText(label: string): string {
   return parseInlineMarkdown(label)
     .map(node => node.text)
@@ -266,6 +275,7 @@ function TurnView({
   runStatus,
   waitingExtras,
   ask,
+  approval,
   styles,
   colors,
 }: {
@@ -276,6 +286,7 @@ function TurnView({
     onFinish: () => void;
   } | null;
   ask?: AskChoiceProps | null;
+  approval?: ApprovalChoiceProps | null;
   styles: ReturnType<typeof createAgentStyles>;
   colors: ThemeColors;
 }) {
@@ -321,14 +332,56 @@ function TurnView({
                 turn.question.live ? styles.waitingLabel : styles.sectionLabel
               }
             >
-              {turn.question.live ? 'Donna needs your reply' : 'Question'}
+              {turn.question.live
+                ? approval
+                  ? 'Needs your approval'
+                  : 'Donna needs your reply'
+                : approval
+                  ? 'Approval'
+                  : 'Question'}
             </Text>
+            {turn.question.live && approval ? (
+              <Text style={styles.waitingHint}>{approval.kindLabel}</Text>
+            ) : null}
             <View style={styles.outputBox}>
               <MessageContent
                 content={turn.question.text}
                 variant="assistant"
               />
             </View>
+            {turn.question.live && approval ? (
+              <View style={styles.actionRow}>
+                <Pressable
+                  disabled={approval.busy}
+                  onPress={approval.onApprove}
+                  style={({ pressed }) => [
+                    styles.primaryButton,
+                    styles.actionButton,
+                    approval.busy && styles.buttonDisabled,
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <Text style={styles.primaryButtonText}>Confirm</Text>
+                </Pressable>
+                <Pressable
+                  disabled={approval.busy}
+                  onPress={approval.onDeny}
+                  style={({ pressed }) => [
+                    styles.secondaryButton,
+                    styles.actionButton,
+                    approval.busy && styles.buttonDisabled,
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <Text style={styles.secondaryButtonText}>Deny</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {turn.question.live && approval ? (
+              <Text style={styles.waitingHint}>
+                Or tell Donna what to change below.
+              </Text>
+            ) : null}
             {turn.question.live && ask ? (
               <AskOptions {...ask} styles={styles} />
             ) : null}
@@ -591,7 +644,11 @@ export function AgentDetail({
             </Pressable>
           ) : null}
           <Text style={styles.subtitle}>
-            {needsReply ? 'needs reply' : statusLabel(run.status)}
+            {needsReply
+              ? isApprovalPause(run.result)
+                ? 'needs approval'
+                : 'needs reply'
+              : statusLabel(run.status)}
             {run.error ? ` · ${run.error}` : ''}
           </Text>
         </View>
@@ -662,6 +719,16 @@ export function AgentDetail({
             styles={styles}
             colors={colors}
             ask={turn.isLatest ? ask : null}
+            approval={
+              turn.isLatest && needsReply && isApprovalPause(run.result)
+                ? {
+                    kindLabel: approvalKindLabel(run.result),
+                    busy,
+                    onApprove: () => onReply('Approved.'),
+                    onDeny: () => onReply('Denied.'),
+                  }
+                : null
+            }
             waitingExtras={
               turn.isLatest && needsReply ? { busy, onFinish } : null
             }

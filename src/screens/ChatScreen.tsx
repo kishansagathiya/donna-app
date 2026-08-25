@@ -2,8 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionSheetIOS,
   Alert,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
@@ -44,6 +46,8 @@ import {
 } from '../lib/thinkingPhrases';
 import { AgentDetail, createAgentStyles } from './AgentsScreen';
 import type { ThemeColors } from '../theme/colors';
+import { listSkills, type Skill } from '../services/skillsApi';
+import { isApprovalPause } from '../lib/agentTurns';
 import {
   streamChatMessage,
   type ChatStreamHandle,
@@ -74,6 +78,9 @@ type Props = {
   onOpenProfile: () => void;
   onOpenNote?: (noteId: string) => void;
   onToast?: (message: string, isError?: boolean) => void;
+  pendingAgentRunId?: string | null;
+  pendingAgentSkill?: string | null;
+  onPendingAgentConsumed?: () => void;
 };
 
 function historyFromTurns(turns: ChatTurn[]): ChatTurnMessage[] {
@@ -96,6 +103,9 @@ export function ChatScreen({
   onOpenProfile,
   onOpenNote,
   onToast,
+  pendingAgentRunId,
+  pendingAgentSkill,
+  onPendingAgentConsumed,
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -121,6 +131,8 @@ export function ChatScreen({
   const [pendingAttachments, setPendingAttachments] = useState<
     PendingAttachment[]
   >([]);
+  const [skillsOpen, setSkillsOpen] = useState(false);
+  const [pickerSkills, setPickerSkills] = useState<Skill[]>([]);
   const streamAbortRef = useRef<(() => void) | null>(null);
   const textMessagesRef = useRef(textMessages);
   const textSessionIdRef = useRef(textSessionId);
@@ -417,6 +429,27 @@ export function ChatScreen({
     void storeComposerMode(next);
   }
 
+  useEffect(() => {
+    if (!pendingAgentRunId) {
+      return;
+    }
+    handleModeChange('agent');
+    agent.setSelectedId(pendingAgentRunId);
+    onPendingAgentConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAgentRunId]);
+
+  useEffect(() => {
+    if (!pendingAgentSkill) {
+      return;
+    }
+    handleModeChange('agent');
+    agent.handleNewRun();
+    agent.setSelectedSkills([pendingAgentSkill]);
+    onPendingAgentConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAgentSkill]);
+
   function handleStop() {
     flushPendingChunk();
     streamAbortRef.current?.();
@@ -705,13 +738,15 @@ export function ChatScreen({
 
   const agentPlaceholder = !agent.active
     ? 'Describe a cloud agent goal…'
-    : agent.waitingWithOptions
-      ? agent.allowMultiple
-        ? 'Optional note to add with your selection…'
-        : 'Or type a different answer…'
-      : agent.needsReply
-        ? 'Write your answer…'
-        : 'Add a follow-up or correction…';
+    : isApprovalPause(agent.active.result)
+      ? 'Tell Donna what to change…'
+      : agent.waitingWithOptions
+        ? agent.allowMultiple
+          ? 'Optional note to add with your selection…'
+          : 'Or type a different answer…'
+        : agent.needsReply
+          ? 'Write your answer…'
+          : 'Add a follow-up or correction…';
 
   return (
     <View style={styles.container}>
@@ -734,7 +769,9 @@ export function ChatScreen({
               onChangeReply={() => {}}
               onCancel={() => void agent.onCancel(agent.active!.id)}
               onFinish={() => void agent.onFinish(agent.active!.id)}
-              onReply={() => {}}
+              onReply={message =>
+                void agent.replyToRun(agent.active!.id, message)
+              }
               selectedOptions={agent.selectedOptions}
               onToggleOption={agent.toggleOption}
               embedded
@@ -815,6 +852,21 @@ export function ChatScreen({
         ) : null}
       </View>
 
+      {isAgent && agent.selectedSkills.length > 0 ? (
+        <View style={styles.skillRow}>
+          <Text style={styles.skillHint}>Using skill:</Text>
+          {agent.selectedSkills.map(name => (
+            <Pressable
+              key={name}
+              onPress={() => agent.setSelectedSkills([])}
+              style={styles.skillChip}
+            >
+              <Text style={styles.skillChipText}>{name} ×</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
       <ChatInput
         onSend={(text, attachments, options) => {
           if (composerModeRef.current === 'agent') {
@@ -847,6 +899,22 @@ export function ChatScreen({
         allowEmptySend={isAgent && agent.allowEmptySend}
         mode={composerMode}
         onModeChange={handleModeChange}
+        onSkillsPress={
+          isAgent && !agent.active
+            ? () => {
+                setSkillsOpen(true);
+                void listSkills()
+                  .then(setPickerSkills)
+                  .catch(() => setPickerSkills([]));
+              }
+            : undefined
+        }
+        skillsSelected={agent.selectedSkills.length}
+        onSendToAgent={(text, attachments) => {
+          handleModeChange('agent');
+          agent.handleNewRun();
+          void agent.createRun(text, attachments);
+        }}
         quickActions={
           !isAgent && !hasChatThread && !isSending && !sessionActive
             ? QUICK_ACTIONS.map(action => ({
@@ -868,6 +936,53 @@ export function ChatScreen({
           agent.setSelectedId(run.id);
         }}
       />
+
+      <Modal
+        visible={skillsOpen}
+        animationType="slide"
+        onRequestClose={() => setSkillsOpen(false)}
+      >
+        <View style={styles.skillSheet}>
+          <View style={styles.skillSheetHeader}>
+            <Text style={styles.skillSheetTitle}>Skills for this run</Text>
+            <Pressable onPress={() => setSkillsOpen(false)}>
+              <Text style={styles.retryLink}>Done</Text>
+            </Pressable>
+          </View>
+          <ScrollView>
+            {pickerSkills.length === 0 ? (
+              <Text style={styles.skillHint}>
+                No skills yet. Add one in Profile → Skills.
+              </Text>
+            ) : (
+              pickerSkills.map(skill => {
+                const on = agent.selectedSkills.includes(skill.name);
+                return (
+                  <Pressable
+                    key={skill.id ?? skill.name}
+                    style={styles.skillOption}
+                    onPress={() => {
+                      agent.setSelectedSkills(
+                        on
+                          ? agent.selectedSkills.filter(n => n !== skill.name)
+                          : [...agent.selectedSkills, skill.name],
+                      );
+                    }}
+                  >
+                    <Text style={styles.skillOptionTitle}>
+                      {on ? '✓ ' : ''}
+                      {skill.name}
+                    </Text>
+                    {skill.description ? (
+                      <Text style={styles.skillHint}>{skill.description}</Text>
+                    ) : null}
+                  </Pressable>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -899,6 +1014,62 @@ function createStyles(colors: ThemeColors) {
       color: colors.primary,
       fontSize: 14,
       fontWeight: '600',
+      fontFamily: colors.fontFamily,
+    },
+    skillRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingBottom: 4,
+    },
+    skillHint: {
+      fontSize: 12,
+      color: colors.muted,
+      fontFamily: colors.fontFamily,
+    },
+    skillChip: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      backgroundColor: colors.surface,
+    },
+    skillChipText: {
+      fontSize: 12,
+      color: colors.text,
+      fontFamily: colors.fontFamily,
+    },
+    skillSheet: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingTop: 56,
+      paddingHorizontal: 20,
+    },
+    skillSheetHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    skillSheetTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.text,
+      fontFamily: colors.fontFamily,
+    },
+    skillOption: {
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: 4,
+    },
+    skillOptionTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
       fontFamily: colors.fontFamily,
     },
   });

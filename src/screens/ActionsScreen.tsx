@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -7,11 +7,21 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { Text } from '../components/ThemedText';
+import { Text, TextInput } from '../components/ThemedText';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
 import { useIntentActions, useOpenIntents } from '../hooks/useIntents';
 import type { Intent } from '../services/intentsApi';
+import {
+  listAgentRuns,
+  redirectAgentRun,
+  type AgentRun,
+} from '../services/agentsApi';
+import {
+  approvalKindLabel,
+  isApprovalPause,
+  resultSummary,
+} from '../lib/agentTurns';
 import type { ThemeColors } from '../theme/colors';
 
 function kindLabel(kind: string) {
@@ -157,14 +167,104 @@ function IntentCard({
   );
 }
 
+function AgentApprovalCard({
+  run,
+  busy,
+  tellValue,
+  onTellChange,
+  onApprove,
+  onDeny,
+  onTell,
+  onOpen,
+  styles,
+}: {
+  run: AgentRun;
+  busy: boolean;
+  tellValue: string;
+  onTellChange: (v: string) => void;
+  onApprove: () => void;
+  onDeny: () => void;
+  onTell: () => void;
+  onOpen?: () => void;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <View style={styles.card}>
+      <View style={styles.badgeRow}>
+        <View style={[styles.badge, styles.badgeExternal]}>
+          <Text style={styles.badgeText}>Agent approval</Text>
+        </View>
+        <Text style={styles.sourceText}>{approvalKindLabel(run.result)}</Text>
+      </View>
+      <Text style={styles.cardTitle}>{run.goal}</Text>
+      <Text style={styles.cardMeta}>
+        {resultSummary(run.result) || 'Donna needs approval to continue.'}
+      </Text>
+      <TextInput
+        style={styles.tellInput}
+        value={tellValue}
+        onChangeText={onTellChange}
+        placeholder="Tell Donna…"
+        editable={!busy}
+      />
+      <View style={styles.actionRow}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.primaryButton,
+            (busy || pressed) && styles.buttonPressed,
+          ]}
+          disabled={busy}
+          onPress={onApprove}
+        >
+          <Text style={styles.primaryButtonText}>Confirm</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.secondaryButton,
+            (busy || pressed) && styles.buttonPressed,
+          ]}
+          disabled={busy}
+          onPress={onDeny}
+        >
+          <Text style={styles.secondaryButtonText}>Deny</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.secondaryButton,
+            (busy || !tellValue.trim() || pressed) && styles.buttonPressed,
+          ]}
+          disabled={busy || !tellValue.trim()}
+          onPress={onTell}
+        >
+          <Text style={styles.secondaryButtonText}>Send</Text>
+        </Pressable>
+        {onOpen ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              (busy || pressed) && styles.buttonPressed,
+            ]}
+            disabled={busy}
+            onPress={onOpen}
+          >
+            <Text style={styles.secondaryButtonText}>Open agent</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 type Props = {
   isVisible?: boolean;
   onOpenProfile?: () => void;
+  onOpenAgent?: (runId: string) => void;
 };
 
 export function ActionsScreen({
   isVisible = true,
   onOpenProfile,
+  onOpenAgent,
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -180,6 +280,8 @@ export function ActionsScreen({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [agentApprovals, setAgentApprovals] = useState<AgentRun[]>([]);
+  const [tellById, setTellById] = useState<Record<string, string>>({});
 
   const error =
     actionError ??
@@ -194,9 +296,45 @@ export function ActionsScreen({
     setRefreshing(true);
     setActionError(null);
     try {
-      await refetch();
+      await Promise.all([refetch(), refreshApprovals()]);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const refreshApprovals = async () => {
+    try {
+      const runs = await listAgentRuns('waiting_for_user');
+      setAgentApprovals(runs.filter(run => isApprovalPause(run.result)));
+    } catch {
+      // Intents still load independently.
+    }
+  };
+
+  useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
+    void refreshApprovals();
+    const timer = setInterval(() => {
+      void refreshApprovals();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [isVisible]);
+
+  const handleAgentReply = async (id: string, message: string) => {
+    setBusyId(id);
+    setActionError(null);
+    try {
+      await redirectAgentRun(id, message);
+      setTellById(prev => ({ ...prev, [id]: '' }));
+      await refreshApprovals();
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error ? err.message : 'Could not resume agent',
+      );
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -242,7 +380,7 @@ export function ActionsScreen({
         <View style={styles.headerText}>
           <Text style={styles.title}>Actions</Text>
           <Text style={styles.subtitle}>
-            Intents Donna extracted from your notes and chats
+            Confirm irreversible agent steps, plus intents from notes and chat
           </Text>
         </View>
         <Pressable
@@ -281,7 +419,7 @@ export function ActionsScreen({
         </View>
       ) : null}
 
-      {isLoading && intents.length === 0 ? (
+      {isLoading && intents.length === 0 && agentApprovals.length === 0 ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -291,7 +429,9 @@ export function ActionsScreen({
           keyExtractor={item => item.id}
           contentContainerStyle={[
             styles.listContent,
-            intents.length === 0 && styles.listEmptyContent,
+            intents.length === 0 &&
+              agentApprovals.length === 0 &&
+              styles.listEmptyContent,
           ]}
           refreshControl={
             <RefreshControl
@@ -301,18 +441,52 @@ export function ActionsScreen({
             />
           }
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>Inbox clear</Text>
-              <Text style={styles.emptyBody}>
-                When you write an actionable note or chat, proposals show up
-                here to confirm or dismiss.
-              </Text>
-            </View>
+            agentApprovals.length > 0 ? null : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>Inbox clear</Text>
+                <Text style={styles.emptyBody}>
+                  Agent approvals and note/chat proposals show up here to
+                  confirm or dismiss.
+                </Text>
+              </View>
+            )
           }
           ListHeaderComponent={
-            intents.length > 0 ? (
-              <Text style={styles.sectionLabel}>Open ({intents.length})</Text>
-            ) : null
+            <>
+              {agentApprovals.length > 0 ? (
+                <View style={{ gap: 12, marginBottom: 16 }}>
+                  <Text style={styles.sectionLabel}>
+                    Agent approvals ({agentApprovals.length})
+                  </Text>
+                  {agentApprovals.map(run => (
+                    <AgentApprovalCard
+                      key={run.id}
+                      run={run}
+                      busy={busyId !== null}
+                      tellValue={tellById[run.id] ?? ''}
+                      onTellChange={v =>
+                        setTellById(prev => ({ ...prev, [run.id]: v }))
+                      }
+                      onApprove={() =>
+                        void handleAgentReply(run.id, 'Approved.')
+                      }
+                      onDeny={() => void handleAgentReply(run.id, 'Denied.')}
+                      onTell={() => {
+                        const note = (tellById[run.id] ?? '').trim();
+                        if (note) void handleAgentReply(run.id, note);
+                      }}
+                      onOpen={
+                        onOpenAgent ? () => onOpenAgent(run.id) : undefined
+                      }
+                      styles={styles}
+                    />
+                  ))}
+                </View>
+              ) : null}
+              {intents.length > 0 ? (
+                <Text style={styles.sectionLabel}>Open ({intents.length})</Text>
+              ) : null}
+            </>
           }
           renderItem={({ item }) => (
             <IntentCard
@@ -503,6 +677,18 @@ function createStyles(colors: ThemeColors) {
     cardMeta: {
       fontSize: 14,
       color: colors.muted,
+      fontFamily: colors.fontFamily,
+    },
+    tellInput: {
+      minHeight: 40,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      fontSize: 14,
+      color: colors.text,
       fontFamily: colors.fontFamily,
     },
     actionRow: {

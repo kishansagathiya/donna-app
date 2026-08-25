@@ -17,10 +17,12 @@ import type { ThemeColors } from '../theme/colors';
 import {
   ArrowUpIcon,
   BookOpenIcon,
+  BotIcon,
   BrainIcon,
   GlobeIcon,
   HistoryIcon,
   PaperclipIcon,
+  SparklesIcon,
   StopIcon,
 } from './icons';
 import { ComposerModeToggle } from './ComposerModeToggle';
@@ -58,6 +60,12 @@ type Props = {
   allowEmptySend?: boolean;
   mode?: ComposerMode;
   onModeChange?: (mode: ComposerMode) => void;
+  onSkillsPress?: () => void;
+  skillsSelected?: number;
+  onSendToAgent?: (
+    text: string,
+    attachments: PendingAttachment[],
+  ) => void;
 };
 
 const quickActionIcons: Record<
@@ -88,6 +96,9 @@ export function ChatInput({
   allowEmptySend = false,
   mode,
   onModeChange,
+  onSkillsPress,
+  skillsSelected = 0,
+  onSendToAgent,
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -180,6 +191,49 @@ export function ChatInput({
         <View style={styles.toolbar}>
           {mode && onModeChange ? (
             <ComposerModeToggle mode={mode} onChange={onModeChange} />
+          ) : null}
+
+          {onSkillsPress && mode === 'agent' ? (
+            <Pressable
+              style={[
+                styles.toolButton,
+                skillsSelected > 0 && styles.toolButtonActive,
+                disabled && styles.toolButtonDisabled,
+              ]}
+              onPress={onSkillsPress}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel="Choose skills"
+            >
+              <SparklesIcon
+                size={20}
+                color={skillsSelected > 0 ? colors.primary : colors.muted}
+              />
+            </Pressable>
+          ) : null}
+
+          {onSendToAgent && mode !== 'agent' ? (
+            <Pressable
+              style={[
+                styles.toolButton,
+                disabled && styles.toolButtonDisabled,
+              ]}
+              onPress={() => {
+                if (disabled || (!hasText && !hasAttachments)) {
+                  return;
+                }
+                const payload = attachments;
+                const trimmed = text.trim();
+                setText('');
+                setWebSearch(false);
+                onSendToAgent(trimmed, payload);
+              }}
+              disabled={disabled || (!hasText && !hasAttachments)}
+              accessibilityRole="button"
+              accessibilityLabel="Run as cloud agent"
+            >
+              <BotIcon size={20} color={colors.muted} />
+            </Pressable>
           ) : null}
 
           {showWebSearch ? (

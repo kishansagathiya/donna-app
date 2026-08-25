@@ -3,8 +3,10 @@
  */
 
 import {
+  approvalKindLabel,
   buildAgentTurns,
   canReply,
+  isApprovalPause,
   parseAllowMultiple,
   parseOptions,
   pendingQuestion,
@@ -696,5 +698,34 @@ describe("helpers", () => {
     });
     expect(stepTitle(call)).toBe("Tool → web");
     expect(stepBody(call)).toContain('"q": "x"');
+
+    const browse = step({
+      id: "2",
+      seq: 2,
+      kind: "tool_call",
+      payload: {
+        name: "browse_page",
+        args: { url: "https://example.com/form" },
+      },
+    });
+    expect(stepTitle(browse)).toBe("Browse page · example.com");
+  });
+
+  it("detects irreversible approval pauses", () => {
+    expect(isApprovalPause({ kind: "ask_user", question: "Which?" })).toBe(
+      false,
+    );
+    expect(
+      isApprovalPause({
+        kind: "request_approval",
+        args: { kind: "book_flight" },
+      }),
+    ).toBe(true);
+    expect(
+      approvalKindLabel({
+        kind: "request_approval",
+        args: { kind: "book_flight" },
+      }),
+    ).toBe("book flight");
   });
 });
