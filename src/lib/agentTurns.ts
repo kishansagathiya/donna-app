@@ -215,6 +215,59 @@ export function approvalKindLabel(
   return "irreversible action";
 }
 
+export type BookingProposal = {
+  itinerary?: string;
+  total?: string;
+  airline?: string;
+  vendor?: string;
+  dates?: string;
+  passengers?: string;
+  cabin?: string;
+  sourceUrl?: string;
+  notes?: string;
+};
+
+function proposalField(v: unknown): string {
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return "";
+}
+
+export function bookingProposalFromResult(
+  result: Record<string, unknown> | null | undefined,
+): BookingProposal | null {
+  if (!isApprovalPause(result)) return null;
+  const args = result?.args;
+  if (!args || typeof args !== "object") return null;
+  const rec = args as Record<string, unknown>;
+  const details =
+    rec.details && typeof rec.details === "object"
+      ? (rec.details as Record<string, unknown>)
+      : rec;
+  const total = proposalField(
+    details.total ?? details.price ?? details.total_usd,
+  );
+  const currency =
+    proposalField(details.currency) ||
+    (details.total_usd != null ? "USD" : "");
+  const proposal: BookingProposal = {
+    itinerary: proposalField(details.itinerary ?? details.route),
+    total:
+      total && currency && !total.includes(currency)
+        ? `${currency} ${total}`
+        : total,
+    airline: proposalField(details.airline),
+    vendor: proposalField(details.vendor),
+    dates: proposalField(details.dates),
+    passengers: proposalField(details.passengers ?? details.quantity),
+    cabin: proposalField(details.cabin ?? details.seat),
+    sourceUrl: proposalField(details.source_url ?? details.url),
+    notes: proposalField(details.notes),
+  };
+  if (!Object.values(proposal).some(Boolean)) return null;
+  return proposal;
+}
+
 export function toolDisplayName(name: string): string {
   const labels: Record<string, string> = {
     browse_page: "Browse page",
@@ -229,6 +282,9 @@ export function toolDisplayName(name: string): string {
     ask_user: "Ask user",
     request_approval: "Request approval",
     web_search: "Search web",
+    search_flights: "Search flights",
+    write_memory_fact: "Save memory",
+    propose_calendar_event: "Propose calendar event",
   };
   return labels[name] ?? name.replace(/_/g, " ");
 }

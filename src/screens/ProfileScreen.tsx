@@ -56,6 +56,7 @@ type ProfileScreenProps = {
   onOpenSupport?: () => void;
   onOpenMemory?: () => void;
   onOpenEmployees?: () => void;
+  onOpenSchedules?: () => void;
   onOpenSkills?: () => void;
   integrationsRefreshToken?: number;
   integrationOauthResult?: IntegrationOAuthResult | null;
@@ -69,6 +70,7 @@ export function ProfileScreen({
   onOpenSupport,
   onOpenMemory,
   onOpenEmployees,
+  onOpenSchedules,
   onOpenSkills,
   integrationsRefreshToken = 0,
   integrationOauthResult = null,
@@ -437,6 +439,23 @@ export function ProfileScreen({
             accessibilityRole="button"
           >
             <Text style={styles.secondaryButtonText}>Manage skills</Text>
+          </Pressable>
+        </>
+      ) : null}
+
+      {onOpenSchedules ? (
+        <>
+          <Text style={styles.sectionTitle}>Schedules</Text>
+          <Text style={styles.sectionDescription}>
+            Recurring agent goals that run on Donna&apos;s cloud while your
+            phone is locked.
+          </Text>
+          <Pressable
+            style={[styles.button, styles.secondaryButton]}
+            onPress={onOpenSchedules}
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryButtonText}>Manage schedules</Text>
           </Pressable>
         </>
       ) : null}

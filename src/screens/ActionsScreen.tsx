@@ -19,9 +19,11 @@ import {
 } from '../services/agentsApi';
 import {
   approvalKindLabel,
+  bookingProposalFromResult,
   isApprovalPause,
   resultSummary,
 } from '../lib/agentTurns';
+import { BookingProposalView } from '../components/BookingProposalView';
 import type { ThemeColors } from '../theme/colors';
 
 function kindLabel(kind: string) {
@@ -177,6 +179,7 @@ function AgentApprovalCard({
   onTell,
   onOpen,
   styles,
+  colors,
 }: {
   run: AgentRun;
   busy: boolean;
@@ -187,7 +190,9 @@ function AgentApprovalCard({
   onTell: () => void;
   onOpen?: () => void;
   styles: ReturnType<typeof createStyles>;
+  colors: ThemeColors;
 }) {
+  const proposal = bookingProposalFromResult(run.result);
   return (
     <View style={styles.card}>
       <View style={styles.badgeRow}>
@@ -200,6 +205,9 @@ function AgentApprovalCard({
       <Text style={styles.cardMeta}>
         {resultSummary(run.result) || 'Donna needs approval to continue.'}
       </Text>
+      {proposal ? (
+        <BookingProposalView proposal={proposal} colors={colors} />
+      ) : null}
       <TextInput
         style={styles.tellInput}
         value={tellValue}
@@ -479,6 +487,7 @@ export function ActionsScreen({
                         onOpenAgent ? () => onOpenAgent(run.id) : undefined
                       }
                       styles={styles}
+                      colors={colors}
                     />
                   ))}
                 </View>

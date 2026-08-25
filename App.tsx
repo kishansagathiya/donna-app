@@ -47,6 +47,7 @@ import { MemoryScreen } from './src/screens/MemoryScreen';
 import { PairDeviceScreen } from './src/screens/PairDeviceScreen';
 import { PrivacyScreen } from './src/screens/PrivacyScreen';
 import { EmployeesScreen } from './src/screens/EmployeesScreen';
+import { SchedulesScreen } from './src/screens/SchedulesScreen';
 import { SkillsScreen } from './src/screens/SkillsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
@@ -197,6 +198,7 @@ function AppContent({
   const deviceSync = useDeviceSync();
   const [pairSheetOpen, setPairSheetOpen] = useState(false);
   const [employeesOpen, setEmployeesOpen] = useState(false);
+  const [schedulesOpen, setSchedulesOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [pendingAgentRunId, setPendingAgentRunId] = useState<string | null>(
     null,
@@ -405,6 +407,7 @@ function AppContent({
             onOpenSupport={() => onOpenLegal('support')}
             onOpenMemory={() => setTab('memory')}
             onOpenEmployees={() => setEmployeesOpen(true)}
+            onOpenSchedules={() => setSchedulesOpen(true)}
             onOpenSkills={() => setSkillsOpen(true)}
             integrationsRefreshToken={integrationsRefreshToken}
             integrationOauthResult={integrationOauthResult}
@@ -432,6 +435,18 @@ function AppContent({
         onClose={() => setEmployeesOpen(false)}
         onOpenShift={runId => {
           setEmployeesOpen(false);
+          if (runId) {
+            setPendingAgentRunId(runId);
+          }
+          setTab('chat');
+        }}
+      />
+
+      <SchedulesScreen
+        visible={schedulesOpen}
+        onClose={() => setSchedulesOpen(false)}
+        onOpenRun={runId => {
+          setSchedulesOpen(false);
           if (runId) {
             setPendingAgentRunId(runId);
           }

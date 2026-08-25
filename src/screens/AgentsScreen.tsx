@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { MessageContent } from '../components/MessageContent';
+import { BookingProposalView } from '../components/BookingProposalView';
 import { Text } from '../components/ThemedText';
 import { CheckIcon, StopIcon } from '../components/icons';
 import { useThemedStyles } from '../hooks/useThemedStyles';
@@ -21,6 +22,7 @@ import {
   buildAgentTurns,
   canReply,
   approvalKindLabel,
+  bookingProposalFromResult,
   isActiveStatus,
   isApprovalPause,
   isPendingAgentRunId,
@@ -192,6 +194,7 @@ type ApprovalChoiceProps = {
   busy: boolean;
   onApprove: () => void;
   onDeny: () => void;
+  proposal?: ReturnType<typeof bookingProposalFromResult>;
 };
 
 function optionPlainText(label: string): string {
@@ -342,6 +345,12 @@ function TurnView({
             </Text>
             {turn.question.live && approval ? (
               <Text style={styles.waitingHint}>{approval.kindLabel}</Text>
+            ) : null}
+            {turn.question.live && approval?.proposal ? (
+              <BookingProposalView
+                proposal={approval.proposal}
+                colors={colors}
+              />
             ) : null}
             <View style={styles.outputBox}>
               <MessageContent
@@ -724,6 +733,7 @@ export function AgentDetail({
                 ? {
                     kindLabel: approvalKindLabel(run.result),
                     busy,
+                    proposal: bookingProposalFromResult(run.result),
                     onApprove: () => onReply('Approved.'),
                     onDeny: () => onReply('Denied.'),
                   }
