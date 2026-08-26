@@ -272,6 +272,7 @@ export function toolDisplayName(name: string): string {
   const labels: Record<string, string> = {
     browse_page: "Browse page",
     fetch_url: "Fetch page",
+    fetch_image: "Fetch image",
     load_skill: "Load skill",
     save_skill: "Save skill",
     list_skills: "List skills",
