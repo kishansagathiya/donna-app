@@ -711,9 +711,17 @@ describe("helpers", () => {
     });
     expect(stepTitle(browse)).toBe("Browse page · example.com");
 
-    const image = step({
+    const click = step({
       id: "3",
       seq: 3,
+      kind: "tool_call",
+      payload: { name: "browser_click", args: { ref: "e1" } },
+    });
+    expect(stepTitle(click)).toBe("Tool → Click");
+
+    const image = step({
+      id: "4",
+      seq: 4,
       kind: "tool_call",
       payload: {
         name: "fetch_image",

@@ -286,6 +286,11 @@ export function toolDisplayName(name: string): string {
     search_flights: "Search flights",
     write_memory_fact: "Save memory",
     propose_calendar_event: "Propose calendar event",
+    browser_navigate: "Open page",
+    browser_snapshot: "Page snapshot",
+    browser_click: "Click",
+    browser_type: "Type",
+    delegate_task: "Delegate task",
   };
   return labels[name] ?? name.replace(/_/g, " ");
 }
