@@ -134,6 +134,10 @@ jest.mock('../src/screens/ActionsScreen', () => ({
   ActionsScreen: () => null,
 }));
 
+jest.mock('../src/screens/RemindersScreen', () => ({
+  RemindersScreen: () => null,
+}));
+
 jest.mock('../src/screens/TodayScreen', () => ({
   TodayScreen: () => null,
 }));

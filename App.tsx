@@ -48,6 +48,7 @@ import { PairDeviceScreen } from './src/screens/PairDeviceScreen';
 import { PrivacyScreen } from './src/screens/PrivacyScreen';
 import { EmployeesScreen } from './src/screens/EmployeesScreen';
 import { SchedulesScreen } from './src/screens/SchedulesScreen';
+import { RemindersScreen } from './src/screens/RemindersScreen';
 import { SkillsScreen } from './src/screens/SkillsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
@@ -199,6 +200,7 @@ function AppContent({
   const [pairSheetOpen, setPairSheetOpen] = useState(false);
   const [employeesOpen, setEmployeesOpen] = useState(false);
   const [schedulesOpen, setSchedulesOpen] = useState(false);
+  const [remindersOpen, setRemindersOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [pendingAgentRunId, setPendingAgentRunId] = useState<string | null>(
     null,
@@ -408,6 +410,7 @@ function AppContent({
             onOpenMemory={() => setTab('memory')}
             onOpenEmployees={() => setEmployeesOpen(true)}
             onOpenSchedules={() => setSchedulesOpen(true)}
+            onOpenReminders={() => setRemindersOpen(true)}
             onOpenSkills={() => setSkillsOpen(true)}
             integrationsRefreshToken={integrationsRefreshToken}
             integrationOauthResult={integrationOauthResult}
@@ -452,6 +455,11 @@ function AppContent({
           }
           setTab('chat');
         }}
+      />
+
+      <RemindersScreen
+        visible={remindersOpen}
+        onClose={() => setRemindersOpen(false)}
       />
 
       <SkillsScreen
