@@ -17,6 +17,7 @@ import { DEV_EMAIL, DEV_PASSWORD } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { logoForTheme } from '../lib/logo';
+import { RELEASE_LABEL } from '../lib/release';
 import { signInWithDevCredentials, signInWithPassword } from '../services/auth';
 import type { ThemeColors } from '../theme/colors';
 
@@ -82,6 +83,7 @@ export function LoginScreen({ onSuccess, onOpenPrivacy }: Props) {
           resizeMode="cover"
         />
         <Text style={styles.title}>Donna</Text>
+        <Text style={styles.version}>{RELEASE_LABEL}</Text>
         <Text style={styles.subtitle}>
           AI Second Brain, but the{' '}
           <Text style={styles.subtitleBest}>BEST</Text>
@@ -190,6 +192,15 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '700',
       color: colors.text,
       letterSpacing: -0.5,
+      textAlign: 'center',
+      fontFamily: colors.fontFamily,
+    },
+    version: {
+      fontSize: 13,
+      fontWeight: '600',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+      color: colors.primary,
       textAlign: 'center',
       fontFamily: colors.fontFamily,
     },

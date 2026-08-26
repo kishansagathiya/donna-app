@@ -14,6 +14,7 @@ import { ExperimentalSection } from '../components/ExperimentalSection';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useAuth } from '../hooks/useAuth';
+import { RELEASE_NAME, RELEASE_VERSION } from '../lib/release';
 import type { DeviceSyncStatus } from '../hooks/useDeviceSync';
 import { IntegrationsSection } from '../components/IntegrationsSection';
 import { ImportChatGPTSection } from '../components/ImportChatGPTSection';
@@ -296,6 +297,9 @@ export function ProfileScreen({
         <View>
           <Text style={styles.name}>{name}</Text>
           {email ? <Text style={styles.email}>{email}</Text> : null}
+          <Text style={styles.release}>
+            Donna {RELEASE_VERSION} — {RELEASE_NAME}
+          </Text>
         </View>
       </View>
 
@@ -719,6 +723,11 @@ function createStyles(colors: ThemeColors) {
     email: {
       marginTop: 2,
       fontSize: 14,
+      color: colors.muted,
+    },
+    release: {
+      marginTop: 4,
+      fontSize: 12,
       color: colors.muted,
     },
     sectionTitle: {
