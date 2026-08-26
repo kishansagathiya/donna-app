@@ -48,6 +48,8 @@ export function chatPhaseLabel(
       return 'Analyzing images…';
     case 'fetching':
       return h ? `Reading ${h}…` : 'Reading this page…';
+    case 'loading_image':
+      return h ? `Loading image from ${h}…` : 'Loading image…';
     case 'browsing':
       return h ? `Browsing ${h}…` : 'Browsing this site…';
     case 'generating':

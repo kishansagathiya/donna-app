@@ -1,4 +1,5 @@
 import {
+  isDisplayableImageSrc,
   parseInlineMarkdown,
   parseMarkdownBlocks,
 } from './chatMarkdown';
@@ -27,6 +28,25 @@ describe('parseInlineMarkdown', () => {
     expect(parseInlineMarkdown('Hello Donna')).toEqual([
       { text: 'Hello Donna', marks: {} },
     ]);
+  });
+
+  it('parses markdown images', () => {
+    expect(parseInlineMarkdown('![cat](https://example.com/cat.png)')).toEqual([
+      {
+        text: 'cat',
+        marks: {},
+        image: { alt: 'cat', src: 'https://example.com/cat.png' },
+      },
+    ]);
+  });
+});
+
+describe('isDisplayableImageSrc', () => {
+  it('allows http(s) and rejects other schemes', () => {
+    expect(isDisplayableImageSrc('https://example.com/a.png')).toBe(true);
+    expect(isDisplayableImageSrc('http://example.com/a.png')).toBe(true);
+    expect(isDisplayableImageSrc('javascript:alert(1)')).toBe(false);
+    expect(isDisplayableImageSrc('data:image/png;base64,aaa')).toBe(false);
   });
 });
 
@@ -85,5 +105,44 @@ describe('parseMarkdownBlocks', () => {
       { text: 'Writing', marks: { italic: true } },
     ]);
     expect(blocks[1].rows[0][1].children[0].text).toBe('Claude Fable 5');
+  });
+
+  it('parses markdown images as blocks', () => {
+    const blocks = parseMarkdownBlocks(
+      [
+        'Here is the bridge:',
+        '',
+        '![Golden Gate Bridge](https://example.com/ggb.jpg)',
+      ].join('\n'),
+    );
+
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toMatchObject({ type: 'paragraph' });
+    expect(blocks[1]).toEqual({
+      type: 'image',
+      alt: 'Golden Gate Bridge',
+      src: 'https://example.com/ggb.jpg',
+    });
+  });
+
+  it('splits inline images out of paragraphs', () => {
+    const blocks = parseMarkdownBlocks(
+      'Before ![cat](https://example.com/cat.png) after',
+    );
+    expect(blocks).toEqual([
+      {
+        type: 'paragraph',
+        children: [{ text: 'Before ', marks: {} }],
+      },
+      {
+        type: 'image',
+        alt: 'cat',
+        src: 'https://example.com/cat.png',
+      },
+      {
+        type: 'paragraph',
+        children: [{ text: ' after', marks: {} }],
+      },
+    ]);
   });
 });

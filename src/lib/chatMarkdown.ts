@@ -9,6 +9,7 @@ export type InlineMark = {
 export type InlineNode = {
   text: string;
   marks: InlineMark;
+  image?: { alt: string; src: string };
 };
 
 export type TableAlign = 'left' | 'center' | 'right' | null;
@@ -25,6 +26,7 @@ export type BlockNode =
   | { type: 'blockquote'; children: InlineNode[] }
   | { type: 'code'; text: string }
   | { type: 'hr' }
+  | { type: 'image'; alt: string; src: string }
   | {
       type: 'table';
       header: TableCell[];
@@ -32,12 +34,16 @@ export type BlockNode =
     };
 
 // Parser parity notes vs web (react-markdown + remark-gfm):
-// - Supports: paragraphs, headings, lists, blockquotes, fenced code, hr, GFM tables, basic inline marks.
-// - Gaps: nested lists, task lists, raw HTML, image embeds, and LaTeX/math (intentionally deferred).
+// - Supports: paragraphs, headings, lists, blockquotes, fenced code, hr, GFM tables, basic inline marks, markdown images.
+// - Gaps: nested lists, task lists, raw HTML, and LaTeX/math (intentionally deferred).
 // - Code copy is handled in MessageContent, not in this parser.
 
 const INLINE_TOKEN =
-  /(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*\n]+\*|__[^_]+__|_[^_\n]+_|~~[^~]+~~|`[^`\n]+`|\[[^\]]+\]\([^)]+\))/g;
+  /(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*\n]+\*|__[^_]+__|_[^_\n]+_|~~[^~]+~~|`[^`\n]+`|!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\))/g;
+
+export function isDisplayableImageSrc(src: string): boolean {
+  return /^https?:\/\//i.test(src.trim());
+}
 
 /** Split common chat markdown inline tokens (bold, italic, code, links). */
 export function parseInlineMarkdown(input: string): InlineNode[] {
@@ -72,6 +78,18 @@ export function parseInlineMarkdown(input: string): InlineNode[] {
       nodes.push({ text: token.slice(2, -2), marks: { strike: true } });
     } else if (token.startsWith('`') && token.endsWith('`')) {
       nodes.push({ text: token.slice(1, -1), marks: { code: true } });
+    } else if (token.startsWith('![')) {
+      const imageMatch = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(token);
+      if (imageMatch) {
+        const src = imageMatch[2].trim().split(/\s+/)[0]?.replace(/^<|>$/g, '') ?? '';
+        nodes.push({
+          text: imageMatch[1],
+          marks: {},
+          image: { alt: imageMatch[1], src },
+        });
+      } else {
+        nodes.push({ text: token, marks: {} });
+      }
     } else if (token.startsWith('[')) {
       const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token);
       if (linkMatch) {
@@ -316,11 +334,35 @@ export function parseMarkdownBlocks(markdown: string): BlockNode[] {
       paraLines.push(peek);
       i += 1;
     }
-    blocks.push({
-      type: 'paragraph',
-      children: parseInlineMarkdown(paraLines.join('\n')),
-    });
+    blocks.push(...expandMediaBlocks(parseInlineMarkdown(paraLines.join('\n'))));
   }
 
   return blocks;
+}
+
+function expandMediaBlocks(children: InlineNode[]): BlockNode[] {
+  const blocks: BlockNode[] = [];
+  let textRun: InlineNode[] = [];
+
+  const flushText = () => {
+    if (textRun.some(node => node.text.length > 0)) {
+      blocks.push({ type: 'paragraph', children: textRun });
+    }
+    textRun = [];
+  };
+
+  for (const node of children) {
+    if (node.image) {
+      flushText();
+      blocks.push({
+        type: 'image',
+        alt: node.image.alt,
+        src: node.image.src,
+      });
+    } else {
+      textRun.push(node);
+    }
+  }
+  flushText();
+  return blocks.length > 0 ? blocks : [{ type: 'paragraph', children }];
 }

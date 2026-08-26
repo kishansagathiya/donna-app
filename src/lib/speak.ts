@@ -81,6 +81,7 @@ export function prepareTextForSpeech(text: string): string {
   out = out.replace(/__([^_]+)__/g, '$1');
   out = out.replace(/\*([^*]+)\*/g, '$1');
   out = out.replace(/_([^_]+)_/g, '$1');
+  out = out.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
   out = out.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
   out = out.replace(/\b(?:https?:\/\/|www\.)[^\s<>"']+/gi, '');
   out = out.replace(

@@ -710,6 +710,17 @@ describe("helpers", () => {
       },
     });
     expect(stepTitle(browse)).toBe("Browse page · example.com");
+
+    const image = step({
+      id: "3",
+      seq: 3,
+      kind: "tool_call",
+      payload: {
+        name: "fetch_image",
+        args: { url: "https://upload.wikimedia.org/photo.jpg" },
+      },
+    });
+    expect(stepTitle(image)).toBe("Fetch image · upload.wikimedia.org");
   });
 
   it("detects irreversible approval pauses", () => {

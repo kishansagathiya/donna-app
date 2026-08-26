@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Clipboard from '@react-native-clipboard/clipboard';
 import {
+  Image,
   Linking,
   Platform,
   Pressable,
@@ -13,6 +14,7 @@ import {
 import { Text } from './ThemedText';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import {
+  isDisplayableImageSrc,
   parseMarkdownBlocks,
   type InlineNode,
   type TableAlign,
@@ -167,6 +169,70 @@ function TableBlock({
   );
 }
 
+function MarkdownImage({
+  alt,
+  src,
+  styles,
+}: {
+  alt: string;
+  src: string;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  const [failed, setFailed] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState(16 / 9);
+  const safeSrc = isDisplayableImageSrc(src) ? src.trim() : '';
+
+  useEffect(() => {
+    if (!safeSrc) {
+      return;
+    }
+    let cancelled = false;
+    Image.getSize(
+      safeSrc,
+      (width, height) => {
+        if (cancelled || width <= 0 || height <= 0) {
+          return;
+        }
+        const next = width / height;
+        setAspectRatio(Math.min(2.2, Math.max(0.6, next)));
+      },
+      () => {
+        if (!cancelled) {
+          setFailed(true);
+        }
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [safeSrc]);
+
+  if (!safeSrc || failed) {
+    const label = alt.trim() || src.trim() || 'Image';
+    return (
+      <Text style={styles.link} onPress={() => openLink(src)}>
+        {label}
+      </Text>
+    );
+  }
+
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={alt.trim() || 'Image'}
+      onPress={() => openLink(safeSrc)}
+    >
+      <Image
+        source={{ uri: safeSrc }}
+        accessibilityLabel={alt}
+        resizeMode="contain"
+        style={[styles.markdownImage, { aspectRatio }]}
+        onError={() => setFailed(true)}
+      />
+    </Pressable>
+  );
+}
+
 function CodeBlock({
   text,
   styles,
@@ -306,6 +372,14 @@ export function MessageContent({ content, variant, textStyle }: Props) {
                 textStyle={textStyle}
                 styles={styles}
               />
+            </View>
+          );
+        }
+
+        if (block.type === 'image') {
+          return (
+            <View key={key} style={blockSpacing}>
+              <MarkdownImage alt={block.alt} src={block.src} styles={styles} />
             </View>
           );
         }
@@ -455,6 +529,11 @@ function createStyles(colors: ThemeColors) {
     },
     tableHeaderText: {
       fontWeight: '700',
+    },
+    markdownImage: {
+      width: '100%',
+      borderRadius: 12,
+      backgroundColor: colors.primaryLight,
     },
   });
 }
