@@ -27,7 +27,37 @@ import { BookingProposalView } from '../components/BookingProposalView';
 import type { ThemeColors } from '../theme/colors';
 
 function kindLabel(kind: string) {
+  if (kind === 'agent_result') return 'Agent result';
+  if (kind === 'find_media') return 'Find media';
+  if (kind === 'research_and_act') return 'Research';
+  if (kind === 'book_travel') return 'Travel';
   return kind.replace(/_/g, ' ');
+}
+
+function sourceLabel(sourceType: string) {
+  if (sourceType === 'note') return 'note';
+  if (sourceType === 'agent_run') return 'agent';
+  return 'chat';
+}
+
+function intentMeta(intent: Intent): string | null {
+  if (intent.run) {
+    const actionName =
+      intent.run.action_name ?? intent.run.action_slug ?? 'Proposed action';
+    return intent.run.status !== 'proposed'
+      ? `${actionName} · ${intent.run.status}`
+      : actionName;
+  }
+  if (intent.kind === 'agent_result') return null;
+  if (
+    intent.kind === 'find_media' ||
+    intent.kind === 'research' ||
+    intent.kind === 'research_and_act' ||
+    intent.kind === 'book_travel'
+  ) {
+    return 'Donna started a background agent';
+  }
+  return 'No matching action yet';
 }
 
 function riskMeta(
@@ -86,8 +116,6 @@ function IntentCard({
   colors: ThemeColors;
 }) {
   const risk = riskMeta(intent.run?.action_risk);
-  const actionName =
-    intent.run?.action_name ?? intent.run?.action_slug ?? 'Proposed action';
 
   return (
     <View style={styles.card}>
@@ -114,20 +142,13 @@ function IntentCard({
             </Text>
           </View>
         ) : null}
-        <Text style={styles.sourceText}>
-          from {intent.source_type === 'note' ? 'note' : 'chat'}
-        </Text>
+        <Text style={styles.sourceText}>from {sourceLabel(intent.source_type)}</Text>
       </View>
 
       <Text style={styles.cardTitle}>{intent.summary}</Text>
-      {intent.run ? (
-        <Text style={styles.cardMeta}>
-          {actionName}
-          {intent.run.status !== 'proposed' ? ` · ${intent.run.status}` : ''}
-        </Text>
-      ) : (
-        <Text style={styles.cardMeta}>No matching action yet</Text>
-      )}
+      {intentMeta(intent) ? (
+        <Text style={styles.cardMeta}>{intentMeta(intent)}</Text>
+      ) : null}
 
       <View style={styles.actionRow}>
         {intent.run && intent.run.status === 'proposed' ? (

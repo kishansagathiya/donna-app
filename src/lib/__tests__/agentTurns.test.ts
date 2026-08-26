@@ -710,6 +710,14 @@ describe("helpers", () => {
       },
     });
     expect(stepTitle(browse)).toBe("Browse page · example.com");
+
+    const click = step({
+      id: "3",
+      seq: 3,
+      kind: "tool_call",
+      payload: { name: "browser_click", args: { ref: "e1" } },
+    });
+    expect(stepTitle(click)).toBe("Tool → Click");
   });
 
   it("detects irreversible approval pauses", () => {
