@@ -57,6 +57,7 @@ type ProfileScreenProps = {
   onOpenMemory?: () => void;
   onOpenEmployees?: () => void;
   onOpenSchedules?: () => void;
+  onOpenReminders?: () => void;
   onOpenSkills?: () => void;
   integrationsRefreshToken?: number;
   integrationOauthResult?: IntegrationOAuthResult | null;
@@ -71,6 +72,7 @@ export function ProfileScreen({
   onOpenMemory,
   onOpenEmployees,
   onOpenSchedules,
+  onOpenReminders,
   onOpenSkills,
   integrationsRefreshToken = 0,
   integrationOauthResult = null,
@@ -439,6 +441,23 @@ export function ProfileScreen({
             accessibilityRole="button"
           >
             <Text style={styles.secondaryButtonText}>Manage skills</Text>
+          </Pressable>
+        </>
+      ) : null}
+
+      {onOpenReminders ? (
+        <>
+          <Text style={styles.sectionTitle}>Reminders</Text>
+          <Text style={styles.sectionDescription}>
+            Timed alerts from chat or this screen. Donna will notify you when
+            they are due.
+          </Text>
+          <Pressable
+            style={[styles.button, styles.secondaryButton]}
+            onPress={onOpenReminders}
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryButtonText}>Manage reminders</Text>
           </Pressable>
         </>
       ) : null}

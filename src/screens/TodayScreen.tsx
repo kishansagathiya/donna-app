@@ -27,6 +27,12 @@ import {
   showDailyBriefingNotification,
 } from '../services/dailyBriefingNotifications';
 import {
+  dismissReminder,
+  formatReminderWhen,
+  listReminders,
+  type Reminder,
+} from '../services/remindersApi';
+import {
   briefingWithoutNotes,
   collapseDailyNoteText,
   dailyTaskText,
@@ -164,6 +170,7 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
   const queryClient = useQueryClient();
   const { userId } = useAuth();
   const [briefing, setBriefing] = useState<DailyBriefing | null>(null);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [acting, setActing] = useState(false);
@@ -187,8 +194,12 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
     }
     setError(null);
     try {
-      const result = await checkDailyNotes();
+      const [result, openReminders] = await Promise.all([
+        checkDailyNotes(),
+        listReminders('open').catch(() => [] as Reminder[]),
+      ]);
       setBriefing(result);
+      setReminders(openReminders);
       setSelected(new Set());
       if (withNotification) {
         await showDailyBriefingNotification(result);
@@ -438,6 +449,41 @@ export function TodayScreen({ embedded = false, onOpenNote }: Props) {
         </View>
       ) : null}
 
+      {reminders.length > 0 ? (
+        <View style={styles.remindersBox}>
+          <Text style={styles.remindersTitle}>Reminders</Text>
+          {reminders.slice(0, 4).map(rem => (
+            <View key={rem.id} style={styles.reminderRow}>
+              <View style={styles.reminderText}>
+                <Text style={styles.reminderTitle}>{rem.title}</Text>
+                <Text style={styles.reminderWhen}>
+                  {formatReminderWhen(rem.due_at, rem.timezone)}
+                  {rem.status === 'fired' ? ' · due now' : ''}
+                </Text>
+              </View>
+              {rem.status === 'fired' ? (
+                <Pressable
+                  onPress={() => {
+                    setActing(true);
+                    void dismissReminder(rem.id)
+                      .then(() =>
+                        setReminders(prev => prev.filter(r => r.id !== rem.id)),
+                      )
+                      .catch((err: unknown) =>
+                        setError(err instanceof Error ? err.message : 'Failed'),
+                      )
+                      .finally(() => setActing(false));
+                  }}
+                  disabled={acting}
+                >
+                  <Text style={styles.reminderDone}>Done</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       {allNoteIds.length > 0 ? (
         <View style={styles.bulkBar}>
           <Pressable
@@ -677,6 +723,51 @@ function createStyles(colors: ThemeColors) {
     },
     errorText: {
       color: colors.destructive,
+      fontSize: 14,
+    },
+    remindersBox: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: 8,
+    },
+    remindersTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.muted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+    },
+    reminderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: colors.surface,
+    },
+    reminderText: {
+      flex: 1,
+      minWidth: 0,
+    },
+    reminderTitle: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    reminderWhen: {
+      marginTop: 2,
+      fontSize: 12,
+      color: colors.muted,
+    },
+    reminderDone: {
+      color: colors.primary,
+      fontWeight: '600',
       fontSize: 14,
     },
     centered: {

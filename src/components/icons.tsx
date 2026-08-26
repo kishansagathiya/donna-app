@@ -1063,37 +1063,3 @@ export function SparklesIcon({
     </IconFrame>
   );
 }
-
-export function BotIcon({
-  size = 24,
-  color = 'currentColor',
-  strokeWidth = 1.75,
-}: IconProps) {
-  return (
-    <IconFrame size={size}>
-      <Path
-        d="M12 8V4H8"
-        stroke={color}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <Rect
-        x="4"
-        y="8"
-        width="16"
-        height="12"
-        rx="2"
-        stroke={color}
-        strokeWidth={strokeWidth}
-      />
-      <Path
-        d="M2 14h2M20 14h2M9 13v2M15 13v2"
-        stroke={color}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </IconFrame>
-  );
-}
