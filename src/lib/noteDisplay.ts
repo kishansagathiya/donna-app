@@ -42,3 +42,10 @@ export function noteTagList(note: NoteSummary): string[] {
   if (note.tags?.length) return note.tags;
   return [];
 }
+
+export function noteThumbUrl(
+  note: Pick<NoteSummary, 'image_url' | 'attachments'>,
+): string | undefined {
+  if (note.image_url) return note.image_url;
+  return note.attachments?.find(att => att.url)?.url;
+}

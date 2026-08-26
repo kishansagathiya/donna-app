@@ -31,6 +31,7 @@ import {
   setNoteTags,
   updateNote,
   type Note,
+  type NoteAttachmentInput,
   type NoteSummary,
 } from '../services/notesApi';
 
@@ -179,11 +180,22 @@ export function useCreateNoteMutation() {
 
   return useMutation({
     mutationKey: ["notes", "create"],
-    mutationFn: async (input: { content: string; id: string }) =>
-      createNote(input.content, { id: input.id }),
+    mutationFn: async (input: {
+      content: string;
+      id: string;
+      attachments?: NoteAttachmentInput[];
+    }) => createNote(input.content, { id: input.id, attachments: input.attachments }),
     onMutate: async (input) => {
       const uid = requireUserId(userId);
-      const { title, preview } = previewFromContent(input.content);
+      const { title, preview } = input.content.trim()
+        ? previewFromContent(input.content)
+        : {
+            title: (
+              input.attachments?.[0]?.filename?.replace(/\.[a-z0-9]+$/i, "") ??
+              "Photo"
+            ).slice(0, 80),
+            preview: "",
+          };
       const optimistic: NoteSummary = {
         id: input.id,
         title,
@@ -195,6 +207,7 @@ export function useCreateNoteMutation() {
         keywords: null,
         category: null,
         has_audio: false,
+        has_image: Boolean(input.attachments?.length),
         content_version: 1,
         enrichment_status: "pending",
       };
@@ -259,13 +272,31 @@ export function useUpdateNoteMutation() {
           is_urgent: input.patch.is_urgent,
         });
       }
+      if (input.patch.add_attachments?.length) {
+        patchNoteInFeeds(queryClient, uid, input.id, { has_image: true });
+      }
       if (previous) {
         queryClient.setQueryData<Note>(notesQueryKeys.detail(uid, input.id), {
           ...previous,
-          ...input.patch,
           ...(input.patch.content !== undefined
-            ? previewFromContent(input.patch.content)
+            ? {
+                content: input.patch.content,
+                ...previewFromContent(input.patch.content),
+              }
             : {}),
+          ...(input.patch.note_date !== undefined
+            ? { note_date: input.patch.note_date }
+            : {}),
+          ...(input.patch.is_important !== undefined
+            ? { is_important: input.patch.is_important }
+            : {}),
+          ...(input.patch.is_urgent !== undefined
+            ? { is_urgent: input.patch.is_urgent }
+            : {}),
+          ...(input.patch.content_version !== undefined
+            ? { content_version: input.patch.content_version }
+            : {}),
+          ...(input.patch.add_attachments?.length ? { has_image: true } : {}),
         });
       }
       clearFailedMutation(queryClient, uid, input.id, "update");
@@ -396,7 +427,7 @@ export function useRetryFailedNoteMutation() {
     const uid = requireUserId(userId);
     clearFailedMutation(queryClient, uid, failure.noteId, failure.action);
     const payload = failure.payload as
-      | { content: string; id?: string }
+      | { content: string; id?: string; attachments?: NoteAttachmentInput[] }
       | { id: string; patch: Parameters<typeof updateNote>[1] }
       | { id: string; tags: string[] }
       | undefined;
@@ -405,6 +436,7 @@ export function useRetryFailedNoteMutation() {
       await createMut.mutateAsync({
         content: payload.content,
         id: payload.id ?? failure.noteId,
+        attachments: payload.attachments,
       });
       return;
     }

@@ -11,10 +11,28 @@ export type NoteSummary = {
   keywords: string[] | null;
   category: string | null;
   has_audio: boolean;
+  has_image?: boolean;
+  image_url?: string;
+  attachments?: NoteAttachment[];
   content_version?: number;
   enrichment_status?: string;
   enrichment_version?: number;
   tags?: string[];
+};
+
+export type NoteAttachment = {
+  id: string;
+  kind: string;
+  filename: string;
+  mime?: string;
+  url?: string;
+};
+
+export type NoteAttachmentInput = {
+  kind: string;
+  filename?: string;
+  mime?: string;
+  data_base64?: string;
 };
 
 export type Note = NoteSummary & {
@@ -234,6 +252,8 @@ export async function updateNote(
     is_important?: boolean;
     is_urgent?: boolean;
     content_version?: number;
+    add_attachments?: NoteAttachmentInput[];
+    remove_attachment_ids?: string[];
   },
 ): Promise<Note> {
   const res = await authorizedFetch(`/notes/${id}`, {
@@ -371,10 +391,10 @@ export function newNoteId(): string {
 
 export async function createNote(
   content: string,
-  opts?: { noteDate?: string; id?: string },
+  opts?: { noteDate?: string; id?: string; attachments?: NoteAttachmentInput[] },
 ): Promise<Note> {
   const trimmed = content.trim();
-  if (!trimmed) {
+  if (!trimmed && !(opts?.attachments?.length)) {
     throw new Error('Note cannot be empty');
   }
 
@@ -385,6 +405,7 @@ export async function createNote(
       id: opts?.id ?? newNoteId(),
       content: trimmed,
       note_date: opts?.noteDate,
+      attachments: opts?.attachments,
     }),
   });
   return parseNotesJSON(res);

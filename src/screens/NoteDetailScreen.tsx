@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,6 +14,7 @@ import { Text, TextInput } from '../components/ThemedText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { NoteAudioPlayer } from '../components/NoteAudioPlayer';
+import { PaperclipIcon } from '../components/icons';
 import { useTheme } from '../hooks/useTheme';
 import {
   extractHashtags,
@@ -46,6 +48,10 @@ import {
   useUpdateNoteMutation,
 } from '../hooks/useNotes';
 import type { ThemeColors } from '../theme/colors';
+import {
+  MAX_CHAT_ATTACHMENTS,
+  pickPhotoForChat,
+} from '../lib/chatAttachments';
 
 type Props = {
   noteId: string;
@@ -66,6 +72,9 @@ function toSummary(note: Note): NoteSummary {
     keywords: note.keywords,
     category: note.category,
     has_audio: note.has_audio,
+    has_image: note.has_image,
+    image_url: note.image_url,
+    attachments: note.attachments,
   };
 }
 
@@ -300,6 +309,52 @@ export function NoteDetailScreen({
     }
   };
 
+  const addPhotos = async () => {
+    if (!item || isLocalDeviceNote) {
+      return;
+    }
+    setError(null);
+    try {
+      const next = await pickPhotoForChat(
+        MAX_CHAT_ATTACHMENTS - (item.attachments?.length ?? 0),
+      );
+      if (next.length === 0) {
+        return;
+      }
+      const updated = await updateMutation.mutateAsync({
+        id: noteId,
+        patch: {
+          add_attachments: next.map(att => att.payload),
+          content_version: item.content_version,
+        },
+      });
+      setItem(updated);
+      onUpdated?.(toSummary(updated));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not attach photo');
+    }
+  };
+
+  const removePhoto = async (attachmentId: string) => {
+    if (!item || isLocalDeviceNote) {
+      return;
+    }
+    setError(null);
+    try {
+      const updated = await updateMutation.mutateAsync({
+        id: noteId,
+        patch: {
+          remove_attachment_ids: [attachmentId],
+          content_version: item.content_version,
+        },
+      });
+      setItem(updated);
+      onUpdated?.(toSummary(updated));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not remove photo');
+    }
+  };
+
   const handleDelete = () => {
     Alert.alert('Delete note?', 'This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
@@ -494,6 +549,46 @@ export function NoteDetailScreen({
 
             {item.audio_url ? (
               <NoteAudioPlayer url={item.audio_url} />
+            ) : null}
+
+            {item.attachments && item.attachments.length > 0 ? (
+              <View style={styles.photoRow}>
+                {item.attachments.map(att => (
+                  <View key={att.id} style={styles.photoWrap}>
+                    {att.url ? (
+                      <Image source={{ uri: att.url }} style={styles.photo} />
+                    ) : (
+                      <View style={styles.photoFallback}>
+                        <Text style={styles.mutedText} numberOfLines={2}>
+                          {att.filename}
+                        </Text>
+                      </View>
+                    )}
+                    {!isLocalDeviceNote && item.source_type !== 'integration' ? (
+                      <Pressable
+                        style={styles.photoRemove}
+                        onPress={() => void removePhoto(att.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${att.filename}`}
+                      >
+                        <Text style={styles.photoRemoveText}>✕</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {!isLocalDeviceNote && item.source_type !== 'integration' ? (
+              <Pressable
+                style={styles.attachButton}
+                onPress={() => void addPhotos()}
+                disabled={updateMutation.isPending}
+                accessibilityRole="button"
+                accessibilityLabel="Attach to note"
+              >
+                <PaperclipIcon size={20} color={colors.muted} />
+              </Pressable>
             ) : null}
 
             {!isLocalDeviceNote ? (
@@ -877,6 +972,55 @@ function createStyles(colors: ThemeColors) {
     mutedText: {
       fontSize: 13,
       color: colors.muted,
+    },
+    photoRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginTop: 12,
+    },
+    photoWrap: {
+      position: 'relative',
+    },
+    photo: {
+      width: 96,
+      height: 96,
+      borderRadius: 10,
+      backgroundColor: colors.surface,
+    },
+    photoFallback: {
+      width: 96,
+      height: 96,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 8,
+      backgroundColor: colors.surface,
+    },
+    photoRemove: {
+      position: 'absolute',
+      top: 4,
+      right: 4,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+    },
+    photoRemoveText: {
+      fontSize: 12,
+      color: colors.muted,
+    },
+    attachButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 12,
     },
     factCardLite: {
       borderWidth: 1,

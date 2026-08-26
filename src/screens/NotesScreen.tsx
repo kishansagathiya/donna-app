@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,7 +21,7 @@ import {
   listLocalDeviceNoteSummaries,
 } from '../services/localDeviceCaptures';
 import type { ThemeColors } from '../theme/colors';
-import { ArrowUpIcon } from '../components/icons';
+import { ArrowUpIcon, PaperclipIcon } from '../components/icons';
 import { MicButton } from '../components/MicButton';
 import { NoteDetailScreen } from './NoteDetailScreen';
 import { TagTaxonomyPanel } from '../components/TagTaxonomyPanel';
@@ -36,8 +37,14 @@ import { useVoiceSession } from '../hooks/useVoiceSession';
 import {
   enrichmentLabel,
   noteTagList,
+  noteThumbUrl,
   sourceLabel,
 } from '../lib/noteDisplay';
+import {
+  MAX_CHAT_ATTACHMENTS,
+  pickPhotoForChat,
+  type PendingAttachment,
+} from '../lib/chatAttachments';
 
 function NoteCard({
   note,
@@ -65,11 +72,15 @@ function NoteCard({
     ? { label: source, tone: 'muted' as const }
     : null);
   const body = note.preview?.trim() || note.title;
+  const thumb = noteThumbUrl(note);
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={onPress}
     >
+      {thumb ? (
+        <Image source={{ uri: thumb }} style={styles.cardThumb} />
+      ) : null}
       <View style={styles.cardBody}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardBodyText} numberOfLines={5}>
@@ -178,6 +189,9 @@ export function NotesScreen({
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [draft, setDraft] = useState('');
+  const [pendingAttachments, setPendingAttachments] = useState<
+    PendingAttachment[]
+  >([]);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [localNotes, setLocalNotes] = useState<NoteSummary[]>([]);
@@ -224,7 +238,7 @@ export function NotesScreen({
     micState === 'listening' ||
     micState === 'processing' ||
     micState === 'requesting';
-  const showMic = draft.trim().length === 0;
+  const showMic = draft.trim().length === 0 && pendingAttachments.length === 0;
 
   const serverNotes = useMemo(
     () => feedQuery.data?.pages.flatMap(page => page.items) ?? [],
@@ -341,20 +355,45 @@ export function NotesScreen({
 
   const handleCreateNote = async () => {
     const trimmed = draft.trim();
-    if (!trimmed || createMutation.isPending) {
+    const photos = pendingAttachments;
+    if ((!trimmed && photos.length === 0) || createMutation.isPending) {
       return;
     }
 
     setActionError(null);
     try {
-      await createMutation.mutateAsync({ content: trimmed, id: newNoteId() });
+      await createMutation.mutateAsync({
+        content: trimmed,
+        id: newNoteId(),
+        attachments: photos.length ? photos.map(att => att.payload) : undefined,
+      });
       setDraft('');
+      setPendingAttachments([]);
       if (activeTag) {
         setActiveTag(null);
       }
       void tagsQuery.refetch();
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Failed to save note');
+    }
+  };
+
+  const handleAttach = async () => {
+    if (createMutation.isPending || voiceBusy) {
+      return;
+    }
+    setActionError(null);
+    try {
+      const next = await pickPhotoForChat(
+        MAX_CHAT_ATTACHMENTS - pendingAttachments.length,
+      );
+      if (next.length > 0) {
+        setPendingAttachments(prev => [...prev, ...next]);
+      }
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error ? err.message : 'Could not attach photo',
+      );
     }
   };
 
@@ -386,12 +425,41 @@ export function NotesScreen({
 
       <View style={styles.composeWrap}>
         <View style={styles.composeBox}>
+          {pendingAttachments.length > 0 ? (
+            <View style={styles.attachmentRow}>
+              {pendingAttachments.map(att => (
+                <View key={att.id} style={styles.attachmentChip}>
+                  {att.previewUri ? (
+                    <Image
+                      source={{ uri: att.previewUri }}
+                      style={styles.thumb}
+                    />
+                  ) : null}
+                  <Text style={styles.attachmentName} numberOfLines={1}>
+                    {att.filename}
+                  </Text>
+                  <Pressable
+                    onPress={() =>
+                      setPendingAttachments(prev =>
+                        prev.filter(item => item.id !== att.id),
+                      )
+                    }
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${att.filename}`}
+                  >
+                    <Text style={styles.attachmentRemove}>✕</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : null}
           <TextInput
             style={styles.composeInput}
             value={draft}
             onChangeText={setDraft}
             placeholder={
-              voiceBusy ? 'Listening…' : 'Jot down a note… or tap the mic'
+              voiceBusy ? 'Listening…' : 'Jot down a note… or add a photo'
             }
             placeholderTextColor={colors.muted}
             multiline
@@ -437,41 +505,64 @@ export function NotesScreen({
             ) : (
               <View style={styles.ingestActions} />
             )}
-            {showMic ? (
-              <MicButton
-                variant="inline"
-                state={micState}
-                onPress={() => {
-                  setActionError(null);
-                  void toggleTalk();
-                }}
-                disabled={micDisabled || createMutation.isPending}
-              />
-            ) : (
+            <View style={styles.composeTrailing}>
               <Pressable
                 style={({ pressed }) => [
-                  styles.composeSend,
-                  draft.trim().length > 0 &&
-                    !createMutation.isPending &&
-                    !voiceBusy &&
-                    styles.composeSendActive,
-                  pressed && styles.composeSendPressed,
+                  styles.composeAttach,
+                  (pressed || voiceBusy) && styles.composeSendPressed,
                 ]}
-                onPress={() => void handleCreateNote()}
-                disabled={!draft.trim() || createMutation.isPending || voiceBusy}
+                onPress={() => void handleAttach()}
+                disabled={createMutation.isPending || voiceBusy}
                 accessibilityRole="button"
-                accessibilityLabel="Save note"
+                accessibilityLabel="Attach to note"
               >
-                {createMutation.isPending ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <ArrowUpIcon
-                    size={18}
-                    color={draft.trim() ? colors.primary : colors.muted}
-                  />
-                )}
+                <PaperclipIcon size={20} color={colors.muted} />
               </Pressable>
-            )}
+              {showMic ? (
+                <MicButton
+                  variant="inline"
+                  state={micState}
+                  onPress={() => {
+                    setActionError(null);
+                    void toggleTalk();
+                  }}
+                  disabled={micDisabled || createMutation.isPending}
+                />
+              ) : (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.composeSend,
+                    (draft.trim().length > 0 ||
+                      pendingAttachments.length > 0) &&
+                      !createMutation.isPending &&
+                      !voiceBusy &&
+                      styles.composeSendActive,
+                    pressed && styles.composeSendPressed,
+                  ]}
+                  onPress={() => void handleCreateNote()}
+                  disabled={
+                    (!draft.trim() && pendingAttachments.length === 0) ||
+                    createMutation.isPending ||
+                    voiceBusy
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Save note"
+                >
+                  {createMutation.isPending ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <ArrowUpIcon
+                      size={18}
+                      color={
+                        draft.trim() || pendingAttachments.length > 0
+                          ? colors.primary
+                          : colors.muted
+                      }
+                    />
+                  )}
+                </Pressable>
+              )}
+            </View>
           </View>
         </View>
       </View>
@@ -749,6 +840,18 @@ function createStyles(colors: ThemeColors) {
       paddingHorizontal: 10,
       paddingVertical: 8,
     },
+    composeTrailing: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    composeAttach: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     composeSend: {
       width: 36,
       height: 36,
@@ -783,6 +886,41 @@ function createStyles(colors: ThemeColors) {
       fontSize: 12,
       fontWeight: '600',
       color: colors.text,
+    },
+    attachmentRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      paddingHorizontal: 10,
+      paddingTop: 10,
+    },
+    attachmentChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      maxWidth: 176,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      backgroundColor: colors.surface,
+    },
+    thumb: {
+      width: 28,
+      height: 28,
+      borderRadius: 6,
+    },
+    attachmentName: {
+      flexShrink: 1,
+      fontSize: 12,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    attachmentRemove: {
+      fontSize: 12,
+      color: colors.muted,
+      paddingHorizontal: 2,
     },
     tagFilterRow: {
       paddingHorizontal: 16,
@@ -844,6 +982,13 @@ function createStyles(colors: ThemeColors) {
     },
     cardPressed: {
       opacity: 0.92,
+    },
+    cardThumb: {
+      width: '100%',
+      height: 112,
+      borderRadius: 8,
+      marginBottom: 10,
+      backgroundColor: colors.background,
     },
     cardBody: {
       flexGrow: 1,
